@@ -1,20 +1,72 @@
-import React from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './ui/table';
 import { ScrollArea, ScrollBar } from './ui/scroll-area';
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
-import { CheckCircle2, Circle, Link2, Info, Calendar, Users, MapPin, Activity, FileText, Grid3x3, Download } from 'lucide-react';
-import type { Visit, Assessment, SoACell } from '../types/protocol';
+import { ToggleGroup, ToggleGroupItem } from './ui/toggle-group';
+import { CheckCircle2, Circle, Link2, Info, Calendar, Users, MapPin, Activity, FileText, Grid3x3, Download, AlertTriangle, Sparkles } from 'lucide-react';
+import type { Assessment } from '../types/protocol';
+import {
+  getAssessments,
+  getSchedule,
+  getSoACells,
+  getVisits,
+  reportGeneratedScheduleDiff,
+  subscribe,
+} from '../domain/protocol';
+import type { GeneratedScheduleMetadata } from '../domain/protocol';
+
+type SchedulePreviewMode = 'legacy' | 'generated';
 
 interface ScheduleOfActivitiesProps {
-  visits: Visit[];
-  assessments: Assessment[];
-  cells: SoACell[];
   onCellClick: (visitId: string, assessmentId: string) => void;
 }
 
-export function ScheduleOfActivities({ visits, assessments, cells, onCellClick }: ScheduleOfActivitiesProps) {
+function formatGeneratedAt(value: string): string {
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    return value;
+  }
+
+  return parsed.toLocaleString();
+}
+
+export function ScheduleOfActivities({ onCellClick }: ScheduleOfActivitiesProps) {
+  const [previewMode, setPreviewMode] = useState<SchedulePreviewMode>('legacy');
+  const [scheduleRevision, setScheduleRevision] = useState(0);
+
+  useEffect(() => {
+    return subscribe(() => {
+      setScheduleRevision((revision) => revision + 1);
+    });
+  }, []);
+
+  const scheduleOptions = previewMode === 'generated' ? { generated: true as const } : undefined;
+
+  const visits = useMemo(
+    () => getVisits(undefined, scheduleOptions),
+    [previewMode, scheduleRevision]
+  );
+  const assessments = useMemo(
+    () => getAssessments(undefined, scheduleOptions),
+    [previewMode, scheduleRevision]
+  );
+  const cells = useMemo(
+    () => getSoACells(undefined, scheduleOptions),
+    [previewMode, scheduleRevision]
+  );
+
+  const generatedMetadata = useMemo<GeneratedScheduleMetadata | null>(() => {
+    if (previewMode !== 'generated') {
+      return null;
+    }
+
+    return getSchedule(undefined, { generated: true }).metadata ?? null;
+  }, [previewMode, scheduleRevision]);
+
+  const diffReport = useMemo(() => reportGeneratedScheduleDiff(), [previewMode, scheduleRevision]);
+
   const isCellRequired = (visitId: string, assessmentId: string): boolean => {
     return cells.some((cell) => cell.visitId === visitId && cell.assessmentId === assessmentId && cell.required);
   };
@@ -32,18 +84,89 @@ export function ScheduleOfActivities({ visits, assessments, cells, onCellClick }
 
   return (
     <div className="flex flex-col h-full bg-background">
-      <div className="px-4 py-3 border-b border-border bg-card">
-        <div className="flex items-center justify-between">
+      <div
+        className={`px-4 py-3 border-b border-border bg-card ${
+          previewMode === 'generated' ? 'border-amber-500/40 bg-amber-500/5' : ''
+        }`}
+      >
+        <div className="flex items-start justify-between gap-4">
           <div>
             <h2 className="font-semibold">1.3 Schedule of Activities</h2>
             <p className="text-xs text-muted-foreground mt-0.5">
               Protocol PROTO-XYZ-301 • {visits.length} visits • {assessments.length} assessments
             </p>
           </div>
-          <Badge variant="outline" className="text-xs">
-            Multi-View Editor
-          </Badge>
+          <div className="flex flex-col items-end gap-2">
+            <ToggleGroup
+              type="single"
+              value={previewMode}
+              onValueChange={(value) => {
+                if (value === 'legacy' || value === 'generated') {
+                  setPreviewMode(value);
+                }
+              }}
+              variant="outline"
+              size="sm"
+            >
+              <ToggleGroupItem value="legacy" className="text-xs px-3">
+                Legacy SoA
+              </ToggleGroupItem>
+              <ToggleGroupItem value="generated" className="text-xs px-3">
+                Generated SoA Preview
+              </ToggleGroupItem>
+            </ToggleGroup>
+            {previewMode === 'generated' ? (
+              <Badge variant="outline" className="text-xs border-amber-500/50 text-amber-700 dark:text-amber-300">
+                <Sparkles className="h-3 w-3 mr-1" />
+                Generated Preview
+              </Badge>
+            ) : (
+              <Badge variant="outline" className="text-xs">
+                Legacy Schedule
+              </Badge>
+            )}
+          </div>
         </div>
+
+        {previewMode === 'generated' && generatedMetadata && (
+          <div className="mt-3 rounded-md border border-amber-500/30 bg-background/80 px-3 py-2 text-xs space-y-2">
+            <div className="flex flex-wrap gap-x-4 gap-y-1 text-muted-foreground">
+              <span>
+                <span className="font-medium text-foreground">generatedFromRules:</span>{' '}
+                {String(generatedMetadata.generatedFromRules)}
+              </span>
+              <span>
+                <span className="font-medium text-foreground">sourceRuleCount:</span>{' '}
+                {generatedMetadata.sourceRuleCount}
+              </span>
+              <span>
+                <span className="font-medium text-foreground">sourceVisitDefinitionCount:</span>{' '}
+                {generatedMetadata.sourceVisitDefinitionCount}
+              </span>
+              <span>
+                <span className="font-medium text-foreground">generatedAt:</span>{' '}
+                {formatGeneratedAt(generatedMetadata.generatedAt)}
+              </span>
+            </div>
+            <div className="flex items-start gap-2">
+              {diffReport.structurallyEquivalent ? (
+                <CheckCircle2 className="h-4 w-4 text-green-500 mt-0.5 shrink-0" />
+              ) : (
+                <AlertTriangle className="h-4 w-4 text-amber-500 mt-0.5 shrink-0" />
+              )}
+              <div>
+                <p className="text-foreground">{diffReport.message}</p>
+                {diffReport.knownContentDiffs.length > 0 && (
+                  <ul className="mt-1 list-disc pl-4 text-muted-foreground">
+                    {diffReport.knownContentDiffs.map((note) => (
+                      <li key={note}>{note}</li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       <Tabs defaultValue="interactive-grid" className="flex-1 flex flex-col">

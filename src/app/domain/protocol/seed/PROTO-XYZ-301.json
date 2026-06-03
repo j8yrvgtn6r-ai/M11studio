@@ -169,8 +169,12 @@
       "requiredness": "required",
       "cardinality": "one_to_one",
       "repeatable": false,
-      "validationRuleIds": ["must_not_be_blank"],
-      "aiHints": ["Should identify scientific aspects of the trial and population clearly."],
+      "validationRuleIds": [
+        "must_not_be_blank"
+      ],
+      "aiHints": [
+        "Should identify scientific aspects of the trial and population clearly."
+      ],
       "value": "A Phase 3, Randomized, Double-Blind, Placebo-Controlled Study Evaluating the Efficacy and Safety of Investigational Drug XYZ in Patients with Advanced Non-Small Cell Lung Cancer"
     },
     {
@@ -192,7 +196,15 @@
       "requiredness": "required",
       "controlledTerminology": {
         "codeList": "C217045",
-        "values": ["Early Phase 1", "Phase 1", "Phase 1/Phase 2", "Phase 2", "Phase 2/Phase 3", "Phase 3", "Phase 4"]
+        "values": [
+          "Early Phase 1",
+          "Phase 1",
+          "Phase 1/Phase 2",
+          "Phase 2",
+          "Phase 2/Phase 3",
+          "Phase 3",
+          "Phase 4"
+        ]
       },
       "value": "Phase 3"
     },
@@ -206,11 +218,19 @@
       "controlledTerminology": {
         "codeList": "C217046",
         "values": [
-          { "label": "Yes", "code": "C49488" },
-          { "label": "No", "code": "C49487" }
+          {
+            "label": "Yes",
+            "code": "C49488"
+          },
+          {
+            "label": "No",
+            "code": "C49487"
+          }
         ]
       },
-      "validationRuleIds": ["if_no_then_amendment_identifier_required"],
+      "validationRuleIds": [
+        "if_no_then_amendment_identifier_required"
+      ],
       "value": "No"
     },
     {
@@ -223,11 +243,19 @@
       "controlledTerminology": {
         "codeList": "C217047",
         "values": [
-          { "label": "Global", "code": "C68846" },
-          { "label": "Not Global", "code": "C217026" }
+          {
+            "label": "Global",
+            "code": "C68846"
+          },
+          {
+            "label": "Not Global",
+            "code": "C217026"
+          }
         ]
       },
-      "validationRuleIds": ["if_not_global_then_country_region_or_site_identifier_required"]
+      "validationRuleIds": [
+        "if_not_global_then_country_region_or_site_identifier_required"
+      ]
     }
   ],
   "clinicalDesign": {
@@ -238,7 +266,9 @@
         "name": "Primary Objective: Overall Survival",
         "description": "Evaluate overall survival in patients treated with 177Lu-PSMA-617",
         "sectionRef": "3",
-        "status": ["complete"]
+        "status": [
+          "complete"
+        ]
       },
       {
         "id": "obj-2",
@@ -246,7 +276,9 @@
         "name": "Secondary Objective: Progression-Free Survival",
         "description": "Assess progression-free survival as a secondary endpoint",
         "sectionRef": "3",
-        "status": ["complete"]
+        "status": [
+          "complete"
+        ]
       }
     ],
     "endpoints": [
@@ -256,7 +288,9 @@
         "name": "Overall Survival",
         "description": "Time from randomization to death from any cause",
         "sectionRef": "3",
-        "status": ["complete"]
+        "status": [
+          "complete"
+        ]
       },
       {
         "id": "ep-2",
@@ -264,7 +298,9 @@
         "name": "Progression-Free Survival",
         "description": "Time from randomization to disease progression or death",
         "sectionRef": "3",
-        "status": ["complete"]
+        "status": [
+          "complete"
+        ]
       },
       {
         "id": "ep-3",
@@ -272,7 +308,9 @@
         "name": "PSA Response Rate",
         "description": "Proportion of patients with ≥50% PSA decline",
         "sectionRef": "3",
-        "status": ["incomplete"]
+        "status": [
+          "incomplete"
+        ]
       }
     ],
     "assessments": [
@@ -282,7 +320,9 @@
         "name": "Tumor Assessment (CT/MRI)",
         "description": "Imaging assessment using RECIST 1.1 criteria",
         "sectionRef": "1.3",
-        "status": ["complete"]
+        "status": [
+          "complete"
+        ]
       },
       {
         "id": "assess-2",
@@ -290,7 +330,9 @@
         "name": "PSA Level",
         "description": "Prostate-specific antigen blood test",
         "sectionRef": "1.3",
-        "status": ["complete"]
+        "status": [
+          "complete"
+        ]
       },
       {
         "id": "assess-3",
@@ -298,7 +340,9 @@
         "name": "Safety Labs",
         "description": "Hematology and chemistry panels",
         "sectionRef": "1.3",
-        "status": ["validation-issue"]
+        "status": [
+          "validation-issue"
+        ]
       }
     ],
     "visits": [
@@ -308,7 +352,9 @@
         "name": "Screening Visit",
         "description": "Baseline assessments and eligibility confirmation",
         "sectionRef": "1.3",
-        "status": ["complete"]
+        "status": [
+          "complete"
+        ]
       },
       {
         "id": "visit-2",
@@ -316,7 +362,9 @@
         "name": "Cycle 1 Day 1",
         "description": "First treatment administration",
         "sectionRef": "1.3",
-        "status": ["complete"]
+        "status": [
+          "complete"
+        ]
       },
       {
         "id": "visit-3",
@@ -324,7 +372,10 @@
         "name": "Follow-up Visits",
         "description": "Regular monitoring visits every 6 weeks",
         "sectionRef": "1.3",
-        "status": ["incomplete", "ai-recommendation"]
+        "status": [
+          "incomplete",
+          "ai-recommendation"
+        ]
       }
     ],
     "statisticalAnalyses": [
@@ -334,7 +385,9 @@
         "name": "Primary Analysis: OS",
         "description": "Kaplan-Meier analysis with log-rank test",
         "sectionRef": "10",
-        "status": ["complete"]
+        "status": [
+          "complete"
+        ]
       },
       {
         "id": "stat-2",
@@ -342,7 +395,9 @@
         "name": "Secondary Analysis: PFS",
         "description": "Progression-free survival analysis",
         "sectionRef": "10",
-        "status": ["complete"]
+        "status": [
+          "complete"
+        ]
       }
     ],
     "studyArms": [
@@ -352,7 +407,9 @@
         "name": "177Lu-PSMA-617 + BSC",
         "description": "Experimental arm with radiopharmaceutical",
         "sectionRef": "4",
-        "status": ["complete"]
+        "status": [
+          "complete"
+        ]
       },
       {
         "id": "arm-2",
@@ -360,7 +417,9 @@
         "name": "Best Standard Care",
         "description": "Control arm",
         "sectionRef": "4",
-        "status": ["complete"]
+        "status": [
+          "complete"
+        ]
       }
     ],
     "populations": [
@@ -370,7 +429,9 @@
         "name": "Target Population",
         "description": "mCRPC patients with PSMA-positive disease",
         "sectionRef": "5",
-        "status": ["complete"]
+        "status": [
+          "complete"
+        ]
       }
     ],
     "eligibilityCriteria": [
@@ -380,7 +441,9 @@
         "name": "PSMA-positive on PET scan",
         "description": "Confirmed PSMA expression by imaging",
         "sectionRef": "5",
-        "status": ["complete"]
+        "status": [
+          "complete"
+        ]
       },
       {
         "id": "elig-2",
@@ -388,7 +451,9 @@
         "name": "Progressive mCRPC",
         "description": "Disease progression despite castration therapy",
         "sectionRef": "5",
-        "status": ["complete"]
+        "status": [
+          "complete"
+        ]
       }
     ],
     "biomarkers": [
@@ -398,7 +463,9 @@
         "name": "PSMA Expression",
         "description": "PSMA-PET scan uptake",
         "sectionRef": "5",
-        "status": ["complete"]
+        "status": [
+          "complete"
+        ]
       }
     ],
     "interventions": [
@@ -408,7 +475,9 @@
         "name": "177Lu-PSMA-617",
         "description": "7.4 GBq IV every 6 weeks",
         "sectionRef": "4",
-        "status": ["complete"]
+        "status": [
+          "complete"
+        ]
       }
     ],
     "safetyAssessments": [
@@ -418,105 +487,715 @@
         "name": "Adverse Event Monitoring",
         "description": "Continuous AE monitoring per CTCAE v5.0",
         "sectionRef": "8",
-        "status": ["recently-modified"]
+        "status": [
+          "recently-modified"
+        ]
+      }
+    ]
+  },
+  "visitSchedule": {
+    "anchors": [
+      {
+        "id": "anchor-randomization",
+        "name": "Randomization",
+        "anchorType": "randomization",
+        "description": "Baseline reference for screening and Day 1 visits"
+      },
+      {
+        "id": "anchor-first-dose",
+        "name": "First Dose",
+        "anchorType": "first-dose",
+        "sourceVisitId": "vd-c1d1",
+        "description": "Treatment cycle day reference"
+      },
+      {
+        "id": "anchor-last-dose",
+        "name": "Last Dose",
+        "anchorType": "last-dose",
+        "description": "Reference for safety follow-up visits"
+      },
+      {
+        "id": "anchor-previous-visit",
+        "name": "Previous Visit",
+        "anchorType": "previous-visit",
+        "description": "Rolling schedule reference for subsequent treatment visits"
+      },
+      {
+        "id": "anchor-eot",
+        "name": "End of Treatment",
+        "anchorType": "end-of-treatment",
+        "description": "Treatment discontinuation reference"
+      }
+    ],
+    "visitDefinitions": [
+      {
+        "id": "vd-screening",
+        "clinicalDesignVisitId": "visit-1",
+        "name": "Screening",
+        "visitType": "screening",
+        "epoch": "screening",
+        "anchorId": "anchor-randomization",
+        "offsetDays": -14,
+        "nominalDay": -14,
+        "windowBeforeDays": 14,
+        "windowAfterDays": 0,
+        "required": true,
+        "order": 1,
+        "missedVisitPolicy": "recordDeviationOnly",
+        "reanchorPolicy": "preserveOriginalAnchor",
+        "ripplePolicy": "noRipple",
+        "metadata": {
+          "scheduleVisitId": "v1"
+        }
+      },
+      {
+        "id": "vd-baseline",
+        "name": "Baseline",
+        "visitType": "baseline",
+        "epoch": "screening",
+        "anchorId": "anchor-randomization",
+        "nominalDay": 1,
+        "windowBeforeDays": 0,
+        "windowAfterDays": 0,
+        "required": true,
+        "order": 2,
+        "reanchorPolicy": "preserveOriginalAnchor",
+        "ripplePolicy": "noRipple",
+        "metadata": {
+          "scheduleVisitId": "v2"
+        }
+      },
+      {
+        "id": "vd-c1d1",
+        "clinicalDesignVisitId": "visit-2",
+        "name": "Cycle 1 Day 1",
+        "visitType": "treatment",
+        "epoch": "treatment",
+        "cycleNumber": 1,
+        "anchorId": "anchor-first-dose",
+        "nominalDay": 1,
+        "windowBeforeDays": 0,
+        "windowAfterDays": 0,
+        "required": true,
+        "order": 3,
+        "reanchorPolicy": "preserveOriginalAnchor",
+        "ripplePolicy": "noRipple",
+        "metadata": {
+          "scheduleVisitId": "v3"
+        }
+      },
+      {
+        "id": "vd-c1d8",
+        "name": "Cycle 1 Day 8",
+        "visitType": "treatment",
+        "epoch": "treatment",
+        "cycleNumber": 1,
+        "anchorId": "anchor-first-dose",
+        "offsetDays": 7,
+        "nominalDay": 8,
+        "windowBeforeDays": 1,
+        "windowAfterDays": 1,
+        "required": true,
+        "order": 4,
+        "reanchorPolicy": "reanchorToActualVisitDate",
+        "ripplePolicy": "rippleWithinCycleOnly",
+        "metadata": {
+          "scheduleVisitId": "v4"
+        }
+      },
+      {
+        "id": "vd-c1d15",
+        "name": "Cycle 1 Day 15",
+        "visitType": "treatment",
+        "epoch": "treatment",
+        "cycleNumber": 1,
+        "anchorId": "anchor-first-dose",
+        "offsetDays": 14,
+        "nominalDay": 15,
+        "windowBeforeDays": 3,
+        "windowAfterDays": 3,
+        "required": true,
+        "order": 5,
+        "missedVisitPolicy": "recordDeviationOnly",
+        "reanchorPolicy": "preserveOriginalAnchor",
+        "ripplePolicy": "noRipple",
+        "metadata": {
+          "scheduleVisitId": "v5"
+        }
+      },
+      {
+        "id": "vd-c2d1",
+        "name": "Cycle 2 Day 1",
+        "visitType": "treatment",
+        "epoch": "treatment",
+        "cycleNumber": 2,
+        "anchorId": "anchor-previous-visit",
+        "offsetDays": 21,
+        "required": true,
+        "order": 6,
+        "reanchorPolicy": "reanchorToActualVisitDate",
+        "ripplePolicy": "rippleSubsequentVisits",
+        "metadata": {
+          "scheduleVisitId": "v6"
+        }
+      },
+      {
+        "id": "vd-c3d1",
+        "name": "Cycle 3 Day 1",
+        "visitType": "treatment",
+        "epoch": "treatment",
+        "cycleNumber": 3,
+        "anchorId": "anchor-previous-visit",
+        "offsetDays": 21,
+        "required": true,
+        "order": 7,
+        "reanchorPolicy": "reanchorToActualVisitDate",
+        "ripplePolicy": "rippleSubsequentVisits",
+        "metadata": {
+          "scheduleVisitId": "v7"
+        }
+      },
+      {
+        "id": "vd-eot",
+        "name": "End of Treatment",
+        "visitType": "early-termination",
+        "epoch": "treatment",
+        "anchorId": "anchor-eot",
+        "required": true,
+        "order": 8,
+        "reanchorPolicy": "preserveOriginalAnchor",
+        "ripplePolicy": "noRipple",
+        "metadata": {
+          "scheduleVisitId": "v8"
+        }
+      },
+      {
+        "id": "vd-fu30",
+        "clinicalDesignVisitId": "visit-3",
+        "name": "Safety Follow-up",
+        "visitType": "follow-up",
+        "epoch": "follow-up",
+        "anchorId": "anchor-last-dose",
+        "offsetDays": 30,
+        "nominalDay": 30,
+        "windowBeforeDays": 7,
+        "windowAfterDays": 7,
+        "required": true,
+        "order": 9,
+        "reanchorPolicy": "reanchorToActualVisitDate",
+        "ripplePolicy": "noRipple",
+        "metadata": {
+          "scheduleVisitId": "v9"
+        }
       }
     ]
   },
   "schedule": {
     "visits": [
-      { "id": "v1", "entityId": "visit-1", "label": "Screening", "order": 1, "timepoint": "Day -28 to -1" },
-      { "id": "v2", "label": "Baseline", "order": 2, "timepoint": "Day 1" },
-      { "id": "v3", "entityId": "visit-2", "label": "C1D1", "order": 3, "timepoint": "Cycle 1 Day 1" },
-      { "id": "v4", "label": "C1D8", "order": 4, "timepoint": "Cycle 1 Day 8" },
-      { "id": "v5", "label": "C1D15", "order": 5, "timepoint": "Cycle 1 Day 15" },
-      { "id": "v6", "label": "C2D1", "order": 6, "timepoint": "Cycle 2 Day 1" },
-      { "id": "v7", "label": "C3D1", "order": 7, "timepoint": "Cycle 3 Day 1" },
-      { "id": "v8", "label": "EOT", "order": 8, "timepoint": "End of Treatment" },
-      { "id": "v9", "entityId": "visit-3", "label": "FU30", "order": 9, "timepoint": "Follow-up +30d" }
+      {
+        "id": "v1",
+        "entityId": "visit-1",
+        "label": "Screening",
+        "order": 1,
+        "timepoint": "Day -28 to -1"
+      },
+      {
+        "id": "v2",
+        "label": "Baseline",
+        "order": 2,
+        "timepoint": "Day 1"
+      },
+      {
+        "id": "v3",
+        "entityId": "visit-2",
+        "label": "C1D1",
+        "order": 3,
+        "timepoint": "Cycle 1 Day 1"
+      },
+      {
+        "id": "v4",
+        "label": "C1D8",
+        "order": 4,
+        "timepoint": "Cycle 1 Day 8"
+      },
+      {
+        "id": "v5",
+        "label": "C1D15",
+        "order": 5,
+        "timepoint": "Cycle 1 Day 15"
+      },
+      {
+        "id": "v6",
+        "label": "C2D1",
+        "order": 6,
+        "timepoint": "Cycle 2 Day 1"
+      },
+      {
+        "id": "v7",
+        "label": "C3D1",
+        "order": 7,
+        "timepoint": "Cycle 3 Day 1"
+      },
+      {
+        "id": "v8",
+        "label": "EOT",
+        "order": 8,
+        "timepoint": "End of Treatment"
+      },
+      {
+        "id": "v9",
+        "entityId": "visit-3",
+        "label": "FU30",
+        "order": 9,
+        "timepoint": "Follow-up +30d"
+      }
     ],
     "assessments": [
-      { "id": "a1", "label": "Informed Consent", "category": "Administrative" },
-      { "id": "a2", "label": "Demographics", "category": "Baseline", "linkedSectionId": "5" },
-      { "id": "a3", "label": "Medical History", "category": "Baseline", "linkedSectionId": "5" },
-      { "id": "a4", "label": "Physical Examination", "category": "Safety", "linkedSectionId": "8.4" },
-      { "id": "a5", "label": "Vital Signs", "category": "Safety", "linkedSectionId": "8.4" },
-      { "id": "a6", "label": "ECG", "category": "Safety", "linkedSectionId": "8.4" },
-      { "id": "a7", "entityId": "assess-3", "label": "Laboratory Tests", "category": "Safety", "linkedSectionId": "8.4" },
-      { "id": "a8", "entityId": "assess-1", "label": "Tumor Assessment (RECIST)", "category": "Efficacy", "linkedSectionId": "8.3" },
-      { "id": "a9", "label": "PK Sampling", "category": "PK", "linkedSectionId": "8.5" },
-      { "id": "a10", "label": "Adverse Events", "category": "Safety", "linkedSectionId": "9" },
-      { "id": "a11", "label": "Concomitant Medications", "category": "Safety", "linkedSectionId": "6.10" },
-      { "id": "a12", "label": "Study Drug Administration", "category": "Intervention", "linkedSectionId": "6.3" }
+      {
+        "id": "a1",
+        "label": "Informed Consent",
+        "category": "Administrative"
+      },
+      {
+        "id": "a2",
+        "label": "Demographics",
+        "category": "Baseline",
+        "linkedSectionId": "5"
+      },
+      {
+        "id": "a3",
+        "label": "Medical History",
+        "category": "Baseline",
+        "linkedSectionId": "5"
+      },
+      {
+        "id": "a4",
+        "label": "Physical Examination",
+        "category": "Safety",
+        "linkedSectionId": "8.4"
+      },
+      {
+        "id": "a5",
+        "label": "Vital Signs",
+        "category": "Safety",
+        "linkedSectionId": "8.4"
+      },
+      {
+        "id": "a6",
+        "label": "ECG",
+        "category": "Safety",
+        "linkedSectionId": "8.4"
+      },
+      {
+        "id": "a7",
+        "entityId": "assess-3",
+        "label": "Laboratory Tests",
+        "category": "Safety",
+        "linkedSectionId": "8.4"
+      },
+      {
+        "id": "a8",
+        "entityId": "assess-1",
+        "label": "Tumor Assessment (RECIST)",
+        "category": "Efficacy",
+        "linkedSectionId": "8.3"
+      },
+      {
+        "id": "a9",
+        "label": "PK Sampling",
+        "category": "PK",
+        "linkedSectionId": "8.5"
+      },
+      {
+        "id": "a10",
+        "label": "Adverse Events",
+        "category": "Safety",
+        "linkedSectionId": "9"
+      },
+      {
+        "id": "a11",
+        "label": "Concomitant Medications",
+        "category": "Safety",
+        "linkedSectionId": "6.10"
+      },
+      {
+        "id": "a12",
+        "label": "Study Drug Administration",
+        "category": "Intervention",
+        "linkedSectionId": "6.3"
+      }
     ],
     "cells": [
-      { "visitId": "v1", "assessmentId": "a1", "required": true },
-      { "visitId": "v1", "assessmentId": "a2", "required": true },
-      { "visitId": "v1", "assessmentId": "a3", "required": true },
-      { "visitId": "v1", "assessmentId": "a4", "required": true },
-      { "visitId": "v1", "assessmentId": "a5", "required": true },
-      { "visitId": "v1", "assessmentId": "a6", "required": true },
-      { "visitId": "v1", "assessmentId": "a7", "required": true },
-      { "visitId": "v1", "assessmentId": "a8", "required": true },
-      { "visitId": "v2", "assessmentId": "a4", "required": true },
-      { "visitId": "v2", "assessmentId": "a5", "required": true },
-      { "visitId": "v2", "assessmentId": "a7", "required": true },
-      { "visitId": "v3", "assessmentId": "a4", "required": true },
-      { "visitId": "v3", "assessmentId": "a5", "required": true },
-      { "visitId": "v3", "assessmentId": "a7", "required": true },
-      { "visitId": "v3", "assessmentId": "a9", "required": true },
-      { "visitId": "v3", "assessmentId": "a10", "required": true },
-      { "visitId": "v3", "assessmentId": "a11", "required": true },
-      { "visitId": "v3", "assessmentId": "a12", "required": true },
-      { "visitId": "v4", "assessmentId": "a5", "required": true },
-      { "visitId": "v4", "assessmentId": "a10", "required": true },
-      { "visitId": "v4", "assessmentId": "a12", "required": true },
-      { "visitId": "v5", "assessmentId": "a5", "required": true },
-      { "visitId": "v5", "assessmentId": "a10", "required": true },
-      { "visitId": "v5", "assessmentId": "a12", "required": true },
-      { "visitId": "v6", "assessmentId": "a4", "required": true },
-      { "visitId": "v6", "assessmentId": "a5", "required": true },
-      { "visitId": "v6", "assessmentId": "a7", "required": true },
-      { "visitId": "v6", "assessmentId": "a8", "required": true },
-      { "visitId": "v6", "assessmentId": "a10", "required": true },
-      { "visitId": "v6", "assessmentId": "a11", "required": true },
-      { "visitId": "v6", "assessmentId": "a12", "required": true },
-      { "visitId": "v7", "assessmentId": "a4", "required": true },
-      { "visitId": "v7", "assessmentId": "a5", "required": true },
-      { "visitId": "v7", "assessmentId": "a7", "required": true },
-      { "visitId": "v7", "assessmentId": "a9", "required": true },
-      { "visitId": "v7", "assessmentId": "a10", "required": true },
-      { "visitId": "v7", "assessmentId": "a12", "required": true },
-      { "visitId": "v8", "assessmentId": "a4", "required": true },
-      { "visitId": "v8", "assessmentId": "a5", "required": true },
-      { "visitId": "v8", "assessmentId": "a7", "required": true },
-      { "visitId": "v8", "assessmentId": "a8", "required": true },
-      { "visitId": "v8", "assessmentId": "a10", "required": true },
-      { "visitId": "v9", "assessmentId": "a10", "required": true },
-      { "visitId": "v9", "assessmentId": "a11", "required": true }
+      {
+        "visitId": "v1",
+        "assessmentId": "a1",
+        "required": true
+      },
+      {
+        "visitId": "v1",
+        "assessmentId": "a2",
+        "required": true
+      },
+      {
+        "visitId": "v1",
+        "assessmentId": "a3",
+        "required": true
+      },
+      {
+        "visitId": "v1",
+        "assessmentId": "a4",
+        "required": true
+      },
+      {
+        "visitId": "v1",
+        "assessmentId": "a5",
+        "required": true
+      },
+      {
+        "visitId": "v1",
+        "assessmentId": "a6",
+        "required": true
+      },
+      {
+        "visitId": "v1",
+        "assessmentId": "a7",
+        "required": true
+      },
+      {
+        "visitId": "v1",
+        "assessmentId": "a8",
+        "required": true
+      },
+      {
+        "visitId": "v2",
+        "assessmentId": "a4",
+        "required": true
+      },
+      {
+        "visitId": "v2",
+        "assessmentId": "a5",
+        "required": true
+      },
+      {
+        "visitId": "v2",
+        "assessmentId": "a7",
+        "required": true
+      },
+      {
+        "visitId": "v3",
+        "assessmentId": "a4",
+        "required": true
+      },
+      {
+        "visitId": "v3",
+        "assessmentId": "a5",
+        "required": true
+      },
+      {
+        "visitId": "v3",
+        "assessmentId": "a7",
+        "required": true
+      },
+      {
+        "visitId": "v3",
+        "assessmentId": "a9",
+        "required": true
+      },
+      {
+        "visitId": "v3",
+        "assessmentId": "a10",
+        "required": true
+      },
+      {
+        "visitId": "v3",
+        "assessmentId": "a11",
+        "required": true
+      },
+      {
+        "visitId": "v3",
+        "assessmentId": "a12",
+        "required": true
+      },
+      {
+        "visitId": "v4",
+        "assessmentId": "a5",
+        "required": true
+      },
+      {
+        "visitId": "v4",
+        "assessmentId": "a10",
+        "required": true
+      },
+      {
+        "visitId": "v4",
+        "assessmentId": "a12",
+        "required": true
+      },
+      {
+        "visitId": "v5",
+        "assessmentId": "a5",
+        "required": true
+      },
+      {
+        "visitId": "v5",
+        "assessmentId": "a10",
+        "required": true
+      },
+      {
+        "visitId": "v5",
+        "assessmentId": "a12",
+        "required": true
+      },
+      {
+        "visitId": "v6",
+        "assessmentId": "a4",
+        "required": true
+      },
+      {
+        "visitId": "v6",
+        "assessmentId": "a5",
+        "required": true
+      },
+      {
+        "visitId": "v6",
+        "assessmentId": "a7",
+        "required": true
+      },
+      {
+        "visitId": "v6",
+        "assessmentId": "a8",
+        "required": true
+      },
+      {
+        "visitId": "v6",
+        "assessmentId": "a10",
+        "required": true
+      },
+      {
+        "visitId": "v6",
+        "assessmentId": "a11",
+        "required": true
+      },
+      {
+        "visitId": "v6",
+        "assessmentId": "a12",
+        "required": true
+      },
+      {
+        "visitId": "v7",
+        "assessmentId": "a4",
+        "required": true
+      },
+      {
+        "visitId": "v7",
+        "assessmentId": "a5",
+        "required": true
+      },
+      {
+        "visitId": "v7",
+        "assessmentId": "a7",
+        "required": true
+      },
+      {
+        "visitId": "v7",
+        "assessmentId": "a9",
+        "required": true
+      },
+      {
+        "visitId": "v7",
+        "assessmentId": "a10",
+        "required": true
+      },
+      {
+        "visitId": "v7",
+        "assessmentId": "a12",
+        "required": true
+      },
+      {
+        "visitId": "v8",
+        "assessmentId": "a4",
+        "required": true
+      },
+      {
+        "visitId": "v8",
+        "assessmentId": "a5",
+        "required": true
+      },
+      {
+        "visitId": "v8",
+        "assessmentId": "a7",
+        "required": true
+      },
+      {
+        "visitId": "v8",
+        "assessmentId": "a8",
+        "required": true
+      },
+      {
+        "visitId": "v8",
+        "assessmentId": "a10",
+        "required": true
+      },
+      {
+        "visitId": "v9",
+        "assessmentId": "a10",
+        "required": true
+      },
+      {
+        "visitId": "v9",
+        "assessmentId": "a11",
+        "required": true
+      }
     ]
   },
   "relationships": [
-    { "id": "e1", "sourceId": "obj-1", "targetId": "ep-1", "label": "defines", "kind": "defines" },
-    { "id": "e2", "sourceId": "obj-2", "targetId": "ep-2", "label": "defines", "kind": "defines" },
-    { "id": "e3", "sourceId": "ep-1", "targetId": "assess-1", "label": "measured by", "kind": "measured-by" },
-    { "id": "e4", "sourceId": "ep-2", "targetId": "assess-1", "label": "measured by", "kind": "measured-by" },
-    { "id": "e5", "sourceId": "ep-3", "targetId": "assess-2", "label": "measured by", "kind": "measured-by" },
-    { "id": "e6", "sourceId": "assess-1", "targetId": "visit-1", "label": "performed at", "kind": "performed-at" },
-    { "id": "e7", "sourceId": "assess-1", "targetId": "visit-3", "label": "performed at", "kind": "performed-at" },
-    { "id": "e8", "sourceId": "assess-2", "targetId": "visit-1", "label": "performed at", "kind": "performed-at" },
-    { "id": "e9", "sourceId": "assess-2", "targetId": "visit-2", "label": "performed at", "kind": "performed-at" },
-    { "id": "e10", "sourceId": "assess-2", "targetId": "visit-3", "label": "performed at", "kind": "performed-at" },
-    { "id": "e11", "sourceId": "assess-3", "targetId": "visit-2", "label": "performed at", "kind": "performed-at" },
-    { "id": "e12", "sourceId": "assess-3", "targetId": "visit-3", "label": "performed at", "kind": "performed-at" },
-    { "id": "e13", "sourceId": "ep-1", "targetId": "stat-1", "label": "analyzed by", "kind": "analyzed-by" },
-    { "id": "e14", "sourceId": "ep-2", "targetId": "stat-2", "label": "analyzed by", "kind": "analyzed-by" },
-    { "id": "e15", "sourceId": "pop-1", "targetId": "elig-1", "label": "requires", "kind": "requires" },
-    { "id": "e16", "sourceId": "pop-1", "targetId": "elig-2", "label": "requires", "kind": "requires" },
-    { "id": "e17", "sourceId": "interv-1", "targetId": "arm-1", "label": "assigned to", "kind": "assigned-to" },
-    { "id": "e18", "sourceId": "bio-1", "targetId": "ep-3", "label": "predicts", "kind": "predicts" },
-    { "id": "e19", "sourceId": "bio-1", "targetId": "elig-1", "label": "defines", "kind": "defines" },
-    { "id": "e20", "sourceId": "safety-1", "targetId": "visit-2", "label": "monitored at", "kind": "monitored-at" },
-    { "id": "e21", "sourceId": "safety-1", "targetId": "visit-3", "label": "monitored at", "kind": "monitored-at" }
+    {
+      "id": "e1",
+      "sourceId": "obj-1",
+      "targetId": "ep-1",
+      "label": "defines",
+      "kind": "defines"
+    },
+    {
+      "id": "e2",
+      "sourceId": "obj-2",
+      "targetId": "ep-2",
+      "label": "defines",
+      "kind": "defines"
+    },
+    {
+      "id": "e3",
+      "sourceId": "ep-1",
+      "targetId": "assess-1",
+      "label": "measured by",
+      "kind": "measured-by"
+    },
+    {
+      "id": "e4",
+      "sourceId": "ep-2",
+      "targetId": "assess-1",
+      "label": "measured by",
+      "kind": "measured-by"
+    },
+    {
+      "id": "e5",
+      "sourceId": "ep-3",
+      "targetId": "assess-2",
+      "label": "measured by",
+      "kind": "measured-by"
+    },
+    {
+      "id": "e6",
+      "sourceId": "assess-1",
+      "targetId": "visit-1",
+      "label": "performed at",
+      "kind": "performed-at"
+    },
+    {
+      "id": "e7",
+      "sourceId": "assess-1",
+      "targetId": "visit-3",
+      "label": "performed at",
+      "kind": "performed-at"
+    },
+    {
+      "id": "e8",
+      "sourceId": "assess-2",
+      "targetId": "visit-1",
+      "label": "performed at",
+      "kind": "performed-at"
+    },
+    {
+      "id": "e9",
+      "sourceId": "assess-2",
+      "targetId": "visit-2",
+      "label": "performed at",
+      "kind": "performed-at"
+    },
+    {
+      "id": "e10",
+      "sourceId": "assess-2",
+      "targetId": "visit-3",
+      "label": "performed at",
+      "kind": "performed-at"
+    },
+    {
+      "id": "e11",
+      "sourceId": "assess-3",
+      "targetId": "visit-2",
+      "label": "performed at",
+      "kind": "performed-at"
+    },
+    {
+      "id": "e12",
+      "sourceId": "assess-3",
+      "targetId": "visit-3",
+      "label": "performed at",
+      "kind": "performed-at"
+    },
+    {
+      "id": "e13",
+      "sourceId": "ep-1",
+      "targetId": "stat-1",
+      "label": "analyzed by",
+      "kind": "analyzed-by"
+    },
+    {
+      "id": "e14",
+      "sourceId": "ep-2",
+      "targetId": "stat-2",
+      "label": "analyzed by",
+      "kind": "analyzed-by"
+    },
+    {
+      "id": "e15",
+      "sourceId": "pop-1",
+      "targetId": "elig-1",
+      "label": "requires",
+      "kind": "requires"
+    },
+    {
+      "id": "e16",
+      "sourceId": "pop-1",
+      "targetId": "elig-2",
+      "label": "requires",
+      "kind": "requires"
+    },
+    {
+      "id": "e17",
+      "sourceId": "interv-1",
+      "targetId": "arm-1",
+      "label": "assigned to",
+      "kind": "assigned-to"
+    },
+    {
+      "id": "e18",
+      "sourceId": "bio-1",
+      "targetId": "ep-3",
+      "label": "predicts",
+      "kind": "predicts"
+    },
+    {
+      "id": "e19",
+      "sourceId": "bio-1",
+      "targetId": "elig-1",
+      "label": "defines",
+      "kind": "defines"
+    },
+    {
+      "id": "e20",
+      "sourceId": "safety-1",
+      "targetId": "visit-2",
+      "label": "monitored at",
+      "kind": "monitored-at"
+    },
+    {
+      "id": "e21",
+      "sourceId": "safety-1",
+      "targetId": "visit-3",
+      "label": "monitored at",
+      "kind": "monitored-at"
+    }
   ],
   "validationIssues": [
     {
@@ -616,5 +1295,591 @@
         "details": "Requested clarification on SoA timepoints"
       }
     ]
-  }
+  },
+  "assessmentScheduleRules": [
+    {
+      "id": "asr-v1-a1",
+      "assessmentId": "a1",
+      "visitDefinitionId": "vd-screening",
+      "required": true,
+      "relativeTiming": "at-visit",
+      "metadata": {
+        "scheduleVisitId": "v1",
+        "scheduleAssessmentId": "a1",
+        "assessmentRefKind": "schedule"
+      }
+    },
+    {
+      "id": "asr-v1-a2",
+      "assessmentId": "a2",
+      "visitDefinitionId": "vd-screening",
+      "required": true,
+      "relativeTiming": "at-visit",
+      "metadata": {
+        "scheduleVisitId": "v1",
+        "scheduleAssessmentId": "a2",
+        "assessmentRefKind": "schedule"
+      },
+      "sourceSectionId": "5"
+    },
+    {
+      "id": "asr-v1-a3",
+      "assessmentId": "a3",
+      "visitDefinitionId": "vd-screening",
+      "required": true,
+      "relativeTiming": "at-visit",
+      "metadata": {
+        "scheduleVisitId": "v1",
+        "scheduleAssessmentId": "a3",
+        "assessmentRefKind": "schedule"
+      },
+      "sourceSectionId": "5"
+    },
+    {
+      "id": "asr-v1-a4",
+      "assessmentId": "a4",
+      "visitDefinitionId": "vd-screening",
+      "required": true,
+      "relativeTiming": "at-visit",
+      "metadata": {
+        "scheduleVisitId": "v1",
+        "scheduleAssessmentId": "a4",
+        "assessmentRefKind": "schedule",
+        "linkedSectionRef": "8.4"
+      }
+    },
+    {
+      "id": "asr-v1-a5",
+      "assessmentId": "a5",
+      "visitDefinitionId": "vd-screening",
+      "required": true,
+      "relativeTiming": "at-visit",
+      "metadata": {
+        "scheduleVisitId": "v1",
+        "scheduleAssessmentId": "a5",
+        "assessmentRefKind": "schedule",
+        "linkedSectionRef": "8.4"
+      }
+    },
+    {
+      "id": "asr-v1-a6",
+      "assessmentId": "a6",
+      "visitDefinitionId": "vd-screening",
+      "required": true,
+      "relativeTiming": "at-visit",
+      "metadata": {
+        "scheduleVisitId": "v1",
+        "scheduleAssessmentId": "a6",
+        "assessmentRefKind": "schedule",
+        "linkedSectionRef": "8.4"
+      }
+    },
+    {
+      "id": "asr-v1-a7",
+      "assessmentId": "a7",
+      "visitDefinitionId": "vd-screening",
+      "required": true,
+      "relativeTiming": "at-visit",
+      "metadata": {
+        "scheduleVisitId": "v1",
+        "scheduleAssessmentId": "a7",
+        "assessmentRefKind": "schedule",
+        "clinicalDesignAssessmentId": "assess-3",
+        "linkedSectionRef": "8.4"
+      }
+    },
+    {
+      "id": "asr-v1-a8",
+      "assessmentId": "a8",
+      "visitDefinitionId": "vd-screening",
+      "required": true,
+      "relativeTiming": "at-visit",
+      "metadata": {
+        "scheduleVisitId": "v1",
+        "scheduleAssessmentId": "a8",
+        "assessmentRefKind": "schedule",
+        "clinicalDesignAssessmentId": "assess-1",
+        "linkedSectionRef": "8.3"
+      }
+    },
+    {
+      "id": "asr-v2-a4",
+      "assessmentId": "a4",
+      "visitDefinitionId": "vd-baseline",
+      "required": true,
+      "relativeTiming": "at-visit",
+      "metadata": {
+        "scheduleVisitId": "v2",
+        "scheduleAssessmentId": "a4",
+        "assessmentRefKind": "schedule",
+        "linkedSectionRef": "8.4"
+      }
+    },
+    {
+      "id": "asr-v2-a5",
+      "assessmentId": "a5",
+      "visitDefinitionId": "vd-baseline",
+      "required": true,
+      "relativeTiming": "at-visit",
+      "metadata": {
+        "scheduleVisitId": "v2",
+        "scheduleAssessmentId": "a5",
+        "assessmentRefKind": "schedule",
+        "linkedSectionRef": "8.4"
+      }
+    },
+    {
+      "id": "asr-v2-a7",
+      "assessmentId": "a7",
+      "visitDefinitionId": "vd-baseline",
+      "required": true,
+      "relativeTiming": "at-visit",
+      "metadata": {
+        "scheduleVisitId": "v2",
+        "scheduleAssessmentId": "a7",
+        "assessmentRefKind": "schedule",
+        "clinicalDesignAssessmentId": "assess-3",
+        "linkedSectionRef": "8.4"
+      }
+    },
+    {
+      "id": "asr-v3-a4",
+      "assessmentId": "a4",
+      "visitDefinitionId": "vd-c1d1",
+      "required": true,
+      "relativeTiming": "at-visit",
+      "metadata": {
+        "scheduleVisitId": "v3",
+        "scheduleAssessmentId": "a4",
+        "assessmentRefKind": "schedule",
+        "linkedSectionRef": "8.4"
+      }
+    },
+    {
+      "id": "asr-v3-a5",
+      "assessmentId": "a5",
+      "visitDefinitionId": "vd-c1d1",
+      "required": true,
+      "relativeTiming": "at-visit",
+      "metadata": {
+        "scheduleVisitId": "v3",
+        "scheduleAssessmentId": "a5",
+        "assessmentRefKind": "schedule",
+        "linkedSectionRef": "8.4"
+      }
+    },
+    {
+      "id": "asr-v3-a7",
+      "assessmentId": "a7",
+      "visitDefinitionId": "vd-c1d1",
+      "required": true,
+      "relativeTiming": "at-visit",
+      "metadata": {
+        "scheduleVisitId": "v3",
+        "scheduleAssessmentId": "a7",
+        "assessmentRefKind": "schedule",
+        "clinicalDesignAssessmentId": "assess-3",
+        "linkedSectionRef": "8.4"
+      }
+    },
+    {
+      "id": "asr-v3-a9",
+      "assessmentId": "a9",
+      "visitDefinitionId": "vd-c1d1",
+      "required": true,
+      "relativeTiming": "at-visit",
+      "metadata": {
+        "scheduleVisitId": "v3",
+        "scheduleAssessmentId": "a9",
+        "assessmentRefKind": "schedule",
+        "linkedSectionRef": "8.5"
+      }
+    },
+    {
+      "id": "asr-v3-a10",
+      "assessmentId": "a10",
+      "visitDefinitionId": "vd-c1d1",
+      "required": true,
+      "relativeTiming": "at-visit",
+      "metadata": {
+        "scheduleVisitId": "v3",
+        "scheduleAssessmentId": "a10",
+        "assessmentRefKind": "schedule",
+        "linkedSectionRef": "9"
+      }
+    },
+    {
+      "id": "asr-v3-a11",
+      "assessmentId": "a11",
+      "visitDefinitionId": "vd-c1d1",
+      "required": true,
+      "relativeTiming": "at-visit",
+      "metadata": {
+        "scheduleVisitId": "v3",
+        "scheduleAssessmentId": "a11",
+        "assessmentRefKind": "schedule",
+        "linkedSectionRef": "6.10"
+      }
+    },
+    {
+      "id": "asr-v3-a12",
+      "assessmentId": "a12",
+      "visitDefinitionId": "vd-c1d1",
+      "required": true,
+      "relativeTiming": "at-visit",
+      "metadata": {
+        "scheduleVisitId": "v3",
+        "scheduleAssessmentId": "a12",
+        "assessmentRefKind": "schedule",
+        "linkedSectionRef": "6.3"
+      }
+    },
+    {
+      "id": "asr-v4-a5",
+      "assessmentId": "a5",
+      "visitDefinitionId": "vd-c1d8",
+      "required": true,
+      "relativeTiming": "at-visit",
+      "metadata": {
+        "scheduleVisitId": "v4",
+        "scheduleAssessmentId": "a5",
+        "assessmentRefKind": "schedule",
+        "linkedSectionRef": "8.4"
+      }
+    },
+    {
+      "id": "asr-v4-a10",
+      "assessmentId": "a10",
+      "visitDefinitionId": "vd-c1d8",
+      "required": true,
+      "relativeTiming": "at-visit",
+      "metadata": {
+        "scheduleVisitId": "v4",
+        "scheduleAssessmentId": "a10",
+        "assessmentRefKind": "schedule",
+        "linkedSectionRef": "9"
+      }
+    },
+    {
+      "id": "asr-v4-a12",
+      "assessmentId": "a12",
+      "visitDefinitionId": "vd-c1d8",
+      "required": true,
+      "relativeTiming": "at-visit",
+      "metadata": {
+        "scheduleVisitId": "v4",
+        "scheduleAssessmentId": "a12",
+        "assessmentRefKind": "schedule",
+        "linkedSectionRef": "6.3"
+      }
+    },
+    {
+      "id": "asr-v5-a5",
+      "assessmentId": "a5",
+      "visitDefinitionId": "vd-c1d15",
+      "required": true,
+      "relativeTiming": "at-visit",
+      "metadata": {
+        "scheduleVisitId": "v5",
+        "scheduleAssessmentId": "a5",
+        "assessmentRefKind": "schedule",
+        "linkedSectionRef": "8.4"
+      }
+    },
+    {
+      "id": "asr-v5-a10",
+      "assessmentId": "a10",
+      "visitDefinitionId": "vd-c1d15",
+      "required": true,
+      "relativeTiming": "at-visit",
+      "metadata": {
+        "scheduleVisitId": "v5",
+        "scheduleAssessmentId": "a10",
+        "assessmentRefKind": "schedule",
+        "linkedSectionRef": "9"
+      }
+    },
+    {
+      "id": "asr-v5-a12",
+      "assessmentId": "a12",
+      "visitDefinitionId": "vd-c1d15",
+      "required": true,
+      "relativeTiming": "at-visit",
+      "metadata": {
+        "scheduleVisitId": "v5",
+        "scheduleAssessmentId": "a12",
+        "assessmentRefKind": "schedule",
+        "linkedSectionRef": "6.3"
+      }
+    },
+    {
+      "id": "asr-v6-a4",
+      "assessmentId": "a4",
+      "visitDefinitionId": "vd-c2d1",
+      "required": true,
+      "relativeTiming": "at-visit",
+      "metadata": {
+        "scheduleVisitId": "v6",
+        "scheduleAssessmentId": "a4",
+        "assessmentRefKind": "schedule",
+        "linkedSectionRef": "8.4"
+      }
+    },
+    {
+      "id": "asr-v6-a5",
+      "assessmentId": "a5",
+      "visitDefinitionId": "vd-c2d1",
+      "required": true,
+      "relativeTiming": "at-visit",
+      "metadata": {
+        "scheduleVisitId": "v6",
+        "scheduleAssessmentId": "a5",
+        "assessmentRefKind": "schedule",
+        "linkedSectionRef": "8.4"
+      }
+    },
+    {
+      "id": "asr-v6-a7",
+      "assessmentId": "a7",
+      "visitDefinitionId": "vd-c2d1",
+      "required": true,
+      "relativeTiming": "at-visit",
+      "metadata": {
+        "scheduleVisitId": "v6",
+        "scheduleAssessmentId": "a7",
+        "assessmentRefKind": "schedule",
+        "clinicalDesignAssessmentId": "assess-3",
+        "linkedSectionRef": "8.4"
+      }
+    },
+    {
+      "id": "asr-v6-a8",
+      "assessmentId": "a8",
+      "visitDefinitionId": "vd-c2d1",
+      "required": true,
+      "relativeTiming": "at-visit",
+      "metadata": {
+        "scheduleVisitId": "v6",
+        "scheduleAssessmentId": "a8",
+        "assessmentRefKind": "schedule",
+        "clinicalDesignAssessmentId": "assess-1",
+        "linkedSectionRef": "8.3"
+      },
+      "independentOfDoseDelay": true,
+      "timingNote": "Every 8 weeks from first dose, independent of dose delays"
+    },
+    {
+      "id": "asr-v6-a10",
+      "assessmentId": "a10",
+      "visitDefinitionId": "vd-c2d1",
+      "required": true,
+      "relativeTiming": "at-visit",
+      "metadata": {
+        "scheduleVisitId": "v6",
+        "scheduleAssessmentId": "a10",
+        "assessmentRefKind": "schedule",
+        "linkedSectionRef": "9"
+      }
+    },
+    {
+      "id": "asr-v6-a11",
+      "assessmentId": "a11",
+      "visitDefinitionId": "vd-c2d1",
+      "required": true,
+      "relativeTiming": "at-visit",
+      "metadata": {
+        "scheduleVisitId": "v6",
+        "scheduleAssessmentId": "a11",
+        "assessmentRefKind": "schedule",
+        "linkedSectionRef": "6.10"
+      }
+    },
+    {
+      "id": "asr-v6-a12",
+      "assessmentId": "a12",
+      "visitDefinitionId": "vd-c2d1",
+      "required": true,
+      "relativeTiming": "at-visit",
+      "metadata": {
+        "scheduleVisitId": "v6",
+        "scheduleAssessmentId": "a12",
+        "assessmentRefKind": "schedule",
+        "linkedSectionRef": "6.3"
+      }
+    },
+    {
+      "id": "asr-v7-a4",
+      "assessmentId": "a4",
+      "visitDefinitionId": "vd-c3d1",
+      "required": true,
+      "relativeTiming": "at-visit",
+      "metadata": {
+        "scheduleVisitId": "v7",
+        "scheduleAssessmentId": "a4",
+        "assessmentRefKind": "schedule",
+        "linkedSectionRef": "8.4"
+      }
+    },
+    {
+      "id": "asr-v7-a5",
+      "assessmentId": "a5",
+      "visitDefinitionId": "vd-c3d1",
+      "required": true,
+      "relativeTiming": "at-visit",
+      "metadata": {
+        "scheduleVisitId": "v7",
+        "scheduleAssessmentId": "a5",
+        "assessmentRefKind": "schedule",
+        "linkedSectionRef": "8.4"
+      }
+    },
+    {
+      "id": "asr-v7-a7",
+      "assessmentId": "a7",
+      "visitDefinitionId": "vd-c3d1",
+      "required": true,
+      "relativeTiming": "at-visit",
+      "metadata": {
+        "scheduleVisitId": "v7",
+        "scheduleAssessmentId": "a7",
+        "assessmentRefKind": "schedule",
+        "clinicalDesignAssessmentId": "assess-3",
+        "linkedSectionRef": "8.4"
+      }
+    },
+    {
+      "id": "asr-v7-a9",
+      "assessmentId": "a9",
+      "visitDefinitionId": "vd-c3d1",
+      "required": true,
+      "relativeTiming": "at-visit",
+      "metadata": {
+        "scheduleVisitId": "v7",
+        "scheduleAssessmentId": "a9",
+        "assessmentRefKind": "schedule",
+        "linkedSectionRef": "8.5"
+      }
+    },
+    {
+      "id": "asr-v7-a10",
+      "assessmentId": "a10",
+      "visitDefinitionId": "vd-c3d1",
+      "required": true,
+      "relativeTiming": "at-visit",
+      "metadata": {
+        "scheduleVisitId": "v7",
+        "scheduleAssessmentId": "a10",
+        "assessmentRefKind": "schedule",
+        "linkedSectionRef": "9"
+      }
+    },
+    {
+      "id": "asr-v7-a12",
+      "assessmentId": "a12",
+      "visitDefinitionId": "vd-c3d1",
+      "required": true,
+      "relativeTiming": "at-visit",
+      "metadata": {
+        "scheduleVisitId": "v7",
+        "scheduleAssessmentId": "a12",
+        "assessmentRefKind": "schedule",
+        "linkedSectionRef": "6.3"
+      }
+    },
+    {
+      "id": "asr-v8-a4",
+      "assessmentId": "a4",
+      "visitDefinitionId": "vd-eot",
+      "required": true,
+      "relativeTiming": "at-visit",
+      "metadata": {
+        "scheduleVisitId": "v8",
+        "scheduleAssessmentId": "a4",
+        "assessmentRefKind": "schedule",
+        "linkedSectionRef": "8.4"
+      }
+    },
+    {
+      "id": "asr-v8-a5",
+      "assessmentId": "a5",
+      "visitDefinitionId": "vd-eot",
+      "required": true,
+      "relativeTiming": "at-visit",
+      "metadata": {
+        "scheduleVisitId": "v8",
+        "scheduleAssessmentId": "a5",
+        "assessmentRefKind": "schedule",
+        "linkedSectionRef": "8.4"
+      }
+    },
+    {
+      "id": "asr-v8-a7",
+      "assessmentId": "a7",
+      "visitDefinitionId": "vd-eot",
+      "required": true,
+      "relativeTiming": "at-visit",
+      "metadata": {
+        "scheduleVisitId": "v8",
+        "scheduleAssessmentId": "a7",
+        "assessmentRefKind": "schedule",
+        "clinicalDesignAssessmentId": "assess-3",
+        "linkedSectionRef": "8.4"
+      }
+    },
+    {
+      "id": "asr-v8-a8",
+      "assessmentId": "a8",
+      "visitDefinitionId": "vd-eot",
+      "required": true,
+      "relativeTiming": "at-visit",
+      "metadata": {
+        "scheduleVisitId": "v8",
+        "scheduleAssessmentId": "a8",
+        "assessmentRefKind": "schedule",
+        "clinicalDesignAssessmentId": "assess-1",
+        "linkedSectionRef": "8.3"
+      },
+      "independentOfDoseDelay": true,
+      "timingNote": "Every 8 weeks from first dose, independent of dose delays"
+    },
+    {
+      "id": "asr-v8-a10",
+      "assessmentId": "a10",
+      "visitDefinitionId": "vd-eot",
+      "required": true,
+      "relativeTiming": "at-visit",
+      "metadata": {
+        "scheduleVisitId": "v8",
+        "scheduleAssessmentId": "a10",
+        "assessmentRefKind": "schedule",
+        "linkedSectionRef": "9"
+      }
+    },
+    {
+      "id": "asr-v9-a10",
+      "assessmentId": "a10",
+      "visitDefinitionId": "vd-fu30",
+      "required": true,
+      "relativeTiming": "at-visit",
+      "metadata": {
+        "scheduleVisitId": "v9",
+        "scheduleAssessmentId": "a10",
+        "assessmentRefKind": "schedule",
+        "linkedSectionRef": "9"
+      }
+    },
+    {
+      "id": "asr-v9-a11",
+      "assessmentId": "a11",
+      "visitDefinitionId": "vd-fu30",
+      "required": true,
+      "relativeTiming": "at-visit",
+      "metadata": {
+        "scheduleVisitId": "v9",
+        "scheduleAssessmentId": "a11",
+        "assessmentRefKind": "schedule",
+        "linkedSectionRef": "6.10"
+      }
+    }
+  ]
 }

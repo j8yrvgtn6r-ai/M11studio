@@ -77,6 +77,130 @@ export type RelationshipKind =
   | 'monitored-at'
   | string;
 
+/** Milestone used to position visits on the study timeline. */
+export type ScheduleAnchorType =
+  | 'informed-consent'
+  | 'screening'
+  | 'randomization'
+  | 'first-dose'
+  | 'cycle-1-day-1'
+  | 'previous-visit'
+  | 'last-dose'
+  | 'end-of-treatment'
+  | 'disease-progression'
+  | 'investigator-decision'
+  | 'custom';
+
+export type VisitDefinitionType =
+  | 'screening'
+  | 'baseline'
+  | 'treatment'
+  | 'follow-up'
+  | 'early-termination'
+  | 'unscheduled';
+
+export type MissedVisitPolicy =
+  | 'skip'
+  | 'makeUpAsSoonAsPossible'
+  | 'recordDeviationOnly'
+  | 'investigatorDecision';
+
+export type ReanchorPolicy =
+  | 'preserveOriginalAnchor'
+  | 'reanchorToActualVisitDate'
+  | 'reanchorOnlyWithinWindow'
+  | 'reanchorOnlyIfProtocolSpecified'
+  | 'hybrid';
+
+export type RipplePolicy =
+  | 'noRipple'
+  | 'rippleSubsequentVisits'
+  | 'rippleWithinEpochOnly'
+  | 'rippleWithinCycleOnly'
+  | 'rippleSelectedVisitTypesOnly';
+
+/** Anchor visit or anchor event in the visit schedule catalog. */
+export interface ScheduleAnchor {
+  id: string;
+  name: string;
+  anchorType: ScheduleAnchorType;
+  sourceVisitId?: string;
+  sourceEventType?: string;
+  description?: string;
+}
+
+/** Operational visit timing entry in the visit schedule model. */
+export interface VisitDefinition {
+  id: string;
+  clinicalDesignVisitId?: string;
+  name: string;
+  visitType: VisitDefinitionType;
+  epoch?: string;
+  cycleNumber?: number;
+  anchorId: string;
+  offsetDays?: number;
+  offsetWeeks?: number;
+  offsetCycles?: number;
+  nominalDay?: number;
+  nominalWeek?: number;
+  windowBeforeDays?: number;
+  windowAfterDays?: number;
+  armRestrictions?: string[];
+  required: boolean;
+  description?: string;
+  order: number;
+  missedVisitPolicy?: MissedVisitPolicy;
+  reanchorPolicy?: ReanchorPolicy;
+  ripplePolicy?: RipplePolicy;
+  /** When true, nominal schedule stays on original anchor even if actual visit dates slip. */
+  preserveOriginalSchedule?: boolean;
+  allowedMakeupWindowDays?: number;
+  metadata?: Record<string, unknown>;
+}
+
+/** Visit schedule source-of-truth (anchors + visit definitions). */
+export interface VisitScheduleModel {
+  anchors: ScheduleAnchor[];
+  visitDefinitions: VisitDefinition[];
+}
+
+export type RelativeTiming =
+  | 'at-visit'
+  | 'before-administration'
+  | 'after-administration'
+  | 'continuous'
+  | 'between-visits'
+  | 'interval-weeks';
+
+export interface ScheduleCondition {
+  expression?: string;
+  armIds?: string[];
+  populationIds?: string[];
+}
+
+/** Assessment × visit intersection rule for SoA generation. */
+export interface AssessmentScheduleRule {
+  id: string;
+  /**
+   * Canonical assessment reference: prefer `clinicalDesign.assessments[].id`.
+   * Legacy `schedule.assessments[].id` values remain accepted during Stage 2c→2d migration;
+   * use `metadata.clinicalDesignAssessmentId` / `metadata.scheduleAssessmentId` for cross-layer links.
+   */
+  assessmentId: string;
+  visitDefinitionId: string;
+  required: boolean;
+  timingNote?: string;
+  windowBeforeDays?: number;
+  windowAfterDays?: number;
+  relativeTiming?: RelativeTiming;
+  condition?: ScheduleCondition;
+  armRestrictions?: string[];
+  repeats?: boolean;
+  independentOfDoseDelay?: boolean;
+  sourceSectionId?: string;
+  metadata?: Record<string, unknown>;
+}
+
 /** Root machine-readable protocol artifact. */
 export interface ProtocolDocument {
   schemaVersion: SchemaVersion;
@@ -87,6 +211,8 @@ export interface ProtocolDocument {
   sections: SectionNode[];
   elements: ProtocolElement[];
   clinicalDesign: ClinicalDesignEntities;
+  visitSchedule: VisitScheduleModel;
+  assessmentScheduleRules: AssessmentScheduleRule[];
   schedule: ScheduleDefinition;
   relationships: ProtocolRelationship[];
   validationIssues: ValidationIssueRecord[];

@@ -19,3 +19,17 @@ export type { CreateRelationshipInput, UpdateRelationshipPatch } from './relatio
 
 export { updateDesignEntity, updateElement, updateElementValue } from './mutations';
 export type { UpdateDesignEntityPatch, UpdateElementPatch } from './mutations';
+
+export { updateScheduleAnchor, updateVisitDefinition } from './visitScheduleMutations';
+export type { UpdateScheduleAnchorPatch, UpdateVisitDefinitionPatch } from './visitScheduleMutations';
+
+export {
+  createAssessmentScheduleRule,
+  deleteAssessmentScheduleRule,
+  updateAssessmentScheduleRule,
+} from './assessmentScheduleRuleMutations';
+
+export type {
+  CreateAssessmentScheduleRuleInput,
+  UpdateAssessmentScheduleRulePatch,
+} from './assessmentScheduleRuleMutations';

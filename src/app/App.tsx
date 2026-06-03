@@ -35,15 +35,12 @@ import {
   Network,
 } from 'lucide-react';
 import {
-  getAssessments,
   getAuditEvents,
   getComments,
   getDependencyNodes,
   getFieldDefinitions,
   getProtocolSections,
-  getSoACells,
   getValidationIssues,
-  getVisits,
   subscribe,
   updateElementValue,
   downloadProtocolJson,
@@ -55,9 +52,6 @@ const protocolSections = getProtocolSections();
 const validationIssues = getValidationIssues();
 const auditEvents = getAuditEvents();
 const comments = getComments();
-const visits = getVisits();
-const assessments = getAssessments();
-const soaCells = getSoACells();
 
 export default function App() {
   const [selectedSectionId, setSelectedSectionId] = useState<string | null>('1');
@@ -284,12 +278,7 @@ export default function App() {
             {/* Center: Document Viewport */}
             <ResizablePanel id="document-viewport" order={2} defaultSize={50} minSize={30}>
               {isScheduleOfActivities ? (
-                <ScheduleOfActivities
-                  visits={visits}
-                  assessments={assessments}
-                  cells={soaCells}
-                  onCellClick={handleSoACellClick}
-                />
+                <ScheduleOfActivities onCellClick={handleSoACellClick} />
               ) : (
                 <DocumentViewport
                   section={selectedSection}

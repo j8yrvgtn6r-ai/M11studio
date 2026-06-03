@@ -21,6 +21,17 @@ export type {
   ScheduleVisit,
   ScheduleAssessment,
   ScheduleCell,
+  ScheduleAnchor,
+  ScheduleAnchorType,
+  VisitDefinition,
+  VisitDefinitionType,
+  VisitScheduleModel,
+  AssessmentScheduleRule,
+  RelativeTiming,
+  ScheduleCondition,
+  MissedVisitPolicy,
+  ReanchorPolicy,
+  RipplePolicy,
   ProtocolRelationship,
   ValidationIssueRecord,
   CollaborationRecord,
@@ -34,21 +45,30 @@ export {
   getProtocolSnapshot,
   resetProtocolStore,
   subscribe,
+  createAssessmentScheduleRule,
   createDesignEntity,
   createRelationship,
+  deleteAssessmentScheduleRule,
   deleteDesignEntity,
   deleteRelationship,
+  updateAssessmentScheduleRule,
   updateDesignEntity,
   updateElement,
   updateElementValue,
   updateRelationship,
+  updateScheduleAnchor,
+  updateVisitDefinition,
 } from './store';
 
 export type {
+  CreateAssessmentScheduleRuleInput,
   CreateDesignEntityInput,
   CreateRelationshipInput,
+  UpdateAssessmentScheduleRulePatch,
   UpdateDesignEntityPatch,
   UpdateRelationshipPatch,
+  UpdateScheduleAnchorPatch,
+  UpdateVisitDefinitionPatch,
 } from './store';
 
 export {
@@ -81,6 +101,50 @@ export {
 } from './clinicalDesign';
 
 export {
+  findScheduleAnchor,
+  findScheduleAnchorInDocument,
+  findVisitDefinition,
+  findVisitDefinitionInDocument,
+  scheduleAnchorExistsInDocument,
+  selectScheduleAnchors,
+  selectVisitDefinitions,
+  visitDefinitionExistsInDocument,
+  validateVisitSchedule,
+} from './visitSchedule';
+
+export type {
+  ScheduleAnchorLocation,
+  VisitDefinitionLocation,
+} from './visitSchedule';
+
+export {
+  assessmentIdExistsInDocument,
+  assessmentReferencesMatch,
+  assessmentScheduleRuleExistsInDocument,
+  buildAssessmentReferenceMetadata,
+  collectClinicalDesignAssessmentIds,
+  collectScheduleAssessmentIds,
+  collectValidAssessmentIds,
+  findAssessmentScheduleRule,
+  findAssessmentScheduleRuleInDocument,
+  findScheduleAssessmentInDocument,
+  isClinicalDesignAssessmentId,
+  isScheduleAssessmentId,
+  resolveAssessmentReference,
+  selectAssessmentScheduleRules,
+  selectAssessmentScheduleRulesForAssessment,
+  selectAssessmentScheduleRulesForVisit,
+  validateAssessmentScheduleRules,
+} from './assessmentScheduleRule';
+
+export type {
+  AssessmentReferenceKind,
+  AssessmentReferenceResolution,
+  AssessmentScheduleRuleLocation,
+  AssessmentScheduleRuleValidationMessage,
+} from './assessmentScheduleRule';
+
+export {
   getAssessments,
   getAuditEvents,
   getComments,
@@ -88,9 +152,24 @@ export {
   getDependencyNodes,
   getFieldDefinitions,
   getProtocolSections,
+  getSchedule,
   getSoACells,
+  getUseGeneratedSchedule,
   getValidationIssues,
   getVisits,
+  resetUseGeneratedSchedule,
+  setUseGeneratedSchedule,
+  getScheduleAnchors,
+  getVisitDefinitions,
+  getVisitDefinition,
+  getAssessmentScheduleRules,
+  getAssessmentScheduleRulesForAssessment,
+  getAssessmentScheduleRulesForVisit,
+  getAssessmentScheduleRule,
+  getGeneratedAssessments,
+  getGeneratedSchedule,
+  getGeneratedSoACells,
+  getGeneratedVisits,
   selectAssessments,
   selectAuditEvents,
   selectComments,
@@ -104,8 +183,30 @@ export {
   toLegacyDate,
 } from './selectors';
 
+export type { ScheduleSelectorOptions } from './selectors';
+
 export { formatParityReport, runParityCheck } from './parity/checkParity';
 export type { ParityCheckResult, ParityReport } from './parity/checkParity';
+
+export {
+  compareGeneratedScheduleToAuthoritative,
+  formatGeneratedScheduleComparisonReport,
+  formatGeneratedScheduleDiffReport,
+  generateScheduleFromRules,
+  reportGeneratedScheduleDiff,
+  resolveGeneratedAssessmentRowId,
+  resolveGeneratedVisitColumnId,
+} from './scheduleGeneration';
+
+export type {
+  GeneratedSchedule,
+  GeneratedScheduleComparisonReport,
+  GeneratedScheduleDiffReport,
+  GeneratedScheduleMetadata,
+  ScheduleComparisonDifference,
+  ScheduleComparisonSection,
+  ScheduleView,
+} from './scheduleGeneration';
 
 export {
   downloadProtocolJson,

@@ -1,6 +1,8 @@
 import type { ProtocolDocument } from './types';
 import { validateClinicalDesignEntities, collectSectionIds } from './clinicalDesign/entityValidation';
 import { validateRelationships } from './clinicalDesign/relationshipValidation';
+import { validateVisitSchedule } from './visitSchedule/visitScheduleValidation';
+import { validateAssessmentScheduleRules } from './assessmentScheduleRule/assessmentScheduleRuleValidation';
 
 export interface ProtocolValidationMessage {
   code: string;
@@ -103,6 +105,10 @@ export function validateProtocol(document: ProtocolDocument): ProtocolValidation
   });
 
   validateRelationships(document, errors, warnings);
+
+  validateVisitSchedule(document, errors, warnings);
+
+  validateAssessmentScheduleRules(document, errors, warnings);
 
   const scheduleVisitIds = document.schedule.visits.map((visit) => visit.id);
   checkUniqueIds(scheduleVisitIds, 'schedule.visits', errors);
