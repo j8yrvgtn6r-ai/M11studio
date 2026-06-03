@@ -1,9 +1,11 @@
 import { getProtocolSnapshot } from '../store';
+import { ensureAuthoritativeScheduleCacheFresh } from './ensureScheduleCacheFresh';
 import type { ProtocolDocument } from '../types';
 
 /** Serializes a protocol document as indented JSON. */
-export function serializeProtocolDocument(document: ProtocolDocument = getProtocolSnapshot()): string {
-  return JSON.stringify(document, null, 2);
+export function serializeProtocolDocument(document?: ProtocolDocument): string {
+  ensureAuthoritativeScheduleCacheFresh();
+  return JSON.stringify(document ?? getProtocolSnapshot(), null, 2);
 }
 
 /** Builds a download filename from the protocol id. */

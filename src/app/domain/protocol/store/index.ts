@@ -33,3 +33,5 @@ export type {
   CreateAssessmentScheduleRuleInput,
   UpdateAssessmentScheduleRulePatch,
 } from './assessmentScheduleRuleMutations';
+
+export { isAuthoritativeScheduleCacheStale, regenerateScheduleCache, regenerateScheduleCacheAfterMutation } from './scheduleCacheMutations';

@@ -56,6 +56,21 @@
   },
   {
     "visitId": "v3",
+    "assessmentId": "a10",
+    "required": true
+  },
+  {
+    "visitId": "v3",
+    "assessmentId": "a11",
+    "required": true
+  },
+  {
+    "visitId": "v3",
+    "assessmentId": "a12",
+    "required": true
+  },
+  {
+    "visitId": "v3",
     "assessmentId": "a4",
     "required": true
   },
@@ -75,47 +90,47 @@
     "required": true
   },
   {
-    "visitId": "v3",
+    "visitId": "v4",
     "assessmentId": "a10",
     "required": true
   },
   {
-    "visitId": "v3",
+    "visitId": "v4",
+    "assessmentId": "a12",
+    "required": true
+  },
+  {
+    "visitId": "v4",
+    "assessmentId": "a5",
+    "required": true
+  },
+  {
+    "visitId": "v5",
+    "assessmentId": "a10",
+    "required": true
+  },
+  {
+    "visitId": "v5",
+    "assessmentId": "a12",
+    "required": true
+  },
+  {
+    "visitId": "v5",
+    "assessmentId": "a5",
+    "required": true
+  },
+  {
+    "visitId": "v6",
+    "assessmentId": "a10",
+    "required": true
+  },
+  {
+    "visitId": "v6",
     "assessmentId": "a11",
     "required": true
   },
   {
-    "visitId": "v3",
-    "assessmentId": "a12",
-    "required": true
-  },
-  {
-    "visitId": "v4",
-    "assessmentId": "a5",
-    "required": true
-  },
-  {
-    "visitId": "v4",
-    "assessmentId": "a10",
-    "required": true
-  },
-  {
-    "visitId": "v4",
-    "assessmentId": "a12",
-    "required": true
-  },
-  {
-    "visitId": "v5",
-    "assessmentId": "a5",
-    "required": true
-  },
-  {
-    "visitId": "v5",
-    "assessmentId": "a10",
-    "required": true
-  },
-  {
-    "visitId": "v5",
+    "visitId": "v6",
     "assessmentId": "a12",
     "required": true
   },
@@ -141,17 +156,12 @@
     "notes": "Every 8 weeks from first dose, independent of dose delays"
   },
   {
-    "visitId": "v6",
+    "visitId": "v7",
     "assessmentId": "a10",
     "required": true
   },
   {
-    "visitId": "v6",
-    "assessmentId": "a11",
-    "required": true
-  },
-  {
-    "visitId": "v6",
+    "visitId": "v7",
     "assessmentId": "a12",
     "required": true
   },
@@ -176,13 +186,8 @@
     "required": true
   },
   {
-    "visitId": "v7",
+    "visitId": "v8",
     "assessmentId": "a10",
-    "required": true
-  },
-  {
-    "visitId": "v7",
-    "assessmentId": "a12",
     "required": true
   },
   {
@@ -205,11 +210,6 @@
     "assessmentId": "a8",
     "required": true,
     "notes": "Every 8 weeks from first dose, independent of dose delays"
-  },
-  {
-    "visitId": "v8",
-    "assessmentId": "a10",
-    "required": true
   },
   {
     "visitId": "v9",

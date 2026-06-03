@@ -62,8 +62,9 @@ const rules = seed.schedule.cells.map((cell) => {
     relativeTiming: 'at-visit',
     metadata: {
       scheduleVisitId: cell.visitId,
-      scheduleAssessmentId: cell.assessmentId,
-      assessmentRefKind: 'schedule',
+      assessmentRefKind: 'soaAssessment',
+      soaAssessmentDefinitionId: cell.assessmentId,
+      legacyScheduleAssessmentId: cell.assessmentId,
       ...(scheduleAssessment?.entityId
         ? { clinicalDesignAssessmentId: scheduleAssessment.entityId }
         : {}),

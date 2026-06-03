@@ -3,6 +3,8 @@ export {
   findScheduleAnchorInDocument,
   findVisitDefinition,
   findVisitDefinitionInDocument,
+  findVisitDefinitionBySoAColumnId,
+  findVisitDefinitionBySoAColumnIdInDocument,
   scheduleAnchorExistsInDocument,
   selectScheduleAnchors,
   selectVisitDefinitions,

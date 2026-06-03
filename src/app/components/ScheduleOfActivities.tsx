@@ -1,173 +1,148 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './ui/table';
-import { ScrollArea, ScrollBar } from './ui/scroll-area';
-import { Badge } from './ui/badge';
-import { Button } from './ui/button';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
-import { ToggleGroup, ToggleGroupItem } from './ui/toggle-group';
-import { CheckCircle2, Circle, Link2, Info, Calendar, Users, MapPin, Activity, FileText, Grid3x3, Download, AlertTriangle, Sparkles } from 'lucide-react';
-import type { Assessment } from '../types/protocol';
-import {
-  getAssessments,
-  getSchedule,
-  getSoACells,
-  getVisits,
-  reportGeneratedScheduleDiff,
-  subscribe,
-} from '../domain/protocol';
-import type { GeneratedScheduleMetadata } from '../domain/protocol';
 
-type SchedulePreviewMode = 'legacy' | 'generated';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './ui/table';
+
+import { ScrollArea, ScrollBar } from './ui/scroll-area';
+
+import { Badge } from './ui/badge';
+
+import { Button } from './ui/button';
+
+import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
+
+import { CheckCircle2, Circle, Link2, Info, Grid3x3, Download } from 'lucide-react';
+
+import type { Assessment } from '../types/protocol';
+
+import { getAssessments, getSchedule, getSoACells, getVisits, subscribe } from '../domain/protocol';
+
+
 
 interface ScheduleOfActivitiesProps {
+
   onCellClick: (visitId: string, assessmentId: string) => void;
+
 }
+
+
 
 function formatGeneratedAt(value: string): string {
+
   const parsed = new Date(value);
+
   if (Number.isNaN(parsed.getTime())) {
+
     return value;
+
   }
 
+
+
   return parsed.toLocaleString();
+
 }
 
+
+
 export function ScheduleOfActivities({ onCellClick }: ScheduleOfActivitiesProps) {
-  const [previewMode, setPreviewMode] = useState<SchedulePreviewMode>('legacy');
+
   const [scheduleRevision, setScheduleRevision] = useState(0);
 
+
+
   useEffect(() => {
+
     return subscribe(() => {
+
       setScheduleRevision((revision) => revision + 1);
+
     });
+
   }, []);
 
-  const scheduleOptions = previewMode === 'generated' ? { generated: true as const } : undefined;
 
-  const visits = useMemo(
-    () => getVisits(undefined, scheduleOptions),
-    [previewMode, scheduleRevision]
-  );
-  const assessments = useMemo(
-    () => getAssessments(undefined, scheduleOptions),
-    [previewMode, scheduleRevision]
-  );
-  const cells = useMemo(
-    () => getSoACells(undefined, scheduleOptions),
-    [previewMode, scheduleRevision]
-  );
 
-  const generatedMetadata = useMemo<GeneratedScheduleMetadata | null>(() => {
-    if (previewMode !== 'generated') {
-      return null;
-    }
+  const visits = useMemo(() => getVisits(), [scheduleRevision]);
 
-    return getSchedule(undefined, { generated: true }).metadata ?? null;
-  }, [previewMode, scheduleRevision]);
+  const assessments = useMemo(() => getAssessments(), [scheduleRevision]);
 
-  const diffReport = useMemo(() => reportGeneratedScheduleDiff(), [previewMode, scheduleRevision]);
+  const cells = useMemo(() => getSoACells(), [scheduleRevision]);
+
+  const scheduleMetadata = useMemo(() => getSchedule().metadata, [scheduleRevision]);
+
+
 
   const isCellRequired = (visitId: string, assessmentId: string): boolean => {
+
     return cells.some((cell) => cell.visitId === visitId && cell.assessmentId === assessmentId && cell.required);
+
   };
 
+
+
   const assessmentsByCategory = assessments.reduce(
+
     (acc, assessment) => {
+
       if (!acc[assessment.category]) {
+
         acc[assessment.category] = [];
+
       }
+
       acc[assessment.category].push(assessment);
+
       return acc;
+
     },
+
     {} as Record<string, Assessment[]>
+
   );
 
+
+
   return (
+
     <div className="flex flex-col h-full bg-background">
-      <div
-        className={`px-4 py-3 border-b border-border bg-card ${
-          previewMode === 'generated' ? 'border-amber-500/40 bg-amber-500/5' : ''
-        }`}
-      >
+
+      <div className="px-4 py-3 border-b border-border bg-card">
+
         <div className="flex items-start justify-between gap-4">
+
           <div>
+
             <h2 className="font-semibold">1.3 Schedule of Activities</h2>
+
             <p className="text-xs text-muted-foreground mt-0.5">
+
               Protocol PROTO-XYZ-301 • {visits.length} visits • {assessments.length} assessments
+
             </p>
+
           </div>
-          <div className="flex flex-col items-end gap-2">
-            <ToggleGroup
-              type="single"
-              value={previewMode}
-              onValueChange={(value) => {
-                if (value === 'legacy' || value === 'generated') {
-                  setPreviewMode(value);
-                }
-              }}
-              variant="outline"
-              size="sm"
-            >
-              <ToggleGroupItem value="legacy" className="text-xs px-3">
-                Legacy SoA
-              </ToggleGroupItem>
-              <ToggleGroupItem value="generated" className="text-xs px-3">
-                Generated SoA Preview
-              </ToggleGroupItem>
-            </ToggleGroup>
-            {previewMode === 'generated' ? (
-              <Badge variant="outline" className="text-xs border-amber-500/50 text-amber-700 dark:text-amber-300">
-                <Sparkles className="h-3 w-3 mr-1" />
-                Generated Preview
-              </Badge>
-            ) : (
-              <Badge variant="outline" className="text-xs">
-                Legacy Schedule
-              </Badge>
-            )}
-          </div>
+
+          {scheduleMetadata?.generatedFromRules ? (
+
+            <Badge variant="outline" className="text-xs">
+
+              Generated cache
+
+              {scheduleMetadata.generatedAt
+
+                ? ` • updated ${formatGeneratedAt(scheduleMetadata.generatedAt)}`
+
+                : ''}
+
+            </Badge>
+
+          ) : null}
+
         </div>
 
-        {previewMode === 'generated' && generatedMetadata && (
-          <div className="mt-3 rounded-md border border-amber-500/30 bg-background/80 px-3 py-2 text-xs space-y-2">
-            <div className="flex flex-wrap gap-x-4 gap-y-1 text-muted-foreground">
-              <span>
-                <span className="font-medium text-foreground">generatedFromRules:</span>{' '}
-                {String(generatedMetadata.generatedFromRules)}
-              </span>
-              <span>
-                <span className="font-medium text-foreground">sourceRuleCount:</span>{' '}
-                {generatedMetadata.sourceRuleCount}
-              </span>
-              <span>
-                <span className="font-medium text-foreground">sourceVisitDefinitionCount:</span>{' '}
-                {generatedMetadata.sourceVisitDefinitionCount}
-              </span>
-              <span>
-                <span className="font-medium text-foreground">generatedAt:</span>{' '}
-                {formatGeneratedAt(generatedMetadata.generatedAt)}
-              </span>
-            </div>
-            <div className="flex items-start gap-2">
-              {diffReport.structurallyEquivalent ? (
-                <CheckCircle2 className="h-4 w-4 text-green-500 mt-0.5 shrink-0" />
-              ) : (
-                <AlertTriangle className="h-4 w-4 text-amber-500 mt-0.5 shrink-0" />
-              )}
-              <div>
-                <p className="text-foreground">{diffReport.message}</p>
-                {diffReport.knownContentDiffs.length > 0 && (
-                  <ul className="mt-1 list-disc pl-4 text-muted-foreground">
-                    {diffReport.knownContentDiffs.map((note) => (
-                      <li key={note}>{note}</li>
-                    ))}
-                  </ul>
-                )}
-              </div>
-            </div>
-          </div>
-        )}
       </div>
+
+
 
       <Tabs defaultValue="interactive-grid" className="flex-1 flex flex-col">
         <div className="px-4 pt-3 border-b border-border">
@@ -175,26 +150,6 @@ export function ScheduleOfActivities({ onCellClick }: ScheduleOfActivitiesProps)
             <TabsTrigger value="study-info" className="text-xs gap-1.5">
               <Info className="h-3.5 w-3.5" />
               Study Info
-            </TabsTrigger>
-            <TabsTrigger value="epochs" className="text-xs gap-1.5">
-              <Calendar className="h-3.5 w-3.5" />
-              Epochs
-            </TabsTrigger>
-            <TabsTrigger value="arms" className="text-xs gap-1.5">
-              <Users className="h-3.5 w-3.5" />
-              Arms
-            </TabsTrigger>
-            <TabsTrigger value="visits" className="text-xs gap-1.5">
-              <MapPin className="h-3.5 w-3.5" />
-              Visits
-            </TabsTrigger>
-            <TabsTrigger value="activities" className="text-xs gap-1.5">
-              <Activity className="h-3.5 w-3.5" />
-              Activities
-            </TabsTrigger>
-            <TabsTrigger value="elements" className="text-xs gap-1.5">
-              <FileText className="h-3.5 w-3.5" />
-              Elements
             </TabsTrigger>
             <TabsTrigger value="interactive-grid" className="text-xs gap-1.5">
               <Grid3x3 className="h-3.5 w-3.5" />
@@ -266,391 +221,6 @@ export function ScheduleOfActivities({ onCellClick }: ScheduleOfActivitiesProps)
           </ScrollArea>
         </TabsContent>
 
-        <TabsContent value="epochs" className="flex-1 mt-0">
-          <ScrollArea className="h-full">
-            <div className="min-w-max p-0">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="font-semibold">ID</TableHead>
-                    <TableHead className="font-semibold">Name</TableHead>
-                    <TableHead className="font-semibold">Type</TableHead>
-                    <TableHead className="font-semibold">Previous ID</TableHead>
-                    <TableHead className="font-semibold">Next ID</TableHead>
-                    <TableHead className="font-semibold">Instance Type</TableHead>
-                    <TableHead className="text-right font-semibold">Status</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  <TableRow>
-                    <TableCell className="font-medium">Epoch_1</TableCell>
-                    <TableCell>Screening</TableCell>
-                    <TableCell>Screening</TableCell>
-                    <TableCell className="text-muted-foreground">None</TableCell>
-                    <TableCell>Epoch_2</TableCell>
-                    <TableCell>StudyEpoch</TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex items-center justify-end gap-1.5">
-                        <CheckCircle2 className="h-4 w-4 text-green-500" />
-                        <span className="text-sm text-green-500">Valid</span>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                  <TableRow>
-                    <TableCell className="font-medium">Epoch_2</TableCell>
-                    <TableCell>Treatment</TableCell>
-                    <TableCell>Treatment</TableCell>
-                    <TableCell>Epoch_1</TableCell>
-                    <TableCell>Epoch_3</TableCell>
-                    <TableCell>StudyEpoch</TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex items-center justify-end gap-1.5">
-                        <CheckCircle2 className="h-4 w-4 text-green-500" />
-                        <span className="text-sm text-green-500">Valid</span>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                  <TableRow>
-                    <TableCell className="font-medium">Epoch_3</TableCell>
-                    <TableCell>Long-term Follow-up</TableCell>
-                    <TableCell>Follow-up</TableCell>
-                    <TableCell>Epoch_2</TableCell>
-                    <TableCell className="text-muted-foreground">None</TableCell>
-                    <TableCell>StudyEpoch</TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex items-center justify-end gap-1.5">
-                        <CheckCircle2 className="h-4 w-4 text-green-500" />
-                        <span className="text-sm text-green-500">Valid</span>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                </TableBody>
-              </Table>
-            </div>
-            <ScrollBar orientation="horizontal" />
-          </ScrollArea>
-        </TabsContent>
-
-        <TabsContent value="arms" className="flex-1 mt-0">
-          <ScrollArea className="h-full">
-            <div className="min-w-max p-0">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="w-[100px] font-semibold">ID</TableHead>
-                    <TableHead className="min-w-[200px] max-w-[300px] font-semibold">Name</TableHead>
-                    <TableHead className="w-[150px] font-semibold">Type</TableHead>
-                    <TableHead className="min-w-[250px] max-w-[400px] font-semibold">Description</TableHead>
-                    <TableHead className="w-[140px] font-semibold">Instance Type</TableHead>
-                    <TableHead className="w-[120px] text-right font-semibold">Status</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  <TableRow>
-                    <TableCell className="font-medium align-top">Arm_1</TableCell>
-                    <TableCell className="align-top whitespace-normal">177Lu-PSMA-617 plus Best Standard Care</TableCell>
-                    <TableCell className="align-top">Experimental Arm</TableCell>
-                    <TableCell className="align-top whitespace-normal">
-                      Patients receive 7.4 GBq 177Lu-PSMA-617 IV once every 6 weeks for maximum of 6 cycles plus best standard of care
-                    </TableCell>
-                    <TableCell className="align-top">StudyArm</TableCell>
-                    <TableCell className="text-right align-top">
-                      <div className="flex items-center justify-end gap-1.5 whitespace-nowrap">
-                        <CheckCircle2 className="h-4 w-4 text-green-500" />
-                        <span className="text-sm text-green-500">Valid</span>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                  <TableRow>
-                    <TableCell className="font-medium align-top">Arm_2</TableCell>
-                    <TableCell className="align-top whitespace-normal">Best Standard Care Only</TableCell>
-                    <TableCell className="align-top">Control Arm</TableCell>
-                    <TableCell className="align-top whitespace-normal">
-                      Patients receive best standard of care alone
-                    </TableCell>
-                    <TableCell className="align-top">StudyArm</TableCell>
-                    <TableCell className="text-right align-top">
-                      <div className="flex items-center justify-end gap-1.5 whitespace-nowrap">
-                        <CheckCircle2 className="h-4 w-4 text-green-500" />
-                        <span className="text-sm text-green-500">Valid</span>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                </TableBody>
-              </Table>
-            </div>
-            <ScrollBar orientation="horizontal" />
-          </ScrollArea>
-        </TabsContent>
-
-        <TabsContent value="visits" className="flex-1 mt-0">
-          <ScrollArea className="h-full">
-            <div className="min-w-max p-0">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="font-semibold">ID</TableHead>
-                    <TableHead className="font-semibold">Name</TableHead>
-                    <TableHead className="font-semibold">Type</TableHead>
-                    <TableHead className="font-semibold">Previous ID</TableHead>
-                    <TableHead className="font-semibold">Next ID</TableHead>
-                    <TableHead className="font-semibold">Instance Type</TableHead>
-                    <TableHead className="text-right font-semibold">Status</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  <TableRow>
-                    <TableCell className="font-medium">Encounter_1</TableCell>
-                    <TableCell>Screening Visit</TableCell>
-                    <TableCell>Screening</TableCell>
-                    <TableCell className="text-muted-foreground">None</TableCell>
-                    <TableCell>Encounter_2</TableCell>
-                    <TableCell>Encounter</TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex items-center justify-end gap-1.5">
-                        <CheckCircle2 className="h-4 w-4 text-green-500" />
-                        <span className="text-sm text-green-500">Valid</span>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                  <TableRow>
-                    <TableCell className="font-medium">Encounter_2</TableCell>
-                    <TableCell>Cycle 1 Day 1</TableCell>
-                    <TableCell>Treatment Visit</TableCell>
-                    <TableCell>Encounter_1</TableCell>
-                    <TableCell>Encounter_3</TableCell>
-                    <TableCell>Encounter</TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex items-center justify-end gap-1.5">
-                        <CheckCircle2 className="h-4 w-4 text-green-500" />
-                        <span className="text-sm text-green-500">Valid</span>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                  <TableRow>
-                    <TableCell className="font-medium">Encounter_3</TableCell>
-                    <TableCell>Cycle 1 Day 8</TableCell>
-                    <TableCell>Treatment Visit</TableCell>
-                    <TableCell>Encounter_2</TableCell>
-                    <TableCell>Encounter_4</TableCell>
-                    <TableCell>Encounter</TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex items-center justify-end gap-1.5">
-                        <CheckCircle2 className="h-4 w-4 text-green-500" />
-                        <span className="text-sm text-green-500">Valid</span>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                  <TableRow>
-                    <TableCell className="font-medium">Encounter_4</TableCell>
-                    <TableCell>End of Treatment</TableCell>
-                    <TableCell>End of Treatment</TableCell>
-                    <TableCell>Encounter_3</TableCell>
-                    <TableCell>Encounter_5</TableCell>
-                    <TableCell>Encounter</TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex items-center justify-end gap-1.5">
-                        <CheckCircle2 className="h-4 w-4 text-green-500" />
-                        <span className="text-sm text-green-500">Valid</span>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                  <TableRow>
-                    <TableCell className="font-medium">Encounter_5</TableCell>
-                    <TableCell>Follow-up Visit</TableCell>
-                    <TableCell>Follow-up</TableCell>
-                    <TableCell>Encounter_4</TableCell>
-                    <TableCell className="text-muted-foreground">None</TableCell>
-                    <TableCell>Encounter</TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex items-center justify-end gap-1.5">
-                        <CheckCircle2 className="h-4 w-4 text-green-500" />
-                        <span className="text-sm text-green-500">Valid</span>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                </TableBody>
-              </Table>
-            </div>
-            <ScrollBar orientation="horizontal" />
-          </ScrollArea>
-        </TabsContent>
-
-        <TabsContent value="activities" className="flex-1 mt-0">
-          <ScrollArea className="h-full">
-            <div className="min-w-max p-0">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="font-semibold">ID</TableHead>
-                    <TableHead className="font-semibold">Name</TableHead>
-                    <TableHead className="font-semibold">Instance Type</TableHead>
-                    <TableHead className="text-right font-semibold">Status</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  <TableRow>
-                    <TableCell className="font-medium">Activity_1</TableCell>
-                    <TableCell>Physical Examination</TableCell>
-                    <TableCell>Activity</TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex items-center justify-end gap-1.5">
-                        <CheckCircle2 className="h-4 w-4 text-green-500" />
-                        <span className="text-sm text-green-500">Valid</span>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                  <TableRow>
-                    <TableCell className="font-medium">Activity_2</TableCell>
-                    <TableCell>Vital Signs</TableCell>
-                    <TableCell>Activity</TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex items-center justify-end gap-1.5">
-                        <CheckCircle2 className="h-4 w-4 text-green-500" />
-                        <span className="text-sm text-green-500">Valid</span>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                  <TableRow>
-                    <TableCell className="font-medium">Activity_3</TableCell>
-                    <TableCell>Hematology</TableCell>
-                    <TableCell>Activity</TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex items-center justify-end gap-1.5">
-                        <CheckCircle2 className="h-4 w-4 text-green-500" />
-                        <span className="text-sm text-green-500">Valid</span>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                  <TableRow>
-                    <TableCell className="font-medium">Activity_4</TableCell>
-                    <TableCell>Chemistry</TableCell>
-                    <TableCell>Activity</TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex items-center justify-end gap-1.5">
-                        <CheckCircle2 className="h-4 w-4 text-green-500" />
-                        <span className="text-sm text-green-500">Valid</span>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                  <TableRow>
-                    <TableCell className="font-medium">Activity_5</TableCell>
-                    <TableCell>ECG</TableCell>
-                    <TableCell>Activity</TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex items-center justify-end gap-1.5">
-                        <CheckCircle2 className="h-4 w-4 text-green-500" />
-                        <span className="text-sm text-green-500">Valid</span>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                  <TableRow>
-                    <TableCell className="font-medium">Activity_6</TableCell>
-                    <TableCell>Tumor Assessment (CT/MRI)</TableCell>
-                    <TableCell>Activity</TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex items-center justify-end gap-1.5">
-                        <CheckCircle2 className="h-4 w-4 text-green-500" />
-                        <span className="text-sm text-green-500">Valid</span>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                  <TableRow>
-                    <TableCell className="font-medium">Activity_7</TableCell>
-                    <TableCell>PSA Level</TableCell>
-                    <TableCell>Activity</TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex items-center justify-end gap-1.5">
-                        <CheckCircle2 className="h-4 w-4 text-green-500" />
-                        <span className="text-sm text-green-500">Valid</span>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                  <TableRow>
-                    <TableCell className="font-medium">Activity_8</TableCell>
-                    <TableCell>Quality of Life Questionnaire</TableCell>
-                    <TableCell>Activity</TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex items-center justify-end gap-1.5">
-                        <CheckCircle2 className="h-4 w-4 text-green-500" />
-                        <span className="text-sm text-green-500">Valid</span>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                </TableBody>
-              </Table>
-            </div>
-            <ScrollBar orientation="horizontal" />
-          </ScrollArea>
-        </TabsContent>
-
-        <TabsContent value="elements" className="flex-1 mt-0">
-          <ScrollArea className="h-full">
-            <div className="min-w-max p-0">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="font-semibold">ID</TableHead>
-                    <TableHead className="font-semibold">Label</TableHead>
-                    <TableHead className="font-semibold">Name</TableHead>
-                    <TableHead className="font-semibold">Description</TableHead>
-                    <TableHead className="font-semibold">Instance Type</TableHead>
-                    <TableHead className="text-right font-semibold">Status</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  <TableRow>
-                    <TableCell className="font-medium align-top">Element_1</TableCell>
-                    <TableCell className="align-top">Screening</TableCell>
-                    <TableCell className="align-top">Screening Period</TableCell>
-                    <TableCell className="align-top">
-                      Screening assessments and eligibility confirmation
-                    </TableCell>
-                    <TableCell className="align-top">StudyElement</TableCell>
-                    <TableCell className="text-right align-top">
-                      <div className="flex items-center justify-end gap-1.5">
-                        <CheckCircle2 className="h-4 w-4 text-green-500" />
-                        <span className="text-sm text-green-500">Valid</span>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                  <TableRow>
-                    <TableCell className="font-medium align-top">Element_2</TableCell>
-                    <TableCell className="align-top">Treatment</TableCell>
-                    <TableCell className="align-top">Treatment Period</TableCell>
-                    <TableCell className="align-top">
-                      Active treatment with study intervention
-                    </TableCell>
-                    <TableCell className="align-top">StudyElement</TableCell>
-                    <TableCell className="text-right align-top">
-                      <div className="flex items-center justify-end gap-1.5">
-                        <CheckCircle2 className="h-4 w-4 text-green-500" />
-                        <span className="text-sm text-green-500">Valid</span>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                  <TableRow>
-                    <TableCell className="font-medium align-top">Element_3</TableCell>
-                    <TableCell className="align-top">Follow-up</TableCell>
-                    <TableCell className="align-top">Follow-up Period</TableCell>
-                    <TableCell className="align-top">
-                      Long-term safety and efficacy follow-up
-                    </TableCell>
-                    <TableCell className="align-top">StudyElement</TableCell>
-                    <TableCell className="text-right align-top">
-                      <div className="flex items-center justify-end gap-1.5">
-                        <CheckCircle2 className="h-4 w-4 text-green-500" />
-                        <span className="text-sm text-green-500">Valid</span>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                </TableBody>
-              </Table>
-            </div>
-            <ScrollBar orientation="horizontal" />
-          </ScrollArea>
-        </TabsContent>
-
         <TabsContent value="interactive-grid" className="flex-1 mt-0">
           <ScrollArea className="h-full">
             <div className="min-w-max p-4">
@@ -666,69 +236,69 @@ export function ScheduleOfActivities({ onCellClick }: ScheduleOfActivitiesProps)
               </div>
               <div className="min-w-max">
                 <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="sticky left-0 z-10 bg-card min-w-[200px] font-semibold">
-                    Assessment / Procedure
-                  </TableHead>
-                  {visits.map((visit) => (
-                    <TableHead key={visit.id} className="text-center min-w-[100px]">
-                      <div className="font-semibold">{visit.label}</div>
-                      <div className="text-xs text-muted-foreground font-normal">{visit.timepoint}</div>
-                    </TableHead>
-                  ))}
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {Object.entries(assessmentsByCategory).map(([category, categoryAssessments]) => (
-                  <React.Fragment key={`category-${category}`}>
-                    <TableRow className="bg-muted/50">
-                      <TableCell colSpan={visits.length + 1} className="font-semibold text-sm sticky left-0 z-10">
-                        {category}
-                      </TableCell>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="sticky left-0 z-10 bg-card min-w-[200px] font-semibold">
+                        Assessment / Procedure
+                      </TableHead>
+                      {visits.map((visit) => (
+                        <TableHead key={visit.id} className="text-center min-w-[100px]">
+                          <div className="font-semibold">{visit.label}</div>
+                          <div className="text-xs text-muted-foreground font-normal">{visit.timepoint}</div>
+                        </TableHead>
+                      ))}
                     </TableRow>
-                    {categoryAssessments.map((assessment) => (
-                      <TableRow key={assessment.id} className="hover:bg-muted/30">
-                        <TableCell className="sticky left-0 z-10 bg-card">
-                          <div className="flex items-center gap-2">
-                            <span className="text-sm">{assessment.label}</span>
-                            {assessment.linkedSectionId && (
-                              <Link2 className="h-3 w-3 text-purple-500" title={`Linked to ${assessment.linkedSectionId}`} />
-                            )}
-                          </div>
-                        </TableCell>
-                        {visits.map((visit) => {
-                          const required = isCellRequired(visit.id, assessment.id);
-                          return (
-                            <TableCell
-                              key={`${visit.id}-${assessment.id}`}
-                              className="text-center cursor-pointer hover:bg-accent/50 transition-colors"
-                              onClick={() => onCellClick(visit.id, assessment.id)}
-                            >
-                              {required ? (
-                                <div className="flex justify-center">
-                                  <CheckCircle2 className="h-5 w-5 text-green-500" />
-                                </div>
-                              ) : (
-                                <div className="flex justify-center opacity-20 hover:opacity-50">
-                                  <Circle className="h-5 w-5 text-muted-foreground" />
-                                </div>
-                              )}
+                  </TableHeader>
+                  <TableBody>
+                    {Object.entries(assessmentsByCategory).map(([category, categoryAssessments]) => (
+                      <React.Fragment key={`category-${category}`}>
+                        <TableRow className="bg-muted/50">
+                          <TableCell colSpan={visits.length + 1} className="font-semibold text-sm sticky left-0 z-10">
+                            {category}
+                          </TableCell>
+                        </TableRow>
+                        {categoryAssessments.map((assessment) => (
+                          <TableRow key={assessment.id} className="hover:bg-muted/30">
+                            <TableCell className="sticky left-0 z-10 bg-card">
+                              <div className="flex items-center gap-2">
+                                <span className="text-sm">{assessment.label}</span>
+                                {assessment.linkedSectionId && (
+                                  <Link2 className="h-3 w-3 text-purple-500" title={`Linked to ${assessment.linkedSectionId}`} />
+                                )}
+                              </div>
                             </TableCell>
-                          );
-                        })}
-                      </TableRow>
+                            {visits.map((visit) => {
+                              const required = isCellRequired(visit.id, assessment.id);
+                              return (
+                                <TableCell
+                                  key={`${visit.id}-${assessment.id}`}
+                                  className="text-center cursor-pointer hover:bg-accent/50 transition-colors"
+                                  onClick={() => onCellClick(visit.id, assessment.id)}
+                                >
+                                  {required ? (
+                                    <div className="flex justify-center">
+                                      <CheckCircle2 className="h-5 w-5 text-green-500" />
+                                    </div>
+                                  ) : (
+                                    <div className="flex justify-center opacity-20 hover:opacity-50">
+                                      <Circle className="h-5 w-5 text-muted-foreground" />
+                                    </div>
+                                  )}
+                                </TableCell>
+                              );
+                            })}
+                          </TableRow>
+                        ))}
+                      </React.Fragment>
                     ))}
-                  </React.Fragment>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
-        </div>
-        <ScrollBar orientation="horizontal" />
-      </ScrollArea>
-    </TabsContent>
-  </Tabs>
+                  </TableBody>
+                </Table>
+              </div>
+            </div>
+            <ScrollBar orientation="horizontal" />
+          </ScrollArea>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

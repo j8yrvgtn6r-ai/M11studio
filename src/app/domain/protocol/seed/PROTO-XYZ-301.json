@@ -8,7 +8,7 @@
     "sponsor": "XYZ Pharmaceuticals",
     "therapeuticArea": "Oncology",
     "createdAt": "2026-05-22T10:30:00.000Z",
-    "updatedAt": "2026-05-22T16:10:00.000Z",
+    "updatedAt": "2026-06-03T19:00:24.136Z",
     "defaultUser": "Dr. Sarah Chen",
     "lifecycleStatus": "draft",
     "authoringMode": "structured",
@@ -541,6 +541,8 @@
         "windowAfterDays": 0,
         "required": true,
         "order": 1,
+        "soaColumnId": "v1",
+        "timepointDisplay": "Day -28 to -1",
         "missedVisitPolicy": "recordDeviationOnly",
         "reanchorPolicy": "preserveOriginalAnchor",
         "ripplePolicy": "noRipple",
@@ -559,6 +561,7 @@
         "windowAfterDays": 0,
         "required": true,
         "order": 2,
+        "soaColumnId": "v2",
         "reanchorPolicy": "preserveOriginalAnchor",
         "ripplePolicy": "noRipple",
         "metadata": {
@@ -578,6 +581,9 @@
         "windowAfterDays": 0,
         "required": true,
         "order": 3,
+        "soaColumnId": "v3",
+        "displayLabel": "C1D1",
+        "timepointDisplay": "Cycle 1 Day 1",
         "reanchorPolicy": "preserveOriginalAnchor",
         "ripplePolicy": "noRipple",
         "metadata": {
@@ -597,6 +603,9 @@
         "windowAfterDays": 1,
         "required": true,
         "order": 4,
+        "soaColumnId": "v4",
+        "displayLabel": "C1D8",
+        "timepointDisplay": "Cycle 1 Day 8",
         "reanchorPolicy": "reanchorToActualVisitDate",
         "ripplePolicy": "rippleWithinCycleOnly",
         "metadata": {
@@ -616,6 +625,9 @@
         "windowAfterDays": 3,
         "required": true,
         "order": 5,
+        "soaColumnId": "v5",
+        "displayLabel": "C1D15",
+        "timepointDisplay": "Cycle 1 Day 15",
         "missedVisitPolicy": "recordDeviationOnly",
         "reanchorPolicy": "preserveOriginalAnchor",
         "ripplePolicy": "noRipple",
@@ -633,6 +645,9 @@
         "offsetDays": 21,
         "required": true,
         "order": 6,
+        "soaColumnId": "v6",
+        "displayLabel": "C2D1",
+        "timepointDisplay": "Cycle 2 Day 1",
         "reanchorPolicy": "reanchorToActualVisitDate",
         "ripplePolicy": "rippleSubsequentVisits",
         "metadata": {
@@ -649,6 +664,9 @@
         "offsetDays": 21,
         "required": true,
         "order": 7,
+        "soaColumnId": "v7",
+        "displayLabel": "C3D1",
+        "timepointDisplay": "Cycle 3 Day 1",
         "reanchorPolicy": "reanchorToActualVisitDate",
         "ripplePolicy": "rippleSubsequentVisits",
         "metadata": {
@@ -663,6 +681,8 @@
         "anchorId": "anchor-eot",
         "required": true,
         "order": 8,
+        "soaColumnId": "v8",
+        "displayLabel": "EOT",
         "reanchorPolicy": "preserveOriginalAnchor",
         "ripplePolicy": "noRipple",
         "metadata": {
@@ -682,6 +702,9 @@
         "windowAfterDays": 7,
         "required": true,
         "order": 9,
+        "soaColumnId": "v9",
+        "displayLabel": "FU30",
+        "timepointDisplay": "Follow-up +30d",
         "reanchorPolicy": "reanchorToActualVisitDate",
         "ripplePolicy": "noRipple",
         "metadata": {
@@ -690,6 +713,149 @@
       }
     ]
   },
+  "soaAssessmentDefinitions": [
+    {
+      "id": "a1",
+      "label": "Informed Consent",
+      "category": "Administrative",
+      "order": 1,
+      "metadata": {
+        "legacyScheduleAssessmentId": "a1",
+        "migratedFrom": "schedule.assessments"
+      }
+    },
+    {
+      "id": "a2",
+      "label": "Demographics",
+      "category": "Baseline",
+      "order": 2,
+      "linkedSectionId": "5",
+      "metadata": {
+        "legacyScheduleAssessmentId": "a2",
+        "migratedFrom": "schedule.assessments"
+      }
+    },
+    {
+      "id": "a3",
+      "label": "Medical History",
+      "category": "Baseline",
+      "order": 3,
+      "linkedSectionId": "5",
+      "metadata": {
+        "legacyScheduleAssessmentId": "a3",
+        "migratedFrom": "schedule.assessments"
+      }
+    },
+    {
+      "id": "a4",
+      "label": "Physical Examination",
+      "category": "Safety",
+      "order": 4,
+      "linkedSectionId": "8",
+      "metadata": {
+        "legacyScheduleAssessmentId": "a4",
+        "legacyLinkedSectionRef": "8.4",
+        "migratedFrom": "schedule.assessments"
+      }
+    },
+    {
+      "id": "a5",
+      "label": "Vital Signs",
+      "category": "Safety",
+      "order": 5,
+      "linkedSectionId": "8",
+      "metadata": {
+        "legacyScheduleAssessmentId": "a5",
+        "legacyLinkedSectionRef": "8.4",
+        "migratedFrom": "schedule.assessments"
+      }
+    },
+    {
+      "id": "a6",
+      "label": "ECG",
+      "category": "Safety",
+      "order": 6,
+      "linkedSectionId": "8",
+      "metadata": {
+        "legacyScheduleAssessmentId": "a6",
+        "legacyLinkedSectionRef": "8.4",
+        "migratedFrom": "schedule.assessments"
+      }
+    },
+    {
+      "id": "a7",
+      "label": "Laboratory Tests",
+      "category": "Safety",
+      "order": 7,
+      "linkedSectionId": "8",
+      "clinicalDesignAssessmentId": "assess-3",
+      "metadata": {
+        "legacyScheduleAssessmentId": "a7",
+        "legacyLinkedSectionRef": "8.4",
+        "legacyEntityId": "assess-3",
+        "migratedFrom": "schedule.assessments"
+      }
+    },
+    {
+      "id": "a8",
+      "label": "Tumor Assessment (RECIST)",
+      "category": "Efficacy",
+      "order": 8,
+      "linkedSectionId": "8",
+      "clinicalDesignAssessmentId": "assess-1",
+      "metadata": {
+        "legacyScheduleAssessmentId": "a8",
+        "legacyLinkedSectionRef": "8.3",
+        "legacyEntityId": "assess-1",
+        "migratedFrom": "schedule.assessments"
+      }
+    },
+    {
+      "id": "a9",
+      "label": "PK Sampling",
+      "category": "PK",
+      "order": 9,
+      "linkedSectionId": "8",
+      "metadata": {
+        "legacyScheduleAssessmentId": "a9",
+        "legacyLinkedSectionRef": "8.5",
+        "migratedFrom": "schedule.assessments"
+      }
+    },
+    {
+      "id": "a10",
+      "label": "Adverse Events",
+      "category": "Safety",
+      "order": 10,
+      "metadata": {
+        "legacyScheduleAssessmentId": "a10",
+        "legacyLinkedSectionRef": "9",
+        "migratedFrom": "schedule.assessments"
+      }
+    },
+    {
+      "id": "a11",
+      "label": "Concomitant Medications",
+      "category": "Safety",
+      "order": 11,
+      "metadata": {
+        "legacyScheduleAssessmentId": "a11",
+        "legacyLinkedSectionRef": "6.10",
+        "migratedFrom": "schedule.assessments"
+      }
+    },
+    {
+      "id": "a12",
+      "label": "Study Drug Administration",
+      "category": "Intervention",
+      "order": 12,
+      "metadata": {
+        "legacyScheduleAssessmentId": "a12",
+        "legacyLinkedSectionRef": "6.3",
+        "migratedFrom": "schedule.assessments"
+      }
+    }
+  ],
   "schedule": {
     "visits": [
       {
@@ -788,16 +954,16 @@
       },
       {
         "id": "a7",
-        "entityId": "assess-3",
         "label": "Laboratory Tests",
         "category": "Safety",
+        "entityId": "assess-3",
         "linkedSectionId": "8.4"
       },
       {
         "id": "a8",
-        "entityId": "assess-1",
         "label": "Tumor Assessment (RECIST)",
         "category": "Efficacy",
+        "entityId": "assess-1",
         "linkedSectionId": "8.3"
       },
       {
@@ -964,7 +1130,8 @@
       {
         "visitId": "v6",
         "assessmentId": "a8",
-        "required": true
+        "required": true,
+        "notes": "Every 8 weeks from first dose, independent of dose delays"
       },
       {
         "visitId": "v6",
@@ -1029,7 +1196,8 @@
       {
         "visitId": "v8",
         "assessmentId": "a8",
-        "required": true
+        "required": true,
+        "notes": "Every 8 weeks from first dose, independent of dose delays"
       },
       {
         "visitId": "v8",
@@ -1046,7 +1214,15 @@
         "assessmentId": "a11",
         "required": true
       }
-    ]
+    ],
+    "metadata": {
+      "generatedFromRules": true,
+      "generatedAt": "2026-06-03T19:00:24.135Z",
+      "sourceHash": "bbbb733a",
+      "sourceRuleCount": 44,
+      "sourceVisitDefinitionCount": 9,
+      "sourceSoAAssessmentDefinitionCount": 12
+    }
   },
   "relationships": [
     {
@@ -1305,8 +1481,9 @@
       "relativeTiming": "at-visit",
       "metadata": {
         "scheduleVisitId": "v1",
-        "scheduleAssessmentId": "a1",
-        "assessmentRefKind": "schedule"
+        "assessmentRefKind": "soaAssessment",
+        "soaAssessmentDefinitionId": "a1",
+        "legacyScheduleAssessmentId": "a1"
       }
     },
     {
@@ -1317,8 +1494,9 @@
       "relativeTiming": "at-visit",
       "metadata": {
         "scheduleVisitId": "v1",
-        "scheduleAssessmentId": "a2",
-        "assessmentRefKind": "schedule"
+        "assessmentRefKind": "soaAssessment",
+        "soaAssessmentDefinitionId": "a2",
+        "legacyScheduleAssessmentId": "a2"
       },
       "sourceSectionId": "5"
     },
@@ -1330,8 +1508,9 @@
       "relativeTiming": "at-visit",
       "metadata": {
         "scheduleVisitId": "v1",
-        "scheduleAssessmentId": "a3",
-        "assessmentRefKind": "schedule"
+        "assessmentRefKind": "soaAssessment",
+        "soaAssessmentDefinitionId": "a3",
+        "legacyScheduleAssessmentId": "a3"
       },
       "sourceSectionId": "5"
     },
@@ -1343,9 +1522,10 @@
       "relativeTiming": "at-visit",
       "metadata": {
         "scheduleVisitId": "v1",
-        "scheduleAssessmentId": "a4",
-        "assessmentRefKind": "schedule",
-        "linkedSectionRef": "8.4"
+        "assessmentRefKind": "soaAssessment",
+        "linkedSectionRef": "8.4",
+        "soaAssessmentDefinitionId": "a4",
+        "legacyScheduleAssessmentId": "a4"
       }
     },
     {
@@ -1356,9 +1536,10 @@
       "relativeTiming": "at-visit",
       "metadata": {
         "scheduleVisitId": "v1",
-        "scheduleAssessmentId": "a5",
-        "assessmentRefKind": "schedule",
-        "linkedSectionRef": "8.4"
+        "assessmentRefKind": "soaAssessment",
+        "linkedSectionRef": "8.4",
+        "soaAssessmentDefinitionId": "a5",
+        "legacyScheduleAssessmentId": "a5"
       }
     },
     {
@@ -1369,9 +1550,10 @@
       "relativeTiming": "at-visit",
       "metadata": {
         "scheduleVisitId": "v1",
-        "scheduleAssessmentId": "a6",
-        "assessmentRefKind": "schedule",
-        "linkedSectionRef": "8.4"
+        "assessmentRefKind": "soaAssessment",
+        "linkedSectionRef": "8.4",
+        "soaAssessmentDefinitionId": "a6",
+        "legacyScheduleAssessmentId": "a6"
       }
     },
     {
@@ -1382,10 +1564,11 @@
       "relativeTiming": "at-visit",
       "metadata": {
         "scheduleVisitId": "v1",
-        "scheduleAssessmentId": "a7",
-        "assessmentRefKind": "schedule",
+        "assessmentRefKind": "soaAssessment",
         "clinicalDesignAssessmentId": "assess-3",
-        "linkedSectionRef": "8.4"
+        "linkedSectionRef": "8.4",
+        "soaAssessmentDefinitionId": "a7",
+        "legacyScheduleAssessmentId": "a7"
       }
     },
     {
@@ -1396,10 +1579,11 @@
       "relativeTiming": "at-visit",
       "metadata": {
         "scheduleVisitId": "v1",
-        "scheduleAssessmentId": "a8",
-        "assessmentRefKind": "schedule",
+        "assessmentRefKind": "soaAssessment",
         "clinicalDesignAssessmentId": "assess-1",
-        "linkedSectionRef": "8.3"
+        "linkedSectionRef": "8.3",
+        "soaAssessmentDefinitionId": "a8",
+        "legacyScheduleAssessmentId": "a8"
       }
     },
     {
@@ -1410,9 +1594,10 @@
       "relativeTiming": "at-visit",
       "metadata": {
         "scheduleVisitId": "v2",
-        "scheduleAssessmentId": "a4",
-        "assessmentRefKind": "schedule",
-        "linkedSectionRef": "8.4"
+        "assessmentRefKind": "soaAssessment",
+        "linkedSectionRef": "8.4",
+        "soaAssessmentDefinitionId": "a4",
+        "legacyScheduleAssessmentId": "a4"
       }
     },
     {
@@ -1423,9 +1608,10 @@
       "relativeTiming": "at-visit",
       "metadata": {
         "scheduleVisitId": "v2",
-        "scheduleAssessmentId": "a5",
-        "assessmentRefKind": "schedule",
-        "linkedSectionRef": "8.4"
+        "assessmentRefKind": "soaAssessment",
+        "linkedSectionRef": "8.4",
+        "soaAssessmentDefinitionId": "a5",
+        "legacyScheduleAssessmentId": "a5"
       }
     },
     {
@@ -1436,10 +1622,11 @@
       "relativeTiming": "at-visit",
       "metadata": {
         "scheduleVisitId": "v2",
-        "scheduleAssessmentId": "a7",
-        "assessmentRefKind": "schedule",
+        "assessmentRefKind": "soaAssessment",
         "clinicalDesignAssessmentId": "assess-3",
-        "linkedSectionRef": "8.4"
+        "linkedSectionRef": "8.4",
+        "soaAssessmentDefinitionId": "a7",
+        "legacyScheduleAssessmentId": "a7"
       }
     },
     {
@@ -1450,9 +1637,10 @@
       "relativeTiming": "at-visit",
       "metadata": {
         "scheduleVisitId": "v3",
-        "scheduleAssessmentId": "a4",
-        "assessmentRefKind": "schedule",
-        "linkedSectionRef": "8.4"
+        "assessmentRefKind": "soaAssessment",
+        "linkedSectionRef": "8.4",
+        "soaAssessmentDefinitionId": "a4",
+        "legacyScheduleAssessmentId": "a4"
       }
     },
     {
@@ -1463,9 +1651,10 @@
       "relativeTiming": "at-visit",
       "metadata": {
         "scheduleVisitId": "v3",
-        "scheduleAssessmentId": "a5",
-        "assessmentRefKind": "schedule",
-        "linkedSectionRef": "8.4"
+        "assessmentRefKind": "soaAssessment",
+        "linkedSectionRef": "8.4",
+        "soaAssessmentDefinitionId": "a5",
+        "legacyScheduleAssessmentId": "a5"
       }
     },
     {
@@ -1476,10 +1665,11 @@
       "relativeTiming": "at-visit",
       "metadata": {
         "scheduleVisitId": "v3",
-        "scheduleAssessmentId": "a7",
-        "assessmentRefKind": "schedule",
+        "assessmentRefKind": "soaAssessment",
         "clinicalDesignAssessmentId": "assess-3",
-        "linkedSectionRef": "8.4"
+        "linkedSectionRef": "8.4",
+        "soaAssessmentDefinitionId": "a7",
+        "legacyScheduleAssessmentId": "a7"
       }
     },
     {
@@ -1490,9 +1680,10 @@
       "relativeTiming": "at-visit",
       "metadata": {
         "scheduleVisitId": "v3",
-        "scheduleAssessmentId": "a9",
-        "assessmentRefKind": "schedule",
-        "linkedSectionRef": "8.5"
+        "assessmentRefKind": "soaAssessment",
+        "linkedSectionRef": "8.5",
+        "soaAssessmentDefinitionId": "a9",
+        "legacyScheduleAssessmentId": "a9"
       }
     },
     {
@@ -1503,9 +1694,10 @@
       "relativeTiming": "at-visit",
       "metadata": {
         "scheduleVisitId": "v3",
-        "scheduleAssessmentId": "a10",
-        "assessmentRefKind": "schedule",
-        "linkedSectionRef": "9"
+        "assessmentRefKind": "soaAssessment",
+        "linkedSectionRef": "9",
+        "soaAssessmentDefinitionId": "a10",
+        "legacyScheduleAssessmentId": "a10"
       }
     },
     {
@@ -1516,9 +1708,10 @@
       "relativeTiming": "at-visit",
       "metadata": {
         "scheduleVisitId": "v3",
-        "scheduleAssessmentId": "a11",
-        "assessmentRefKind": "schedule",
-        "linkedSectionRef": "6.10"
+        "assessmentRefKind": "soaAssessment",
+        "linkedSectionRef": "6.10",
+        "soaAssessmentDefinitionId": "a11",
+        "legacyScheduleAssessmentId": "a11"
       }
     },
     {
@@ -1529,9 +1722,10 @@
       "relativeTiming": "at-visit",
       "metadata": {
         "scheduleVisitId": "v3",
-        "scheduleAssessmentId": "a12",
-        "assessmentRefKind": "schedule",
-        "linkedSectionRef": "6.3"
+        "assessmentRefKind": "soaAssessment",
+        "linkedSectionRef": "6.3",
+        "soaAssessmentDefinitionId": "a12",
+        "legacyScheduleAssessmentId": "a12"
       }
     },
     {
@@ -1542,9 +1736,10 @@
       "relativeTiming": "at-visit",
       "metadata": {
         "scheduleVisitId": "v4",
-        "scheduleAssessmentId": "a5",
-        "assessmentRefKind": "schedule",
-        "linkedSectionRef": "8.4"
+        "assessmentRefKind": "soaAssessment",
+        "linkedSectionRef": "8.4",
+        "soaAssessmentDefinitionId": "a5",
+        "legacyScheduleAssessmentId": "a5"
       }
     },
     {
@@ -1555,9 +1750,10 @@
       "relativeTiming": "at-visit",
       "metadata": {
         "scheduleVisitId": "v4",
-        "scheduleAssessmentId": "a10",
-        "assessmentRefKind": "schedule",
-        "linkedSectionRef": "9"
+        "assessmentRefKind": "soaAssessment",
+        "linkedSectionRef": "9",
+        "soaAssessmentDefinitionId": "a10",
+        "legacyScheduleAssessmentId": "a10"
       }
     },
     {
@@ -1568,9 +1764,10 @@
       "relativeTiming": "at-visit",
       "metadata": {
         "scheduleVisitId": "v4",
-        "scheduleAssessmentId": "a12",
-        "assessmentRefKind": "schedule",
-        "linkedSectionRef": "6.3"
+        "assessmentRefKind": "soaAssessment",
+        "linkedSectionRef": "6.3",
+        "soaAssessmentDefinitionId": "a12",
+        "legacyScheduleAssessmentId": "a12"
       }
     },
     {
@@ -1581,9 +1778,10 @@
       "relativeTiming": "at-visit",
       "metadata": {
         "scheduleVisitId": "v5",
-        "scheduleAssessmentId": "a5",
-        "assessmentRefKind": "schedule",
-        "linkedSectionRef": "8.4"
+        "assessmentRefKind": "soaAssessment",
+        "linkedSectionRef": "8.4",
+        "soaAssessmentDefinitionId": "a5",
+        "legacyScheduleAssessmentId": "a5"
       }
     },
     {
@@ -1594,9 +1792,10 @@
       "relativeTiming": "at-visit",
       "metadata": {
         "scheduleVisitId": "v5",
-        "scheduleAssessmentId": "a10",
-        "assessmentRefKind": "schedule",
-        "linkedSectionRef": "9"
+        "assessmentRefKind": "soaAssessment",
+        "linkedSectionRef": "9",
+        "soaAssessmentDefinitionId": "a10",
+        "legacyScheduleAssessmentId": "a10"
       }
     },
     {
@@ -1607,9 +1806,10 @@
       "relativeTiming": "at-visit",
       "metadata": {
         "scheduleVisitId": "v5",
-        "scheduleAssessmentId": "a12",
-        "assessmentRefKind": "schedule",
-        "linkedSectionRef": "6.3"
+        "assessmentRefKind": "soaAssessment",
+        "linkedSectionRef": "6.3",
+        "soaAssessmentDefinitionId": "a12",
+        "legacyScheduleAssessmentId": "a12"
       }
     },
     {
@@ -1620,9 +1820,10 @@
       "relativeTiming": "at-visit",
       "metadata": {
         "scheduleVisitId": "v6",
-        "scheduleAssessmentId": "a4",
-        "assessmentRefKind": "schedule",
-        "linkedSectionRef": "8.4"
+        "assessmentRefKind": "soaAssessment",
+        "linkedSectionRef": "8.4",
+        "soaAssessmentDefinitionId": "a4",
+        "legacyScheduleAssessmentId": "a4"
       }
     },
     {
@@ -1633,9 +1834,10 @@
       "relativeTiming": "at-visit",
       "metadata": {
         "scheduleVisitId": "v6",
-        "scheduleAssessmentId": "a5",
-        "assessmentRefKind": "schedule",
-        "linkedSectionRef": "8.4"
+        "assessmentRefKind": "soaAssessment",
+        "linkedSectionRef": "8.4",
+        "soaAssessmentDefinitionId": "a5",
+        "legacyScheduleAssessmentId": "a5"
       }
     },
     {
@@ -1646,10 +1848,11 @@
       "relativeTiming": "at-visit",
       "metadata": {
         "scheduleVisitId": "v6",
-        "scheduleAssessmentId": "a7",
-        "assessmentRefKind": "schedule",
+        "assessmentRefKind": "soaAssessment",
         "clinicalDesignAssessmentId": "assess-3",
-        "linkedSectionRef": "8.4"
+        "linkedSectionRef": "8.4",
+        "soaAssessmentDefinitionId": "a7",
+        "legacyScheduleAssessmentId": "a7"
       }
     },
     {
@@ -1660,10 +1863,11 @@
       "relativeTiming": "at-visit",
       "metadata": {
         "scheduleVisitId": "v6",
-        "scheduleAssessmentId": "a8",
-        "assessmentRefKind": "schedule",
+        "assessmentRefKind": "soaAssessment",
         "clinicalDesignAssessmentId": "assess-1",
-        "linkedSectionRef": "8.3"
+        "linkedSectionRef": "8.3",
+        "soaAssessmentDefinitionId": "a8",
+        "legacyScheduleAssessmentId": "a8"
       },
       "independentOfDoseDelay": true,
       "timingNote": "Every 8 weeks from first dose, independent of dose delays"
@@ -1676,9 +1880,10 @@
       "relativeTiming": "at-visit",
       "metadata": {
         "scheduleVisitId": "v6",
-        "scheduleAssessmentId": "a10",
-        "assessmentRefKind": "schedule",
-        "linkedSectionRef": "9"
+        "assessmentRefKind": "soaAssessment",
+        "linkedSectionRef": "9",
+        "soaAssessmentDefinitionId": "a10",
+        "legacyScheduleAssessmentId": "a10"
       }
     },
     {
@@ -1689,9 +1894,10 @@
       "relativeTiming": "at-visit",
       "metadata": {
         "scheduleVisitId": "v6",
-        "scheduleAssessmentId": "a11",
-        "assessmentRefKind": "schedule",
-        "linkedSectionRef": "6.10"
+        "assessmentRefKind": "soaAssessment",
+        "linkedSectionRef": "6.10",
+        "soaAssessmentDefinitionId": "a11",
+        "legacyScheduleAssessmentId": "a11"
       }
     },
     {
@@ -1702,9 +1908,10 @@
       "relativeTiming": "at-visit",
       "metadata": {
         "scheduleVisitId": "v6",
-        "scheduleAssessmentId": "a12",
-        "assessmentRefKind": "schedule",
-        "linkedSectionRef": "6.3"
+        "assessmentRefKind": "soaAssessment",
+        "linkedSectionRef": "6.3",
+        "soaAssessmentDefinitionId": "a12",
+        "legacyScheduleAssessmentId": "a12"
       }
     },
     {
@@ -1715,9 +1922,10 @@
       "relativeTiming": "at-visit",
       "metadata": {
         "scheduleVisitId": "v7",
-        "scheduleAssessmentId": "a4",
-        "assessmentRefKind": "schedule",
-        "linkedSectionRef": "8.4"
+        "assessmentRefKind": "soaAssessment",
+        "linkedSectionRef": "8.4",
+        "soaAssessmentDefinitionId": "a4",
+        "legacyScheduleAssessmentId": "a4"
       }
     },
     {
@@ -1728,9 +1936,10 @@
       "relativeTiming": "at-visit",
       "metadata": {
         "scheduleVisitId": "v7",
-        "scheduleAssessmentId": "a5",
-        "assessmentRefKind": "schedule",
-        "linkedSectionRef": "8.4"
+        "assessmentRefKind": "soaAssessment",
+        "linkedSectionRef": "8.4",
+        "soaAssessmentDefinitionId": "a5",
+        "legacyScheduleAssessmentId": "a5"
       }
     },
     {
@@ -1741,10 +1950,11 @@
       "relativeTiming": "at-visit",
       "metadata": {
         "scheduleVisitId": "v7",
-        "scheduleAssessmentId": "a7",
-        "assessmentRefKind": "schedule",
+        "assessmentRefKind": "soaAssessment",
         "clinicalDesignAssessmentId": "assess-3",
-        "linkedSectionRef": "8.4"
+        "linkedSectionRef": "8.4",
+        "soaAssessmentDefinitionId": "a7",
+        "legacyScheduleAssessmentId": "a7"
       }
     },
     {
@@ -1755,9 +1965,10 @@
       "relativeTiming": "at-visit",
       "metadata": {
         "scheduleVisitId": "v7",
-        "scheduleAssessmentId": "a9",
-        "assessmentRefKind": "schedule",
-        "linkedSectionRef": "8.5"
+        "assessmentRefKind": "soaAssessment",
+        "linkedSectionRef": "8.5",
+        "soaAssessmentDefinitionId": "a9",
+        "legacyScheduleAssessmentId": "a9"
       }
     },
     {
@@ -1768,9 +1979,10 @@
       "relativeTiming": "at-visit",
       "metadata": {
         "scheduleVisitId": "v7",
-        "scheduleAssessmentId": "a10",
-        "assessmentRefKind": "schedule",
-        "linkedSectionRef": "9"
+        "assessmentRefKind": "soaAssessment",
+        "linkedSectionRef": "9",
+        "soaAssessmentDefinitionId": "a10",
+        "legacyScheduleAssessmentId": "a10"
       }
     },
     {
@@ -1781,9 +1993,10 @@
       "relativeTiming": "at-visit",
       "metadata": {
         "scheduleVisitId": "v7",
-        "scheduleAssessmentId": "a12",
-        "assessmentRefKind": "schedule",
-        "linkedSectionRef": "6.3"
+        "assessmentRefKind": "soaAssessment",
+        "linkedSectionRef": "6.3",
+        "soaAssessmentDefinitionId": "a12",
+        "legacyScheduleAssessmentId": "a12"
       }
     },
     {
@@ -1794,9 +2007,10 @@
       "relativeTiming": "at-visit",
       "metadata": {
         "scheduleVisitId": "v8",
-        "scheduleAssessmentId": "a4",
-        "assessmentRefKind": "schedule",
-        "linkedSectionRef": "8.4"
+        "assessmentRefKind": "soaAssessment",
+        "linkedSectionRef": "8.4",
+        "soaAssessmentDefinitionId": "a4",
+        "legacyScheduleAssessmentId": "a4"
       }
     },
     {
@@ -1807,9 +2021,10 @@
       "relativeTiming": "at-visit",
       "metadata": {
         "scheduleVisitId": "v8",
-        "scheduleAssessmentId": "a5",
-        "assessmentRefKind": "schedule",
-        "linkedSectionRef": "8.4"
+        "assessmentRefKind": "soaAssessment",
+        "linkedSectionRef": "8.4",
+        "soaAssessmentDefinitionId": "a5",
+        "legacyScheduleAssessmentId": "a5"
       }
     },
     {
@@ -1820,10 +2035,11 @@
       "relativeTiming": "at-visit",
       "metadata": {
         "scheduleVisitId": "v8",
-        "scheduleAssessmentId": "a7",
-        "assessmentRefKind": "schedule",
+        "assessmentRefKind": "soaAssessment",
         "clinicalDesignAssessmentId": "assess-3",
-        "linkedSectionRef": "8.4"
+        "linkedSectionRef": "8.4",
+        "soaAssessmentDefinitionId": "a7",
+        "legacyScheduleAssessmentId": "a7"
       }
     },
     {
@@ -1834,10 +2050,11 @@
       "relativeTiming": "at-visit",
       "metadata": {
         "scheduleVisitId": "v8",
-        "scheduleAssessmentId": "a8",
-        "assessmentRefKind": "schedule",
+        "assessmentRefKind": "soaAssessment",
         "clinicalDesignAssessmentId": "assess-1",
-        "linkedSectionRef": "8.3"
+        "linkedSectionRef": "8.3",
+        "soaAssessmentDefinitionId": "a8",
+        "legacyScheduleAssessmentId": "a8"
       },
       "independentOfDoseDelay": true,
       "timingNote": "Every 8 weeks from first dose, independent of dose delays"
@@ -1850,9 +2067,10 @@
       "relativeTiming": "at-visit",
       "metadata": {
         "scheduleVisitId": "v8",
-        "scheduleAssessmentId": "a10",
-        "assessmentRefKind": "schedule",
-        "linkedSectionRef": "9"
+        "assessmentRefKind": "soaAssessment",
+        "linkedSectionRef": "9",
+        "soaAssessmentDefinitionId": "a10",
+        "legacyScheduleAssessmentId": "a10"
       }
     },
     {
@@ -1863,9 +2081,10 @@
       "relativeTiming": "at-visit",
       "metadata": {
         "scheduleVisitId": "v9",
-        "scheduleAssessmentId": "a10",
-        "assessmentRefKind": "schedule",
-        "linkedSectionRef": "9"
+        "assessmentRefKind": "soaAssessment",
+        "linkedSectionRef": "9",
+        "soaAssessmentDefinitionId": "a10",
+        "legacyScheduleAssessmentId": "a10"
       }
     },
     {
@@ -1876,9 +2095,10 @@
       "relativeTiming": "at-visit",
       "metadata": {
         "scheduleVisitId": "v9",
-        "scheduleAssessmentId": "a11",
-        "assessmentRefKind": "schedule",
-        "linkedSectionRef": "6.10"
+        "assessmentRefKind": "soaAssessment",
+        "linkedSectionRef": "6.10",
+        "soaAssessmentDefinitionId": "a11",
+        "legacyScheduleAssessmentId": "a11"
       }
     }
   ]

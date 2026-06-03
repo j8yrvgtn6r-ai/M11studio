@@ -20,9 +20,11 @@ export {
   buildAssessmentReferenceMetadata,
   collectClinicalDesignAssessmentIds,
   collectScheduleAssessmentIds,
+  collectSoAAssessmentDefinitionIds,
   findScheduleAssessmentInDocument,
   isClinicalDesignAssessmentId,
   isScheduleAssessmentId,
+  isSoAAssessmentDefinitionId,
   resolveAssessmentReference,
 } from './assessmentRefs';
 

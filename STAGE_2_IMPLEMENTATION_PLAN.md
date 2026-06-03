@@ -6,7 +6,7 @@
 **Focus:** Operational *when* of study visits, assessment timing rules, and generated Schedule of Activities  
 **Status:** Planned  
 **Baseline:** Stage 1a complete (`89ee8bf` — clinical design graph editing foundation)  
-**Last updated:** 2026-06-04
+**Last updated:** 2026-06-02
 
 ---
 
@@ -31,10 +31,16 @@ Read before implementing any Stage 2 task:
 | Roadmap stage | Relationship to this plan |
 |---------------|---------------------------|
 | Stage 1 (complete) | Clinical design entities + relationships editable; `schedule` still a flat matrix in seed |
-| **This plan (Stage 2 track)** | Visit Schedule Model, windows, policies, assessment rules, generated SoA |
+| **This plan (Stage 2 track)** | Clinical Design linkage, Visit Schedule Model, AssessmentScheduleRules, generated SoA, SoA metadata ownership (`soaAssessmentDefinitions`, visit display metadata) |
 | Roadmap Stage 2 (Standards Repository) | Parallel / later; terminology hooks referenced but not implemented here |
-| Roadmap Stage 3 (SoA Configuration UI) | **Stage 2e** in this plan delivers minimal UI on top of domain model |
-| Roadmap Stage 4 (Validation Platform) | **Stage 2f** scaffolds narrative ↔ schedule consistency checks |
+| Roadmap Stage 3 (SoA Configuration UI) | **Stage 2e** in this plan delivers minimal UI on top of domain model; **Conditional Protocol Logic** tab is a **future** SoA Configuration extension (post–Stage 2 generator) |
+| Roadmap Stage 4 (Validation Platform) | **Stage 2f** scaffolds narrative ↔ schedule consistency checks; **Narrative Update Governance** extends this into amendment, Copilot, and approval workflows |
+| Roadmap Stage 5 (Copilot) | Consumes structured SoA + conditional logic as inputs for proposed narrative updates under governance |
+| Roadmap Stage 6+ (Amendments / SDTM) | Structured schedule and conditional pathways drive amendment impact analysis and downstream mapping |
+
+**Scope boundary for Stage 2:** Stage 2 focuses on **Clinical Design**, **Visit Schedule**, **AssessmentScheduleRules**, **generated SoA**, and **SoA metadata ownership**. It does **not** implement Conditional Protocol Logic or full Narrative Update Governance. Those are architectural extensions documented here for downstream stages.
+
+**Authority direction:** Generated SoA and (future) Conditional Protocol Logic become **structured sources** that drive protocol narrative updates—not manually edited Word-style tables or prose that drift from configuration.
 
 ---
 
@@ -100,16 +106,23 @@ Partial `entityId` coverage is documented technical debt ([STAGE_0_CLOSURE_REPOR
 ├──────────────────────────┼──────────────────────────────────────┤
 │  visitSchedule           │  WHEN: visit timing, windows,        │
 │  (Stage 2 — source)      │  anchors, re-anchoring, policies     │
-│                          │  (`anchors[]` + `visits[]`)          │
+│                          │  (`anchors[]` + `visitDefinitions[]`)│
+├──────────────────────────┼──────────────────────────────────────┤
+│  soaAssessmentDefinitions│  SoA ROWS: label, category, order,   │
+│  (Stage 2d — source)     │  linkedSectionId, CD assessment link │
 ├──────────────────────────┼──────────────────────────────────────┤
 │  assessmentScheduleRules │  HOW: assessment occurs at visit,      │
 │  (Stage 2 — source)      │  requiredness, per-assessment windows│
 ├──────────────────────────┼──────────────────────────────────────┤
+│  conditionalProtocolLogic│  FUTURE: branching / decision rules  │
+│  (post–Stage 2)          │  (arm, dose, visit, assessment,     │
+│                          │   protocol-status impacts)           │
+├──────────────────────────┼──────────────────────────────────────┤
 │  schedule                │  VIEW: generated SoA matrix          │
 │  (Stage 2 — derived)       │  (visits, assessments, cells)      │
 ├──────────────────────────┼──────────────────────────────────────┤
-│  elements / sections     │  NARRATIVE: prose fields (future      │
-│  (existing)              │  validation target in 2f)            │
+│  elements / sections     │  NARRATIVE: prose fields; governed   │
+│  (existing)              │  updates driven by structured config │
 └─────────────────────────────────────────────────────────────────┘
          │                              │
          ▼                              ▼
@@ -503,7 +516,7 @@ Proposed location: `ProtocolDocument.assessmentScheduleRules[]`
 | Field | Type | Description |
 |-------|------|-------------|
 | `id` | `string` | Stable rule id |
-| `assessmentId` | `string` | **Required.** Canonical: `clinicalDesign.assessments[].id`. During Stage 2c→2d migration, legacy `schedule.assessments[].id` values are accepted with validation warnings and explicit metadata links (§7.2.1). |
+| `assessmentId` | `string` | **Required.** Canonical: `soaAssessmentDefinitions[].id`. Clinical design linkage via catalog `clinicalDesignAssessmentId`. |
 | `visitDefinitionId` | `string` | **Required.** `visitSchedule.visitDefinitions[].id` |
 | `required` | `boolean` | SoA cell required vs optional |
 | `timingNote` | `string?` | Human-readable timing (also for narrative generation) |
@@ -533,44 +546,60 @@ interface ScheduleCondition {
 }
 ```
 
-### 7.2.1 Assessment reference strategy (Stage 2c hardening)
+### 7.2.1 Assessment reference strategy (Stage 2d Phase 2 — normalized)
 
-**Canonical rule:** `AssessmentScheduleRule.assessmentId` should reference **`clinicalDesign.assessments[].id`** because clinical design owns assessment identity (WHAT). Visit schedule owns WHEN. Assessment schedule rules link WHAT × WHEN.
+**Canonical rule:** `AssessmentScheduleRule.assessmentId` references **`soaAssessmentDefinitions[].id`** because the SoA assessment catalog owns row identity and presentation metadata for schedule intersections. Clinical design linkage is resolved through **`SoAAssessmentDefinition.clinicalDesignAssessmentId`**, not by storing `assess-*` ids directly on rules.
 
-**Transitional model (PROTO-XYZ-301 seed):**
+**Layer model (PROTO-XYZ-301):**
 
 | Layer | Role | Id examples |
 |-------|------|-------------|
-| `clinicalDesign.assessments[]` | Canonical assessment entities | `assess-1`, `assess-2`, `assess-3` |
-| `schedule.assessments[]` | Generated/display SoA row ids until Stage 2d | `a1`–`a12` with optional `entityId` → clinical design |
-| `assessmentScheduleRules[]` | Authoritative intersections | Prefer `assess-*`; seed currently uses `a*` with metadata bridge |
+| `clinicalDesign.assessments[]` | Graph / WHAT entities | `assess-1`, `assess-2`, `assess-3` |
+| `soaAssessmentDefinitions[]` | **Canonical rule target** — SoA row catalog | `a1`–`a12` with optional `clinicalDesignAssessmentId` |
+| `schedule.assessments[]` | Legacy cached/generated SoA view | Mirrors catalog output until authoritative swap |
+| `assessmentScheduleRules[]` | Authoritative intersections | `assessmentId: "a1"` … `"a12"` |
 
-**Metadata bridge (required for schedule-layer refs):**
+**Rule metadata (post-normalization):**
 
 ```typescript
 metadata: {
-  assessmentRefKind: 'clinicalDesign' | 'schedule';
-  clinicalDesignAssessmentId?: string;  // canonical WHAT id when known
-  scheduleAssessmentId?: string;      // legacy/generated SoA row id
-  scheduleVisitId?: string;           // migration trace to hand-authored cells
+  assessmentRefKind: 'soaAssessment';
+  soaAssessmentDefinitionId: string;   // mirrors assessmentId
+  legacyScheduleAssessmentId?: string;  // migration trace to hand-authored schedule rows
+  clinicalDesignAssessmentId?: string;  // denormalized from catalog when linked
+  scheduleVisitId?: string;             // migration trace to legacy schedule.cells
 }
 ```
+
+Deprecated transitional fields (`assessmentRefKind: 'schedule'`, `metadata.scheduleAssessmentId`) emit validation warnings if still present.
 
 **Validation policy:**
 
 | Code | Severity | When |
 |------|----------|------|
-| `assessment_schedule_rule_schedule_assessment_ref` | warning | `assessmentId` is a schedule row id |
-| `assessment_schedule_rule_prefer_clinical_design_assessment` | warning | schedule row has `entityId` but rule still uses schedule id |
-| `assessment_schedule_rule_missing_ref_metadata` | warning | schedule-layer ref without `metadata.assessmentRefKind` |
+| `invalid_assessment_schedule_rule_assessment` | error | `assessmentId` not in `soaAssessmentDefinitions[]` |
+| `assessment_schedule_rule_clinical_design_assessment_ref` | error | Rule uses `clinicalDesign.assessments[].id` directly |
+| `assessment_schedule_rule_metadata_clinical_mismatch` | warning | Rule metadata CD id ≠ catalog `clinicalDesignAssessmentId` |
+| `assessment_schedule_rule_deprecated_schedule_metadata` | warning | Legacy `metadata.scheduleAssessmentId` still present |
+| `assessment_schedule_rule_deprecated_ref_kind` | warning | `metadata.assessmentRefKind === 'schedule'` |
+
+**Removed warnings (migration complete for seed):** `assessment_schedule_rule_schedule_assessment_ref`, `assessment_schedule_rule_prefer_clinical_design_assessment`, `assessment_schedule_rule_missing_ref_metadata`.
 
 **Stage 2d generation mapping:**
 
-1. Resolve rule `assessmentId` → clinical design assessment (direct or via `metadata.clinicalDesignAssessmentId`).
-2. Emit `schedule.assessments[]` row (create or match by `entityId`).
-3. Emit `schedule.cells[]` using generated visit column ids + schedule assessment ids.
+1. Resolve rule `assessmentId` → `soaAssessmentDefinitions[]` row.
+2. Project `clinicalDesignAssessmentId` to generated `ScheduleAssessment.entityId` when present.
+3. Emit `schedule.cells[]` using generated visit column ids + catalog assessment ids.
 
-**Migration path:** Before enabling generation, migrate rules where `schedule.assessments[].entityId` exists (e.g. `a7`→`assess-3`, `a8`→`assess-1`) to canonical clinical design ids. SoA-only rows (`a1`–`a6`, `a9`–`a12`) remain on schedule ids until clinical design entities are authored or synthetic rows are promoted.
+**Stage 2d Phase 2 PR 1 (implemented):** All 44 seed rules normalized to canonical `soaAssessmentDefinitions` ids with `assessmentRefKind: 'soaAssessment'`. Rules no longer resolve through `schedule.assessments`.
+
+**Stage 2d Phase 2 PR 2 (implemented):** Explicit schedule cache regeneration via `regenerateScheduleCache()` with `sourceHash` staleness tracking. Validation warnings: `schedule_cache_missing_metadata`, `schedule_cache_stale`, `schedule_cache_not_generated_from_rules`. Seed remains legacy hand-authored until authoritative swap; no auto-regen on mutation.
+
+**Stage 2d Phase 2 PR 3 (implemented):** Generated schedule parity baseline for PROTO-XYZ-301. Golden fixtures under `parity/fixtures/generatedSchedule/` (`visits`, `assessments`, `cells`, `metadata`, `acceptedContentDiffs`). `npm run test:schedule-parity` verifies generator stability and legacy replacement candidacy. Two tumor-imaging `timingNote` → cell `notes` diffs at `v6/a8` and `v8/a8` are accepted content differences only.
+
+**Stage 2d Phase 2 PR 4 (implemented):** Automatic schedule cache regeneration after successful mutations to `visitSchedule`, `assessmentScheduleRules`, and schedule anchors via `regenerateScheduleCacheAfterMutation()` inside the same store mutation callback (single subscriber notify). Failed mutations do not regenerate. Explicit `regenerateScheduleCache()` remains available.
+
+**Stage 2d Phase 2 PR 5 (implemented):** Authoritative generated schedule flip. Seed `document.schedule` aligned to `generateScheduleFromRules()` output with cache metadata and canonical tumor-imaging cell notes. Default selectors read generated cache; `{ generated: true }` is live debug preview only. Legacy/Generated UI toggle removed. Export calls `ensureAuthoritativeScheduleCacheFresh()` before serialization. Parity fixtures updated; accepted legacy diffs are zero.
 
 ### 7.3 Relationship to dependency graph
 
@@ -592,14 +621,17 @@ The **SoA Configuration Layer** is the combined editable model:
 | Component | Role in configuration |
 |-----------|-------------------------|
 | **Schedule anchors** | `visitSchedule.anchors` — anchor visit / event catalog |
-| Assessment rows | Derived from `clinicalDesign.assessments` (+ display metadata) |
-| Visit columns | Derived from `visitSchedule.visits` |
+| **SoA assessment rows** | `soaAssessmentDefinitions[]` — row identity and presentation metadata (label, category, order, linkedSectionId, optional `clinicalDesignAssessmentId`) |
+| Visit columns | Derived from `visitSchedule.visitDefinitions` (`displayLabel`, `timepointDisplay`, `soaColumnId`) |
 | Assessment × Visit intersections | **`assessmentScheduleRules`** |
 | Visit anchoring | `anchorId`, offsets, nominal day/week |
 | Visit windows | `windowBeforeDays`, `windowAfterDays` |
 | Assessment-specific windows | Rule-level overrides |
 | Missed / delayed visit policies | `missedVisitPolicy`, `reanchorPolicy`, `ripplePolicy` |
-| Conditional rules | `condition`, `armRestrictions` on rules and visits |
+| Conditional rules (rule-level) | `condition`, `armRestrictions` on rules and visits |
+| **Conditional Protocol Logic** | **Future extension** — see §8.4; not part of initial Stage 2 generator |
+
+**Stage 2 generator scope:** The initial `generateScheduleFromRules()` pipeline covers visit columns, assessment rows, and rule-derived cells only. It does **not** evaluate conditional branching, arm transitions, dose changes, or protocol-status impacts. Those require the future Conditional Protocol Logic model and downstream execution/validation layers.
 
 ### 8.2 What the SoA matrix is NOT
 
@@ -628,14 +660,104 @@ Mapping:
 
 | Generated field | Source |
 |-----------------|--------|
-| `ScheduleVisit.id` | `visitSchedule.visits[].id` (or mapped column id) |
+| `ScheduleVisit.id` | `visitSchedule.visitDefinitions[].soaColumnId` (legacy `v*` during migration) |
 | `ScheduleVisit.entityId` | `clinicalDesignVisitId` |
-| `ScheduleVisit.label` | `visitSchedule.visits[].name` |
-| `ScheduleVisit.order` | `visitSchedule.visits[].order` |
-| `ScheduleVisit.timepoint` | **Rendered string** from anchor + offsets + window (§5, §6) |
-| `ScheduleAssessment.entityId` | `assessmentId` from clinical design |
+| `ScheduleVisit.label` | `visitSchedule.visitDefinitions[].displayLabel ?? name` |
+| `ScheduleVisit.order` | `visitSchedule.visitDefinitions[].order` |
+| `ScheduleVisit.timepoint` | `visitSchedule.visitDefinitions[].timepointDisplay ??` rendered anchor timing |
+| `ScheduleAssessment.id` | `soaAssessmentDefinitions[].id` (legacy `a*` ids during migration) |
+| `ScheduleAssessment.label` | `soaAssessmentDefinitions[].label` |
+| `ScheduleAssessment.category` | `soaAssessmentDefinitions[].category` |
+| `ScheduleAssessment.linkedSectionId` | `soaAssessmentDefinitions[].linkedSectionId` |
+| `ScheduleAssessment.entityId` | `soaAssessmentDefinitions[].clinicalDesignAssessmentId` |
 | `ScheduleCell.required` | `AssessmentScheduleRule.required` |
-| `ScheduleCell.notes` | `AssessmentScheduleRule.notes` |
+| `ScheduleCell.notes` | `AssessmentScheduleRule.timingNote` |
+
+**Stage 2d Phase 1 PR 1 (implemented):** `SoAAssessmentDefinition` catalog added to `ProtocolDocument` with seed backfill from legacy `schedule.assessments`. Selectors and validation are wired.
+
+**Stage 2d Phase 1 PR 2 (implemented):** `VisitDefinition` extended with `displayLabel`, `timepointDisplay`, and `soaColumnId`; seed backfilled from legacy `schedule.visits`. Lookup helpers and validation are wired.
+
+**Stage 2d Phase 1 PR 3 (implemented):** `generateScheduleFromRules()` reads `visitSchedule.visitDefinitions`, `soaAssessmentDefinitions`, and `assessmentScheduleRules` only (plus `clinicalDesign` for entity projection). Legacy `schedule.visits` / `schedule.assessments` are not read during generation; `verifyGeneratedScheduleIndependentOfLegacyScheduleMetadata()` guards this invariant.
+
+**Stage 2d Phase 2 PR 1 (implemented):** All 44 `assessmentScheduleRules` reference canonical `soaAssessmentDefinitions[].id` values (`a1`–`a12`). Validation rejects direct `clinicalDesign.assessments[].id` on rules; clinical design linkage flows through the catalog. Transitional schedule-ref warnings removed from seed validation.
+
+### 8.4 Conditional Protocol Logic (Future Extension)
+
+Not all protocol behavior can be represented by `VisitDefinition`, visit windows, anchors, `AssessmentScheduleRule`, or the generated SoA matrix alone.
+
+Many protocols contain **conditional branching logic** that changes treatment, assessments, visit schedules, study arms, dosing, follow-up procedures, or protocol status based on observed clinical outcomes. Examples:
+
+| Scenario | Structured impact |
+|----------|-------------------|
+| After 3 weekly chemotherapy cycles, if tumor size increases, switch to Study Arm 2 (Surgery) | Arm transition + downstream visit/assessment changes |
+| If progression criteria are met, increase chemotherapy frequency from every 7 days to every 3 days | Dosing / visit cadence change |
+| If response is inadequate, add radiation therapy | New intervention + assessments |
+| If toxicity exceeds predefined thresholds, reduce dose or delay treatment | Dose modification + rolling schedule impact |
+| If progression occurs, declare treatment failure and discontinue treatment | Protocol status + EOT / follow-up pathway |
+| If a visit is missed, determine whether downstream visits remain anchored to the original anchor visit or become re-anchored to the actual visit date | Re-anchor / ripple policy activation (may overlap visit-level policies but often requires outcome-triggered logic) |
+
+**Proposed model:** Introduce a future collection such as **`ProtocolDecisionRule`** or **`ConditionalPathwayRule`** on `ProtocolDocument` (exact name TBD).
+
+**Illustrative schema (future):**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `id` | `string` | Stable rule id |
+| `name` | `string` | Author-facing label |
+| `description` | `string?` | Operational / clinical intent |
+| `triggerEvent` | controlled term / ref | What initiates evaluation (visit completion, assessment result, timepoint, investigator action) |
+| `evaluatedAfterVisitDefinitionId` | `string?` | Visit after which rule is evaluated |
+| `evaluatedAfterAssessmentId` | `string?` | Assessment result that triggers evaluation |
+| `conditionExpression` | `string` / structured AST | Machine-evaluable condition (future expression language) |
+| `actionType` | enum | e.g. `switchArm`, `modifyDose`, `addIntervention`, `changeVisitSchedule`, `addAssessment`, `discontinueTreatment`, `reanchorSchedule` |
+| `targetArmId` | `string?` | Destination study arm when action changes arm assignment |
+| `targetVisitDefinitionId` | `string?` | Visit schedule entry added, removed, or modified |
+| `targetAssessmentScheduleRuleId` | `string?` | Assessment rule added, removed, or modified |
+| `scheduleImpact` | object? | Structured description of visit/anchor/window changes |
+| `treatmentImpact` | object? | Dose, frequency, intervention changes |
+| `assessmentImpact` | object? | Added/removed/modified assessments |
+| `protocolStatusImpact` | object? | Treatment failure, discontinuation, amendment triggers |
+| `narrativeSectionIds` | `string[]?` | Sections whose prose must reflect this rule |
+| `requiresUserApproval` | `boolean?` | Whether applying the rule requires explicit author approval |
+| `metadata` | `Record<string, unknown>?` | Migration, traceability, SDE hooks |
+
+**Relationship to Stage 2 models:**
+
+| Stage 2 model | Conditional logic extends… |
+|---------------|---------------------------|
+| `visitSchedule` | Dynamic visit insertion, re-anchoring decisions beyond static per-visit policies |
+| `assessmentScheduleRules` | Conditional add/remove/modify of intersections |
+| `clinicalDesign` | Arm transitions, new interventions, endpoint-driven pathway changes |
+| Generated `schedule` | **Derived view** may reflect active pathway state; not the authoritative store for branching rules |
+
+**Validation goals (future):**
+
+| Goal | Description |
+|------|-------------|
+| Contradictory rules | Two rules with incompatible actions for the same trigger/condition |
+| Unreachable pathways | Pathway branches that can never be entered |
+| Missing downstream visits | Arm/schedule transition references visits not defined in `visitSchedule` |
+| Conflicting arm transitions | Illegal or ambiguous arm switches |
+| Circular logic chains | Rule A triggers B triggers A (or longer cycles) |
+| Narrative impact | Identify `narrativeSectionIds` and linked prose affected by conditional behavior |
+
+**Implementation status:** Conditional Protocol Logic is **not** part of the initial Stage 2 generator implementation. It is an **architectural extension anticipated in future stages** (SoA Configuration UI expansion, validation platform, Copilot, amendment workflows). Stage 2 may store lightweight `condition` fields on rules as a **precursor**, but full branching logic is out of scope until the dedicated model exists.
+
+### 8.5 SoA Configuration UI — Tab Model (Future)
+
+Within **SoA Configuration**, the long-term UI organizes authoring into dedicated tabs:
+
+```
+[ Assessments ]  [ Visits ]  [ Conditional Protocol Logic ]
+```
+
+| Tab | Binds to |
+|-----|----------|
+| **Assessments** | `soaAssessmentDefinitions`, clinical design assessment links, row order and presentation |
+| **Visits** | `visitSchedule.anchors`, `visitSchedule.visitDefinitions`, windows, re-anchor/ripple policies, display metadata |
+| **Conditional Protocol Logic** | Future `ProtocolDecisionRule` / `ConditionalPathwayRule` catalog — define, visualize, validate, and maintain protocol branching behavior |
+
+Stage **2e** delivers a **minimal** subset (visits + rules + generated grid preview). The **Conditional Protocol Logic** tab is deferred until the domain model and validators exist.
 
 ---
 
@@ -647,9 +769,10 @@ Pure function (Stage 2d):
 
 ```
 Input:
+  soaAssessmentDefinitions
   clinicalDesign.assessments
   visitSchedule.anchors
-  visitSchedule.visits
+  visitSchedule.visitDefinitions
   assessmentScheduleRules
 
 Output:
@@ -657,8 +780,8 @@ Output:
 
 Steps:
   1. Resolve anchor catalog; validate anchorId references
-  2. Build visit columns from visitSchedule.visits (sorted by order)
-  3. Build assessment rows from clinicalDesign.assessments
+  2. Build visit columns from visitSchedule.visitDefinitions (sorted by order)
+  3. Build assessment rows from soaAssessmentDefinitions (sorted by order)
   4. Emit cells for each assessmentScheduleRule
   5. Render timepoint strings from ScheduleAnchor + offsets + windows
   6. Attach generation metadata (generatedAt, sourceHash)
@@ -691,9 +814,9 @@ Selectors **`getVisits()` / `getAssessments()` / `getSoACells()`** continue to r
 
 ---
 
-## 10. Narrative Consistency (Stage 2f Scaffolding)
+## 10. Narrative Consistency and Update Governance
 
-Full narrative linting belongs to **Roadmap Stage 4**; Stage 2f introduces **scaffolding** and rule stubs.
+Full narrative linting belongs to **Roadmap Stage 4**; Stage 2f introduces **scaffolding** and rule stubs. **Narrative Update Governance** (§10.3) defines the long-term system behavior for keeping prose aligned with structured configuration.
 
 ### 10.1 Future validation categories
 
@@ -721,6 +844,50 @@ See also §5.7 for anchor- and re-anchor-specific validation codes.
 | Element cross-refs | Map known narrative fields (e.g. `elements` in Section 1.3) to schedule ids when present |
 
 **Phase 1 of narrative validation:** structural cross-reference only (ids, sections, numeric windows in structured element values)—not free-text NLP.
+
+### 10.3 Narrative Update Governance
+
+**Core principle:** Structured protocol configuration is **authoritative**. Narrative prose in `sections` / `elements` is a **governed rendering** of clinical design, visit schedule, assessment rules, generated SoA configuration, and (future) conditional protocol logic—not an independent source of truth.
+
+Any change to the following must automatically trigger **narrative impact analysis**:
+
+| Structured source | Examples of narrative impact |
+|-------------------|------------------------------|
+| **Clinical Design** | Objectives, endpoints, assessments, arms, populations, interventions |
+| **Visit Schedule** | Visit timing, windows, anchors, re-anchoring behavior |
+| **AssessmentScheduleRules** | Required assessments at visits, timing notes, arm restrictions |
+| **Generated SoA configuration** | `soaAssessmentDefinitions`, visit display metadata, generated matrix changes |
+| **Conditional Protocol Logic** (future) | Branching pathways, arm switches, dose modifications, discontinuation criteria |
+
+**System behavior (target architecture):**
+
+1. **Detect affected narrative sections** — map structured changes to `sectionRef`, `linkedSectionId`, `narrativeSectionIds`, and known element cross-refs.
+2. **Flag protocol inconsistencies** — surface unresolved mismatches between structured config and existing prose; never silently accept drift.
+3. **Generate proposed narrative updates automatically** — produce draft language from structured sources (visit windows, assessment timing, conditional actions).
+4. **Present proposed updates to the user** — review UI with diffs, section context, and traceability to the triggering configuration change.
+5. **Allow the user to edit proposed language** — author retains control over final wording; proposals are starting points, not forced replacements.
+6. **Require user approval before committing narrative changes** — no auto-write of prose to the authoritative document without explicit approval (unless a future policy explicitly allows batch approval).
+7. **Maintain an audit trail** of:
+   - generated language (machine proposal)
+   - user edits (author modifications to proposal)
+   - approvals (committed narrative updates)
+   - rejections (declined proposals with reason)
+   - deferred items (acknowledged but postponed)
+
+**Governance stance:** The system must **never silently ignore inconsistencies**. Deprecated interaction patterns such as *“Would you like me to generate language, flag inconsistency, or ignore?”* are replaced by:
+
+> The system automatically identifies affected narrative sections, generates proposed language updates, and tracks unresolved inconsistencies until the user approves or otherwise resolves them.
+
+**Relationship to other roadmap stages:**
+
+| Stage / capability | Role |
+|--------------------|------|
+| **Stage 2f** | Structural consistency scaffolding; section/id cross-refs; stub validation codes |
+| **Roadmap Stage 4 (Validation Platform)** | Full inconsistency detection, governance workflows, validation issue records |
+| **Roadmap Stage 5 (Copilot)** | AI-assisted proposal generation within governance guardrails |
+| **Amendment management** | Impact analysis spans structured + narrative deltas; audit trail supports protocol amendments |
+
+**Out of scope for Stage 2 implementation:** approval UI, automatic prose mutation, Copilot integration, and amendment packaging. This section documents **intent** so Stage 2 structured models (`linkedSectionId`, `sourceSectionId`, future `narrativeSectionIds`) are authored with downstream governance in mind.
 
 ---
 
@@ -789,9 +956,9 @@ See also §5.7 for anchor- and re-anchor-specific validation codes.
 | ID | Task | Complexity | Description |
 |----|------|------------|-------------|
 | **S2d-1** | `generateSchedule(document)` | L | Pure generator §9; inputs include `visitSchedule.anchors` |
-| **S2d-2** | Wire into mutations | M | Auto-regenerate on visit/rule changes |
-| **S2d-3** | Staleness / `sourceHash` | S | Detect manual schedule drift in dev |
-| **S2d-4** | Parity strategy | M | Update fixtures or split “legacy schedule” vs “generated schedule” tests |
+| **S2d-2** | Wire into mutations | M | **Implemented (PR 4):** auto-regenerate `document.schedule` cache on visit/rule/anchor mutations |
+| **S2d-3** | Staleness / `sourceHash` | S | **Implemented (PR 2 + PR 4):** staleness detection + auto-refresh on mutation |
+| **S2d-4** | Parity strategy | M | **Implemented (PR 3):** split legacy selector parity (`test:parity`) from generated schedule parity (`test:schedule-parity`); fixtures in `parity/fixtures/generatedSchedule/` |
 | **S2d-5** | `npm run smoke:schedule-generation` | S | Assert generated cells match expected count for seed |
 
 **Exit criteria:** `schedule` in store is generated; selectors unchanged; parity green.
@@ -877,7 +1044,8 @@ S2f-1 → S2f-2 → S2f-3 → S2f-4 → S2f-5               (consistency scaffol
 ### Verification
 
 - [ ] `npm run build`  
-- [ ] `npm run test:parity` (updated policy documented)  
+- [ ] `npm run test:parity` (legacy selector outputs; unchanged policy)  
+- [ ] `npm run test:schedule-parity` (generated schedule baseline + legacy replacement candidacy)  
 - [ ] `npm run validate:protocol`  
 - [ ] `npm run smoke:clinical-design` (Stage 1 regression)  
 - [ ] `npm run smoke:schedule-generation` (Stage 2d+)  
@@ -888,6 +1056,9 @@ S2f-1 → S2f-2 → S2f-3 → S2f-4 → S2f-5               (consistency scaffol
 
 | Item | Deferred to |
 |------|-------------|
+| **Conditional Protocol Logic** (`ProtocolDecisionRule` / `ConditionalPathwayRule`) | Post–Stage 2 SoA Configuration extension; see §8.4 |
+| **Conditional Protocol Logic UI tab** | SoA Configuration UI after domain model + validators exist |
+| **Narrative Update Governance** (approval workflows, auto-proposals, audit trail) | Roadmap Stage 4+; scaffolding only in 2f; see §10.3 |
 | Standards Repository ingestion | Roadmap Stage 2 (standards track) |
 | CDISC controlled terminology enforcement | Roadmap Stage 2–4 |
 | Full narrative NLP consistency | Roadmap Stage 4 |
@@ -895,7 +1066,7 @@ S2f-1 → S2f-2 → S2f-3 → S2f-4 → S2f-5               (consistency scaffol
 | Execution-layer visit date simulation | Post–Stage 2 operational module |
 | Epoch / study arm configuration UI | Stage 2+ or parallel epic |
 | CDASH / SDTM mapping on cells | Roadmap Stage 6+ |
-| Copilot-generated schedule proposals | Roadmap Stage 5 |
+| Copilot-generated schedule proposals | Roadmap Stage 5 (within governance) |
 | Supabase persistence | Parallel track |
 
 ---
@@ -907,7 +1078,8 @@ S2f-1 → S2f-2 → S2f-3 → S2f-4 → S2f-5               (consistency scaffol
 | Dual truth (`schedule` hand-edited + generated) | `sourceHash`; dev warnings; remove hand-editing path in 2d |
 | Graph `performed-at` vs rules diverge | Consistency validator in 2c; optional auto-sync policy documented |
 | Seed migration breaks parity | Phased migration; generate-from-rules must reproduce current matrix |
-| Scope creep into full SoA product | 2e is minimal; defer epochs/conditions UI |
+| Scope creep into full SoA product | 2e is minimal; defer Conditional Protocol Logic tab and full branching UI to post–Stage 2 (§8.4) |
+| Conditional logic modeled only as prose | Future `ProtocolDecisionRule` model; narrative governance tracks impacted sections (§10.3) |
 | Hybrid fixed + rolling policies misconfigured | Example C fixtures in 2b/2f; `IMAGING_ROLLING_CONFLICT` validation |
 | M11 spec gap on visit timing / re-anchoring | Document extensions in ARCHITECTURE.md; align with EDC/SDE anchor semantics |
 | Stage 1 regression | Keep smoke:clinical-design in CI for every Stage 2 PR |
@@ -919,17 +1091,89 @@ S2f-1 → S2f-2 → S2f-3 → S2f-4 → S2f-5               (consistency scaffol
 ```bash
 npm run build
 npm run test:parity
+npm run test:schedule-parity
 npm run validate:protocol
+npm run compare:generated-schedule
 npm run smoke:clinical-design          # Stage 1 regression
+npm run smoke:schedule                 # visit schedule + cache regeneration smoke
 # After S2d:
-npm run smoke:schedule-generation      # proposed
+npm run generate:schedule-parity-fixtures  # refresh PROTO-XYZ-301 generated schedule fixtures
 # After S2f:
 npm run validate:schedule              # proposed
 ```
 
+### Generated schedule parity status (Stage 2d Phase 2 PR 3)
+
+| Check | Status | Notes |
+|-------|--------|-------|
+| Fixture parity (`visits`, `assessments`, `cells`, `metadata`) | **PASS** | Golden snapshot of `generateScheduleFromRules(PROTO-XYZ-301)` |
+| Cache vs live generation | **PASS** | `document.schedule` matches generator after seed alignment + auto-regen |
+| Accepted legacy content diffs | **0** | Tumor-imaging notes adopted in seed/generated cache (PR 5) |
+| Legacy selector parity (`test:parity`) | **PASS** | Fixtures reflect authoritative generated cache selectors |
+| Authoritative swap | **Done (PR 5)** | Selectors/export use generated cache; debug preview via `{ generated: true }` |
+
 ---
 
-## 18. Success Statement
+## 18. Roadmap Implications
+
+This section consolidates how Stage 2 deliverables connect to future product capabilities.
+
+### 18.1 What Stage 2 delivers
+
+Stage 2 establishes the **structured scheduling and SoA configuration foundation**:
+
+| Deliverable | Status / direction |
+|-------------|-------------------|
+| Clinical Design graph editing | Stage 1 (complete); Stage 2 links schedule to design entities |
+| Visit Schedule Model | Anchors, visit definitions, windows, re-anchor/ripple policies |
+| AssessmentScheduleRules | Authoritative assessment × visit intersections |
+| Generated SoA | `generateScheduleFromRules()` from visit definitions + SoA catalog + rules |
+| SoA metadata ownership | `soaAssessmentDefinitions`, visit display metadata; legacy `schedule` as cache until authoritative swap |
+
+### 18.2 What Stage 2 explicitly does not deliver
+
+| Capability | Rationale |
+|------------|-----------|
+| Conditional Protocol Logic | Branching behavior exceeds visit windows + static rules; requires dedicated decision-rule model (§8.4) |
+| Full Narrative Update Governance | Requires validation platform, proposal UI, approval flows, audit persistence (§10.3) |
+| Authoritative generated schedule swap | Regen hooks, parity split, export policy — remaining Stage 2d work |
+
+### 18.3 Future extensions and their dependencies
+
+```
+Stage 2 (this plan)
+  clinicalDesign + visitSchedule + soaAssessmentDefinitions
+  + assessmentScheduleRules → generated schedule
+        │
+        ├─► SoA Configuration UI (2e)
+        │     [ Assessments ] [ Visits ] [ Conditional Protocol Logic — future ]
+        │
+        ├─► Conditional Protocol Logic (post–Stage 2)
+        │     arm / dose / visit / assessment / status branching
+        │
+        └─► Narrative Update Governance (Stage 4+)
+              impact analysis ← all structured sources above
+              proposals + approvals + audit trail
+                    │
+                    └─► Copilot (Stage 5) — generates proposals within governance
+                    └─► Amendment management — structured + narrative change packages
+```
+
+### 18.4 Authority model (end state)
+
+| Layer | Authority |
+|-------|-----------|
+| Clinical Design | WHAT the trial evaluates and includes |
+| Visit Schedule + AssessmentScheduleRules + SoA catalog | WHEN and HOW activities occur at visits |
+| Conditional Protocol Logic (future) | WHY/WHEN pathways branch based on outcomes |
+| Generated SoA matrix | Derived view for grid, export, SDE-oriented consumers |
+| Narrative (`sections` / `elements`) | Governed prose driven by structured sources; updated through approval workflow |
+
+Structured configuration drives narrative updates. Manual Word-style editing of schedule tables or branching prose without reflecting structured changes is a **consistency violation**, not a supported authoring path.
+
+---
+
+## 19. Success Statement
 
 Stage 2 succeeds when a protocol author can:
 

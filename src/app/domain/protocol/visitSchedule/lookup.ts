@@ -82,3 +82,40 @@ export function scheduleAnchorExistsInDocument(document: ProtocolDocument, ancho
 export function visitDefinitionExistsInDocument(document: ProtocolDocument, visitDefinitionId: string): boolean {
   return findVisitDefinitionInDocument(document, visitDefinitionId) !== null;
 }
+
+function visitDefinitionMatchesSoAColumnId(visitDefinition: VisitDefinition, soaColumnId: string): boolean {
+  if (visitDefinition.soaColumnId === soaColumnId) {
+    return true;
+  }
+
+  const metadataScheduleVisitId = visitDefinition.metadata?.scheduleVisitId;
+  return typeof metadataScheduleVisitId === 'string' && metadataScheduleVisitId === soaColumnId;
+}
+
+/** Finds a visit definition by SoA column id within a protocol document. */
+export function findVisitDefinitionBySoAColumnIdInDocument(
+  document: ProtocolDocument,
+  soaColumnId: string
+): VisitDefinitionLocation | null {
+  const visitDefinitions = document.visitSchedule?.visitDefinitions;
+  if (!visitDefinitions?.length) {
+    return null;
+  }
+
+  const index = visitDefinitions.findIndex((visitDefinition) =>
+    visitDefinitionMatchesSoAColumnId(visitDefinition, soaColumnId)
+  );
+  if (index < 0) {
+    return null;
+  }
+
+  return {
+    visitDefinition: visitDefinitions[index],
+    index,
+  };
+}
+
+/** Finds a visit definition by SoA column id in the authoritative protocol store document. */
+export function findVisitDefinitionBySoAColumnId(soaColumnId: string): VisitDefinitionLocation | null {
+  return findVisitDefinitionBySoAColumnIdInDocument(getProtocolDocument(), soaColumnId);
+}

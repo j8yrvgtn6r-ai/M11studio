@@ -1,0 +1,59 @@
+[
+  {
+    "id": "v1",
+    "entityId": "visit-1",
+    "label": "Screening",
+    "order": 1,
+    "timepoint": "Day -28 to -1"
+  },
+  {
+    "id": "v2",
+    "label": "Baseline",
+    "order": 2,
+    "timepoint": "Day 1"
+  },
+  {
+    "id": "v3",
+    "entityId": "visit-2",
+    "label": "C1D1",
+    "order": 3,
+    "timepoint": "Cycle 1 Day 1"
+  },
+  {
+    "id": "v4",
+    "label": "C1D8",
+    "order": 4,
+    "timepoint": "Cycle 1 Day 8"
+  },
+  {
+    "id": "v5",
+    "label": "C1D15",
+    "order": 5,
+    "timepoint": "Cycle 1 Day 15"
+  },
+  {
+    "id": "v6",
+    "label": "C2D1",
+    "order": 6,
+    "timepoint": "Cycle 2 Day 1"
+  },
+  {
+    "id": "v7",
+    "label": "C3D1",
+    "order": 7,
+    "timepoint": "Cycle 3 Day 1"
+  },
+  {
+    "id": "v8",
+    "label": "EOT",
+    "order": 8,
+    "timepoint": "End of Treatment"
+  },
+  {
+    "id": "v9",
+    "entityId": "visit-3",
+    "label": "FU30",
+    "order": 9,
+    "timepoint": "Follow-up +30d"
+  }
+]

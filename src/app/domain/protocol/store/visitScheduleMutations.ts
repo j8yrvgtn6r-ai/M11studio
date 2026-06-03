@@ -12,6 +12,7 @@ import {
 } from '../visitSchedule/lookup';
 import { isValidScheduleOffset, isValidVisitWindowBound } from '../visitSchedule/guards';
 import { getProtocolDocument, mutateProtocolDocument } from './protocolStore';
+import { regenerateScheduleCacheAfterMutation } from './scheduleCacheMutations';
 
 export type UpdateVisitDefinitionPatch = Partial<{
   name: string;
@@ -207,6 +208,7 @@ export function updateVisitDefinition(visitDefinitionId: string, patch: UpdateVi
     }
 
     draft.metadata.updatedAt = new Date().toISOString();
+    regenerateScheduleCacheAfterMutation(draft);
     updated = true;
   });
 
@@ -259,6 +261,7 @@ export function updateScheduleAnchor(anchorId: string, patch: UpdateScheduleAnch
     }
 
     draft.metadata.updatedAt = new Date().toISOString();
+    regenerateScheduleCacheAfterMutation(draft);
     updated = true;
   });
 

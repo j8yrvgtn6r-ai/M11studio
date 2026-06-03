@@ -1,6 +1,9 @@
 import {
   findScheduleAnchor,
   findVisitDefinition,
+  getSoAAssessmentDefinition,
+  getSoAAssessmentDefinitions,
+  getSoAAssessmentDefinitionsByCategory,
   getAssessmentScheduleRule,
   getAssessmentScheduleRules,
   getAssessmentScheduleRulesForAssessment,
@@ -11,15 +14,21 @@ import {
   getSoACells,
   getUseGeneratedSchedule,
   getVisitDefinition,
+  getVisitDefinitionBySoAColumnId,
   getVisitDefinitions,
   getVisits,
+  isScheduleCacheStale,
+  generatedScheduleContentEquals,
+  generateScheduleFromRules,
   reportGeneratedScheduleDiff,
+  verifyGeneratedScheduleIndependentOfLegacyScheduleMetadata,
 } from '../src/app/domain/protocol';
 import {
   createAssessmentScheduleRule,
   deleteAssessmentScheduleRule,
   getProtocolDocument,
   getProtocolSnapshot,
+  regenerateScheduleCache,
   resetProtocolStore,
   subscribe,
   updateAssessmentScheduleRule,
@@ -68,6 +77,58 @@ if (!c1d1 || c1d1.visitDefinition.clinicalDesignVisitId !== 'visit-2') {
   fail('vd-c1d1 should link to clinical design visit-2');
 }
 
+const c1d1ByColumn = getVisitDefinitionBySoAColumnId('v3');
+if (!c1d1ByColumn || c1d1ByColumn.id !== 'vd-c1d1' || c1d1ByColumn.displayLabel !== 'C1D1') {
+  fail('getVisitDefinitionBySoAColumnId("v3") should resolve vd-c1d1 with display metadata');
+}
+
+const screeningByColumn = getVisitDefinitionBySoAColumnId('v1');
+if (
+  !screeningByColumn ||
+  screeningByColumn.soaColumnId !== 'v1' ||
+  screeningByColumn.timepointDisplay !== 'Day -28 to -1'
+) {
+  fail('getVisitDefinitionBySoAColumnId("v1") should resolve screening visit display metadata');
+}
+
+const duplicateSoaColumnDoc = structuredClone(getProtocolDocument());
+duplicateSoaColumnDoc.visitSchedule.visitDefinitions[1].soaColumnId = 'v1';
+const duplicateSoaColumnResult = validateProtocol(duplicateSoaColumnDoc);
+if (duplicateSoaColumnResult.valid) {
+  fail('validateProtocol should reject duplicate soaColumnId values');
+}
+if (
+  !duplicateSoaColumnResult.errors.some((error) => error.code === 'duplicate_visit_definition_soa_column_id')
+) {
+  fail('validateProtocol should report duplicate_visit_definition_soa_column_id');
+}
+
+const emptyDisplayLabelDoc = structuredClone(getProtocolDocument());
+emptyDisplayLabelDoc.visitSchedule.visitDefinitions[2].displayLabel = '   ';
+const emptyDisplayLabelResult = validateProtocol(emptyDisplayLabelDoc);
+if (emptyDisplayLabelResult.valid) {
+  fail('validateProtocol should reject empty displayLabel');
+}
+if (
+  !emptyDisplayLabelResult.errors.some((error) => error.code === 'invalid_visit_definition_display_label')
+) {
+  fail('validateProtocol should report invalid_visit_definition_display_label');
+}
+
+const soaColumnMetadataMismatchDoc = structuredClone(getProtocolDocument());
+soaColumnMetadataMismatchDoc.visitSchedule.visitDefinitions[0].soaColumnId = 'v99';
+const soaColumnMetadataMismatchResult = validateProtocol(soaColumnMetadataMismatchDoc);
+if (!soaColumnMetadataMismatchResult.valid) {
+  fail('validateProtocol should remain valid when soaColumnId disagrees with metadata.scheduleVisitId');
+}
+if (
+  !soaColumnMetadataMismatchResult.warnings.some(
+    (warning) => warning.code === 'visit_definition_soa_column_id_metadata_mismatch'
+  )
+) {
+  fail('validateProtocol should warn on visit_definition_soa_column_id_metadata_mismatch');
+}
+
 const invalidAnchorDoc = structuredClone(getProtocolDocument());
 invalidAnchorDoc.visitSchedule.visitDefinitions[0].anchorId = 'missing-anchor-id';
 const invalidAnchorResult = validateProtocol(invalidAnchorDoc);
@@ -101,6 +162,67 @@ if (missingScheduleResult.valid) {
 }
 if (!missingScheduleResult.errors.some((error) => error.code === 'missing_visit_schedule')) {
   fail('validateProtocol should report missing_visit_schedule');
+}
+
+const missingSoADefinitionsDoc = structuredClone(getProtocolDocument());
+// @ts-expect-error smoke fixture for missing soaAssessmentDefinitions
+missingSoADefinitionsDoc.soaAssessmentDefinitions = undefined;
+const missingSoADefinitionsResult = validateProtocol(missingSoADefinitionsDoc);
+if (missingSoADefinitionsResult.valid) {
+  fail('validateProtocol should reject document without soaAssessmentDefinitions');
+}
+if (
+  !missingSoADefinitionsResult.errors.some((error) => error.code === 'missing_soa_assessment_definitions')
+) {
+  fail('validateProtocol should report missing_soa_assessment_definitions');
+}
+
+const invalidLinkedSectionDoc = structuredClone(getProtocolDocument());
+invalidLinkedSectionDoc.soaAssessmentDefinitions[0].linkedSectionId = 'nonexistent-section-id';
+const invalidLinkedSectionResult = validateProtocol(invalidLinkedSectionDoc);
+if (invalidLinkedSectionResult.valid) {
+  fail('validateProtocol should reject SoA assessment definition with invalid linkedSectionId');
+}
+if (
+  !invalidLinkedSectionResult.errors.some(
+    (error) => error.code === 'invalid_soa_assessment_definition_linked_section'
+  )
+) {
+  fail('validateProtocol should report invalid_soa_assessment_definition_linked_section');
+}
+
+const invalidClinicalDesignRefDoc = structuredClone(getProtocolDocument());
+invalidClinicalDesignRefDoc.soaAssessmentDefinitions[6].clinicalDesignAssessmentId = 'missing-assessment-id';
+const invalidClinicalDesignRefResult = validateProtocol(invalidClinicalDesignRefDoc);
+if (invalidClinicalDesignRefResult.valid) {
+  fail('validateProtocol should reject SoA assessment definition with invalid clinicalDesignAssessmentId');
+}
+if (
+  !invalidClinicalDesignRefResult.errors.some(
+    (error) => error.code === 'invalid_soa_assessment_definition_clinical_design_ref'
+  )
+) {
+  fail('validateProtocol should report invalid_soa_assessment_definition_clinical_design_ref');
+}
+
+const soaDefinitions = getSoAAssessmentDefinitions();
+if (soaDefinitions.length !== 12) {
+  fail(`expected 12 SoA assessment definitions in seed, got ${soaDefinitions.length}`);
+}
+
+const informedConsent = getSoAAssessmentDefinition('a1');
+if (!informedConsent || informedConsent.label !== 'Informed Consent' || informedConsent.order !== 1) {
+  fail('getSoAAssessmentDefinition("a1") should resolve seed catalog row');
+}
+
+const tumorAssessment = getSoAAssessmentDefinition('a8');
+if (tumorAssessment?.clinicalDesignAssessmentId !== 'assess-1') {
+  fail('getSoAAssessmentDefinition("a8") should link clinicalDesignAssessmentId assess-1');
+}
+
+const safetyDefinitions = getSoAAssessmentDefinitionsByCategory('Safety');
+if (safetyDefinitions.length !== 6) {
+  fail(`expected 6 Safety SoA assessment definitions, got ${safetyDefinitions.length}`);
 }
 
 const negativeWindowDoc = structuredClone(getProtocolDocument());
@@ -238,20 +360,26 @@ if (!seedRule || seedRule.assessmentId !== 'a1' || seedRule.visitDefinitionId !=
   fail('getAssessmentScheduleRule("asr-v1-a1") should resolve seed rule');
 }
 
-if (seedRule.metadata?.assessmentRefKind !== 'schedule' || seedRule.metadata?.scheduleAssessmentId !== 'a1') {
-  fail('seed schedule-layer rules should include explicit assessment reference metadata');
+if (
+  seedRule.metadata?.assessmentRefKind !== 'soaAssessment' ||
+  seedRule.metadata?.soaAssessmentDefinitionId !== 'a1'
+) {
+  fail('seed rules should reference canonical soaAssessmentDefinitions metadata');
 }
 
 const linkedSeedRule = getAssessmentScheduleRule('asr-v1-a8');
-if (linkedSeedRule?.metadata?.clinicalDesignAssessmentId !== 'assess-1') {
-  fail('seed rule for schedule assessment a8 should link clinicalDesignAssessmentId assess-1 in metadata');
+if (
+  linkedSeedRule?.metadata?.clinicalDesignAssessmentId !== 'assess-1' ||
+  linkedSeedRule.metadata?.soaAssessmentDefinitionId !== 'a8'
+) {
+  fail('seed rule for SoA assessment a8 should link clinicalDesignAssessmentId assess-1 in metadata');
 }
 
 const smokeRuleId = 'asr-smoke-test';
 if (
   !createAssessmentScheduleRule({
     id: smokeRuleId,
-    assessmentId: 'assess-3',
+    assessmentId: 'a7',
     visitDefinitionId: 'vd-c1d8',
     required: true,
     timingNote: 'Smoke test rule',
@@ -264,15 +392,16 @@ if (
 
 const createdSmokeRule = getAssessmentScheduleRule(smokeRuleId);
 if (
-  createdSmokeRule?.metadata?.assessmentRefKind !== 'clinicalDesign' ||
+  createdSmokeRule?.metadata?.assessmentRefKind !== 'soaAssessment' ||
+  createdSmokeRule.metadata?.soaAssessmentDefinitionId !== 'a7' ||
   createdSmokeRule.metadata?.clinicalDesignAssessmentId !== 'assess-3'
 ) {
-  fail('createAssessmentScheduleRule should stamp canonical clinical design assessment metadata');
+  fail('createAssessmentScheduleRule should stamp canonical SoA assessment catalog metadata');
 }
 
 if (createAssessmentScheduleRule({
   id: smokeRuleId,
-  assessmentId: 'assess-3',
+  assessmentId: 'a7',
   visitDefinitionId: 'vd-c1d8',
   required: true,
 })) {
@@ -280,36 +409,48 @@ if (createAssessmentScheduleRule({
 }
 
 if (
+  createAssessmentScheduleRule({
+    id: 'asr-smoke-clinical-ref',
+    assessmentId: 'assess-3',
+    visitDefinitionId: 'vd-c1d8',
+    required: true,
+    timingNote: 'Clinical design id should be rejected on rules',
+  })
+) {
+  fail('clinical design assessmentId create should fail; rules must reference soaAssessmentDefinitions');
+}
+
+if (
   !createAssessmentScheduleRule({
-    id: 'asr-smoke-schedule-ref',
+    id: 'asr-smoke-soa-ref',
     assessmentId: 'a10',
     visitDefinitionId: 'vd-c1d8',
     required: true,
-    timingNote: 'Schedule-layer transitional rule',
+    timingNote: 'SoA catalog rule',
   })
 ) {
-  fail('schedule-layer assessmentId create should still succeed during migration');
+  fail('SoA catalog assessmentId create should succeed');
 }
 
-const transitionalRule = getAssessmentScheduleRule('asr-smoke-schedule-ref');
+const catalogRule = getAssessmentScheduleRule('asr-smoke-soa-ref');
 if (
-  transitionalRule?.metadata?.assessmentRefKind !== 'schedule' ||
-  transitionalRule.metadata?.scheduleAssessmentId !== 'a10'
+  catalogRule?.metadata?.assessmentRefKind !== 'soaAssessment' ||
+  catalogRule.metadata?.soaAssessmentDefinitionId !== 'a10'
 ) {
-  fail('schedule-layer create should stamp schedule assessment reference metadata');
+  fail('SoA catalog create should stamp soaAssessment reference metadata');
 }
 
-deleteAssessmentScheduleRule('asr-smoke-schedule-ref');
+deleteAssessmentScheduleRule('asr-smoke-soa-ref');
 
 if (
   createAssessmentScheduleRule({
     id: smokeRuleId,
-    assessmentId: 'assess-3',
+    assessmentId: 'a7',
     visitDefinitionId: 'vd-c1d8',
     required: true,
   })
 ) {
-  fail('duplicate rule id should fail after deleting transitional rule');
+  fail('duplicate rule id should fail after deleting catalog rule');
 }
 
 if (
@@ -326,7 +467,7 @@ if (
 if (
   createAssessmentScheduleRule({
     id: 'asr-smoke-invalid-visit',
-    assessmentId: 'assess-3',
+    assessmentId: 'a7',
     visitDefinitionId: 'missing-visit-definition',
     required: true,
   })
@@ -337,7 +478,7 @@ if (
 if (
   createAssessmentScheduleRule({
     id: 'asr-smoke-invalid-section',
-    assessmentId: 'assess-3',
+    assessmentId: 'a7',
     visitDefinitionId: 'vd-c1d8',
     required: true,
     sourceSectionId: 'nonexistent-section-id',
@@ -349,7 +490,7 @@ if (
 if (
   createAssessmentScheduleRule({
     id: 'asr-smoke-negative-window',
-    assessmentId: 'assess-3',
+    assessmentId: 'a7',
     visitDefinitionId: 'vd-c1d8',
     required: true,
     windowBeforeDays: -1,
@@ -395,39 +536,150 @@ if (!postRuleMutationValidation.valid) {
 }
 
 if (getUseGeneratedSchedule() !== false) {
-  fail('useGeneratedSchedule default should be false');
+  fail('useGeneratedSchedule default should be false (authoritative cache mode)');
 }
 
-const legacyVisits = getVisits();
-const generatedVisits = getVisits(getProtocolDocument(), { generated: true });
-if (legacyVisits.length !== generatedVisits.length) {
-  fail('legacy and generated visit counts should match for seed preview');
+const cacheVisits = getVisits();
+const livePreviewVisits = getVisits(getProtocolDocument(), { generated: true });
+if (cacheVisits.length !== livePreviewVisits.length) {
+  fail('cache and live preview visit counts should match for aligned seed');
 }
 
-const generatedSchedule = getSchedule(getProtocolDocument(), { generated: true });
+const livePreviewSchedule = getSchedule(getProtocolDocument(), { generated: true });
 if (
-  !generatedSchedule.metadata?.generatedFromRules ||
-  generatedSchedule.metadata.sourceRuleCount !== 44 ||
-  generatedSchedule.metadata.sourceVisitDefinitionCount !== 9
+  !livePreviewSchedule.metadata?.generatedFromRules ||
+  livePreviewSchedule.metadata.sourceRuleCount !== 44 ||
+  livePreviewSchedule.metadata.sourceVisitDefinitionCount !== 9
 ) {
-  fail('generated schedule metadata should describe rule-derived preview');
+  fail('live preview schedule metadata should describe rule-derived output');
 }
 
 const diffReport = reportGeneratedScheduleDiff(getProtocolDocument());
 if (!diffReport.structurallyEquivalent) {
-  fail('reportGeneratedScheduleDiff should report structural equivalence for seed');
+  fail('reportGeneratedScheduleDiff should report structural equivalence for aligned cache');
 }
 
-if (getVisits().length !== legacyVisits.length) {
-  fail('default getVisits() behavior should remain legacy');
+if (getVisits().length !== cacheVisits.length) {
+  fail('default getVisits() should read authoritative generated cache');
 }
 
 if (getAssessments().length !== getAssessments(getProtocolDocument(), { generated: true }).length) {
-  fail('legacy and generated assessment counts should match for seed preview');
+  fail('cache and live preview assessment counts should match for aligned seed');
 }
 
 if (getSoACells().length !== getSoACells(getProtocolDocument(), { generated: true }).length) {
-  fail('legacy and generated cell counts should match for seed preview');
+  fail('cache and live preview cell counts should match for aligned seed');
+}
+
+if (!verifyGeneratedScheduleIndependentOfLegacyScheduleMetadata(getProtocolDocument())) {
+  fail('generateScheduleFromRules should not depend on legacy schedule.visits or schedule.assessments metadata');
+}
+
+resetProtocolStore();
+
+const seedCacheValidation = validateProtocol(getProtocolDocument());
+if (
+  seedCacheValidation.warnings.some((warning) => warning.code.startsWith('schedule_cache_'))
+) {
+  fail('aligned seed should not emit schedule cache warnings on cold load');
+}
+
+if (!getProtocolDocument().schedule.metadata?.generatedFromRules) {
+  fail('seed schedule.metadata.generatedFromRules should be true after cache alignment');
+}
+
+if (isScheduleCacheStale(getProtocolDocument())) {
+  fail('isScheduleCacheStale() should be false for aligned seed schedule cache');
+}
+
+if (!regenerateScheduleCache()) {
+  fail('regenerateScheduleCache() should succeed');
+}
+
+const regeneratedDocument = getProtocolDocument();
+const cacheMetadata = regeneratedDocument.schedule.metadata;
+
+if (
+  !cacheMetadata?.generatedFromRules ||
+  !cacheMetadata.generatedAt ||
+  !cacheMetadata.sourceHash ||
+  cacheMetadata.sourceRuleCount !== 44 ||
+  cacheMetadata.sourceVisitDefinitionCount !== 9 ||
+  cacheMetadata.sourceSoAAssessmentDefinitionCount !== 12
+) {
+  fail('regenerateScheduleCache() should write schedule cache metadata');
+}
+
+if (isScheduleCacheStale(regeneratedDocument)) {
+  fail('isScheduleCacheStale() should be false immediately after regeneration');
+}
+
+const postRegenerationValidation = validateProtocol(regeneratedDocument);
+const postRegenerationCacheWarnings = postRegenerationValidation.warnings.filter((warning) =>
+  warning.code.startsWith('schedule_cache_')
+);
+
+if (postRegenerationCacheWarnings.length > 0) {
+  fail(
+    `schedule cache warnings should clear after regeneration: ${postRegenerationCacheWarnings
+      .map((warning) => warning.code)
+      .join(', ')}`
+  );
+}
+
+const hashAfterRegeneration = cacheMetadata.sourceHash;
+
+if (
+  !updateAssessmentScheduleRule('asr-v1-a1', {
+    timingNote: 'Auto-regeneration smoke mutation',
+  })
+) {
+  fail('assessment schedule rule update for auto-regeneration smoke should succeed');
+}
+
+if (isScheduleCacheStale(getProtocolDocument())) {
+  fail('isScheduleCacheStale() should be false after mutating assessmentScheduleRules (auto-regenerated cache)');
+}
+
+const hashAfterRuleMutation = getProtocolDocument().schedule.metadata?.sourceHash;
+if (!hashAfterRuleMutation || hashAfterRuleMutation === hashAfterRegeneration) {
+  fail('schedule.metadata.sourceHash should change when assessmentScheduleRules change');
+}
+
+const freshAfterRuleMutation = validateProtocol(getProtocolDocument());
+if (freshAfterRuleMutation.warnings.some((warning) => warning.code.startsWith('schedule_cache_'))) {
+  fail('validateProtocol should not emit schedule cache warnings after auto-regeneration');
+}
+
+if (
+  !updateVisitDefinition('vd-c1d15', {
+    windowAfterDays: 4,
+  })
+) {
+  fail('visit definition update for auto-regeneration smoke should succeed');
+}
+
+if (isScheduleCacheStale(getProtocolDocument())) {
+  fail('isScheduleCacheStale() should be false after mutating visitSchedule.visitDefinitions (auto-regenerated cache)');
+}
+
+const hashAfterVisitMutation = getProtocolDocument().schedule.metadata?.sourceHash;
+if (!hashAfterVisitMutation || hashAfterVisitMutation === hashAfterRuleMutation) {
+  fail('schedule.metadata.sourceHash should change when visitSchedule.visitDefinitions change');
+}
+
+const generatedAfterMutations = generateScheduleFromRules(getProtocolDocument());
+if (!generatedScheduleContentEquals(getProtocolDocument().schedule, generatedAfterMutations)) {
+  fail('auto-regenerated schedule cache should match generateScheduleFromRules output');
+}
+
+if (
+  !getProtocolDocument().schedule.metadata?.generatedFromRules ||
+  !getProtocolDocument().schedule.metadata.generatedAt ||
+  !getProtocolDocument().schedule.metadata.sourceHash ||
+  getProtocolDocument().schedule.metadata.sourceRuleCount !== 44
+) {
+  fail('auto-regeneration should maintain generated schedule cache metadata');
 }
 
 resetProtocolStore();
@@ -435,11 +687,13 @@ resetProtocolStore();
 console.log('Visit schedule smoke test passed.');
 console.log(`  anchors: ${anchors.length}`);
 console.log(`  visitDefinitions: ${visitDefinitions.length}`);
+console.log(`  soaAssessmentDefinitions: ${soaDefinitions.length}`);
 console.log(`  assessmentScheduleRules: ${seedRules.length}`);
 console.log(`  lookup helpers verified`);
 console.log(`  anchor and visitDefinition validation verified`);
 console.log(`  visit window and policy mutations verified`);
 console.log(`  assessment schedule rule CRUD verified`);
 console.log(`  feature-flagged schedule selectors verified`);
+console.log(`  schedule cache regeneration and auto-regeneration verified`);
 console.log(`  subscriber notifications: ${subscriberNotifications}`);
 console.log(`  store reset to seed`);

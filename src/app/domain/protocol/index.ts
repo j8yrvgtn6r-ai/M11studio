@@ -18,6 +18,7 @@ export type {
   ClinicalDesignEntities,
   DesignEntity,
   ScheduleDefinition,
+  ScheduleCacheMetadata,
   ScheduleVisit,
   ScheduleAssessment,
   ScheduleCell,
@@ -26,6 +27,7 @@ export type {
   VisitDefinition,
   VisitDefinitionType,
   VisitScheduleModel,
+  SoAAssessmentDefinition,
   AssessmentScheduleRule,
   RelativeTiming,
   ScheduleCondition,
@@ -58,6 +60,8 @@ export {
   updateRelationship,
   updateScheduleAnchor,
   updateVisitDefinition,
+  regenerateScheduleCache,
+  isAuthoritativeScheduleCacheStale,
 } from './store';
 
 export type {
@@ -105,6 +109,8 @@ export {
   findScheduleAnchorInDocument,
   findVisitDefinition,
   findVisitDefinitionInDocument,
+  findVisitDefinitionBySoAColumnId,
+  findVisitDefinitionBySoAColumnIdInDocument,
   scheduleAnchorExistsInDocument,
   selectScheduleAnchors,
   selectVisitDefinitions,
@@ -118,18 +124,31 @@ export type {
 } from './visitSchedule';
 
 export {
+  findSoAAssessmentDefinition,
+  findSoAAssessmentDefinitionInDocument,
+  selectSoAAssessmentDefinitions,
+  selectSoAAssessmentDefinitionsByCategory,
+  soaAssessmentDefinitionExistsInDocument,
+  validateSoAAssessmentDefinitions,
+} from './soaAssessmentDefinition';
+
+export type { SoAAssessmentDefinitionLocation } from './soaAssessmentDefinition';
+
+export {
   assessmentIdExistsInDocument,
   assessmentReferencesMatch,
   assessmentScheduleRuleExistsInDocument,
   buildAssessmentReferenceMetadata,
   collectClinicalDesignAssessmentIds,
   collectScheduleAssessmentIds,
+  collectSoAAssessmentDefinitionIds,
   collectValidAssessmentIds,
   findAssessmentScheduleRule,
   findAssessmentScheduleRuleInDocument,
   findScheduleAssessmentInDocument,
   isClinicalDesignAssessmentId,
   isScheduleAssessmentId,
+  isSoAAssessmentDefinitionId,
   resolveAssessmentReference,
   selectAssessmentScheduleRules,
   selectAssessmentScheduleRulesForAssessment,
@@ -162,6 +181,10 @@ export {
   getScheduleAnchors,
   getVisitDefinitions,
   getVisitDefinition,
+  getVisitDefinitionBySoAColumnId,
+  getSoAAssessmentDefinitions,
+  getSoAAssessmentDefinition,
+  getSoAAssessmentDefinitionsByCategory,
   getAssessmentScheduleRules,
   getAssessmentScheduleRulesForAssessment,
   getAssessmentScheduleRulesForVisit,
@@ -193,9 +216,21 @@ export {
   formatGeneratedScheduleComparisonReport,
   formatGeneratedScheduleDiffReport,
   generateScheduleFromRules,
+  generatedScheduleContentEquals,
   reportGeneratedScheduleDiff,
   resolveGeneratedAssessmentRowId,
   resolveGeneratedVisitColumnId,
+  verifyGeneratedScheduleIndependentOfLegacyScheduleMetadata,
+  buildScheduleSourceSnapshot,
+  computeScheduleSourceHash,
+  isScheduleCacheStale,
+  regenerateScheduleCacheInDocument,
+  validateScheduleCache,
+  runScheduleParityCheck,
+  formatScheduleParityReport,
+  compareGeneratedScheduleFixtureParity,
+  compareLegacyToGeneratedScheduleParity,
+  ACCEPTED_LEGACY_SCHEDULE_CONTENT_DIFFS,
 } from './scheduleGeneration';
 
 export type {
@@ -205,11 +240,21 @@ export type {
   GeneratedScheduleMetadata,
   ScheduleComparisonDifference,
   ScheduleComparisonSection,
+  ScheduleSourceSnapshot,
+  ScheduleCacheValidationMessage,
   ScheduleView,
+  AcceptedScheduleContentDiff,
+  ClassifiedScheduleDifference,
+  ScheduleDifferenceKind,
+  ScheduleParityReport,
+  ScheduleParitySectionName,
+  ScheduleSectionParityResult,
 } from './scheduleGeneration';
 
 export {
   downloadProtocolJson,
+  ensureAuthoritativeScheduleCacheFresh,
+  ensureScheduleCacheFresh,
   getProtocolExportFilename,
   serializeProtocolDocument,
 } from './export';

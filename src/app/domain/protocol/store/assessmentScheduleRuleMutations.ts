@@ -1,14 +1,14 @@
 import type { AssessmentScheduleRule, ProtocolDocument, RelativeTiming, ScheduleCondition } from '../types';
 import { collectSectionIds } from '../clinicalDesign/entityValidation';
 import {
-  assessmentIdExistsInDocument,
   assessmentScheduleRuleExistsInDocument,
   findAssessmentScheduleRuleInDocument,
 } from '../assessmentScheduleRule/lookup';
-import { buildAssessmentReferenceMetadata } from '../assessmentScheduleRule/assessmentRefs';
+import { buildAssessmentReferenceMetadata, isSoAAssessmentDefinitionId } from '../assessmentScheduleRule/assessmentRefs';
 import { visitDefinitionExistsInDocument } from '../visitSchedule/lookup';
 import { isValidVisitWindowBound } from '../visitSchedule/guards';
 import { getProtocolDocument, mutateProtocolDocument } from './protocolStore';
+import { regenerateScheduleCacheAfterMutation } from './scheduleCacheMutations';
 
 export type CreateAssessmentScheduleRuleInput = {
   id: string;
@@ -40,7 +40,7 @@ function ruleInputIsValid(
     return false;
   }
 
-  if (input.assessmentId !== undefined && !assessmentIdExistsInDocument(document, input.assessmentId)) {
+  if (input.assessmentId !== undefined && !isSoAAssessmentDefinitionId(document, input.assessmentId)) {
     return false;
   }
 
@@ -182,6 +182,7 @@ export function createAssessmentScheduleRule(input: CreateAssessmentScheduleRule
     applyAssessmentScheduleRulePatch(draft, rule, { ...input, metadata: undefined });
     draft.assessmentScheduleRules.push(rule);
     draft.metadata.updatedAt = new Date().toISOString();
+    regenerateScheduleCacheAfterMutation(draft);
     created = true;
   });
 
@@ -216,6 +217,7 @@ export function updateAssessmentScheduleRule(
 
     applyAssessmentScheduleRulePatch(draft, location.rule, patch);
     draft.metadata.updatedAt = new Date().toISOString();
+    regenerateScheduleCacheAfterMutation(draft);
     updated = true;
   });
 
@@ -239,6 +241,7 @@ export function deleteAssessmentScheduleRule(ruleId: string): boolean {
 
     draft.assessmentScheduleRules.splice(index, 1);
     draft.metadata.updatedAt = new Date().toISOString();
+    regenerateScheduleCacheAfterMutation(draft);
     deleted = true;
   });
 

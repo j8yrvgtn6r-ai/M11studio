@@ -3,6 +3,8 @@ import { validateClinicalDesignEntities, collectSectionIds } from './clinicalDes
 import { validateRelationships } from './clinicalDesign/relationshipValidation';
 import { validateVisitSchedule } from './visitSchedule/visitScheduleValidation';
 import { validateAssessmentScheduleRules } from './assessmentScheduleRule/assessmentScheduleRuleValidation';
+import { validateSoAAssessmentDefinitions } from './soaAssessmentDefinition/soaAssessmentDefinitionValidation';
+import { validateScheduleCache } from './scheduleGeneration/scheduleCacheValidation';
 
 export interface ProtocolValidationMessage {
   code: string;
@@ -108,7 +110,11 @@ export function validateProtocol(document: ProtocolDocument): ProtocolValidation
 
   validateVisitSchedule(document, errors, warnings);
 
+  validateSoAAssessmentDefinitions(document, errors, warnings);
+
   validateAssessmentScheduleRules(document, errors, warnings);
+
+  validateScheduleCache(document, warnings);
 
   const scheduleVisitIds = document.schedule.visits.map((visit) => visit.id);
   checkUniqueIds(scheduleVisitIds, 'schedule.visits', errors);

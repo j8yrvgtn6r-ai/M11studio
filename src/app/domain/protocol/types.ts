@@ -149,6 +149,12 @@ export interface VisitDefinition {
   required: boolean;
   description?: string;
   order: number;
+  /** Short SoA column header override when distinct from `name`. */
+  displayLabel?: string;
+  /** SoA column timepoint string override when distinct from computed anchor timing. */
+  timepointDisplay?: string;
+  /** Stable legacy/generated SoA column id (e.g. `v1`–`v9` during migration). */
+  soaColumnId?: string;
   missedVisitPolicy?: MissedVisitPolicy;
   reanchorPolicy?: ReanchorPolicy;
   ripplePolicy?: RipplePolicy;
@@ -178,13 +184,24 @@ export interface ScheduleCondition {
   populationIds?: string[];
 }
 
+/** SoA row catalog entry — presentation and row identity for the schedule matrix. */
+export interface SoAAssessmentDefinition {
+  id: string;
+  label: string;
+  category: string;
+  order: number;
+  linkedSectionId?: string;
+  clinicalDesignAssessmentId?: string;
+  metadata?: Record<string, unknown>;
+}
+
 /** Assessment × visit intersection rule for SoA generation. */
 export interface AssessmentScheduleRule {
   id: string;
   /**
-   * Canonical assessment reference: prefer `clinicalDesign.assessments[].id`.
-   * Legacy `schedule.assessments[].id` values remain accepted during Stage 2c→2d migration;
-   * use `metadata.clinicalDesignAssessmentId` / `metadata.scheduleAssessmentId` for cross-layer links.
+   * Canonical assessment reference: `soaAssessmentDefinitions[].id`.
+   * Clinical design linkage is resolved through `SoAAssessmentDefinition.clinicalDesignAssessmentId`.
+   * Transitional rule metadata may retain `legacyScheduleAssessmentId` and `scheduleVisitId` migration traces.
    */
   assessmentId: string;
   visitDefinitionId: string;
@@ -212,6 +229,7 @@ export interface ProtocolDocument {
   elements: ProtocolElement[];
   clinicalDesign: ClinicalDesignEntities;
   visitSchedule: VisitScheduleModel;
+  soaAssessmentDefinitions: SoAAssessmentDefinition[];
   assessmentScheduleRules: AssessmentScheduleRule[];
   schedule: ScheduleDefinition;
   relationships: ProtocolRelationship[];
@@ -296,10 +314,20 @@ export interface DesignEntity {
 }
 
 /** Schedule of Activities definition. */
+export interface ScheduleCacheMetadata {
+  generatedFromRules?: boolean;
+  generatedAt?: string;
+  sourceHash?: string;
+  sourceRuleCount?: number;
+  sourceVisitDefinitionCount?: number;
+  sourceSoAAssessmentDefinitionCount?: number;
+}
+
 export interface ScheduleDefinition {
   visits: ScheduleVisit[];
   assessments: ScheduleAssessment[];
   cells: ScheduleCell[];
+  metadata?: ScheduleCacheMetadata;
 }
 
 export interface ScheduleVisit {

@@ -332,6 +332,18 @@ Stage 0 links graph nodes, schedule objects, and protocol sections through expli
 
 **SoA view routing:** Section `1.3` carries `viewKind: "schedule-of-activities"`. App renders `ScheduleOfActivities` when the selected section has that view kind—not via hardcoded section id.
 
+#### 2b. SoA configuration sources (Stage 2+)
+
+**Authoritative scheduling configuration** (not the legacy `schedule` cache):
+
+| Collection | Role |
+|------------|------|
+| `visitSchedule.visitDefinitions` | Operational visit timing + SoA column display metadata |
+| `soaAssessmentDefinitions` | SoA row catalog — **canonical target for `AssessmentScheduleRule.assessmentId`** |
+| `assessmentScheduleRules` | Assessment × visit intersections |
+
+**Reference normalization (Stage 2d Phase 2):** Rules reference `soaAssessmentDefinitions[].id` (`a1`–`a12` in seed). Clinical design WHAT linkage is on the catalog row (`clinicalDesignAssessmentId`), not duplicated as `assess-*` on the rule. Cross-layer lookups (e.g. `getAssessmentScheduleRulesForAssessment('assess-1')`) resolve through the catalog. Legacy `schedule.assessments` remains export/display cache until generated schedule becomes authoritative.
+
 #### 3. Current linkage strategy (Stage 0)
 
 ```

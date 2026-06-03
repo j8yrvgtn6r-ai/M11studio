@@ -1,0 +1,75 @@
+[
+  {
+    "id": "a1",
+    "label": "Informed Consent",
+    "category": "Administrative"
+  },
+  {
+    "id": "a2",
+    "label": "Demographics",
+    "category": "Baseline",
+    "linkedSectionId": "5"
+  },
+  {
+    "id": "a3",
+    "label": "Medical History",
+    "category": "Baseline",
+    "linkedSectionId": "5"
+  },
+  {
+    "id": "a4",
+    "label": "Physical Examination",
+    "category": "Safety",
+    "linkedSectionId": "8.4"
+  },
+  {
+    "id": "a5",
+    "label": "Vital Signs",
+    "category": "Safety",
+    "linkedSectionId": "8.4"
+  },
+  {
+    "id": "a6",
+    "label": "ECG",
+    "category": "Safety",
+    "linkedSectionId": "8.4"
+  },
+  {
+    "id": "a7",
+    "label": "Laboratory Tests",
+    "category": "Safety",
+    "entityId": "assess-3",
+    "linkedSectionId": "8.4"
+  },
+  {
+    "id": "a8",
+    "label": "Tumor Assessment (RECIST)",
+    "category": "Efficacy",
+    "entityId": "assess-1",
+    "linkedSectionId": "8.3"
+  },
+  {
+    "id": "a9",
+    "label": "PK Sampling",
+    "category": "PK",
+    "linkedSectionId": "8.5"
+  },
+  {
+    "id": "a10",
+    "label": "Adverse Events",
+    "category": "Safety",
+    "linkedSectionId": "9"
+  },
+  {
+    "id": "a11",
+    "label": "Concomitant Medications",
+    "category": "Safety",
+    "linkedSectionId": "6.10"
+  },
+  {
+    "id": "a12",
+    "label": "Study Drug Administration",
+    "category": "Intervention",
+    "linkedSectionId": "6.3"
+  }
+]

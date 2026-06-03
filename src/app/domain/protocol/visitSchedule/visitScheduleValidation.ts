@@ -221,6 +221,7 @@ export function validateVisitSchedule(
   const { anchors, visitDefinitions } = document.visitSchedule;
   const seenAnchorIds = new Map<string, string>();
   const seenVisitDefinitionIds = new Map<string, string>();
+  const seenSoaColumnIds = new Map<string, string>();
   const visitDefinitionIds = new Set<string>();
   const clinicalDesignVisitIds = collectClinicalDesignVisitIds(document);
   const anchorById = buildAnchorById(anchors);
@@ -285,6 +286,47 @@ export function validateVisitSchedule(
     }
 
     validateVisitDefinitionTimingAndPolicy(visitDefinition, path, anchorById, errors);
+
+    if (visitDefinition.displayLabel !== undefined && !visitDefinition.displayLabel.trim()) {
+      errors.push({
+        code: 'invalid_visit_definition_display_label',
+        path: `${path}.displayLabel`,
+        message: 'displayLabel must be a non-empty string when provided',
+      });
+    }
+
+    if (visitDefinition.timepointDisplay !== undefined && !visitDefinition.timepointDisplay.trim()) {
+      errors.push({
+        code: 'invalid_visit_definition_timepoint_display',
+        path: `${path}.timepointDisplay`,
+        message: 'timepointDisplay must be a non-empty string when provided',
+      });
+    }
+
+    if (visitDefinition.soaColumnId) {
+      const previousSoaColumnPath = seenSoaColumnIds.get(visitDefinition.soaColumnId);
+      if (previousSoaColumnPath) {
+        errors.push({
+          code: 'duplicate_visit_definition_soa_column_id',
+          path: `${path}.soaColumnId`,
+          message: `Duplicate soaColumnId "${visitDefinition.soaColumnId}" (also declared at ${previousSoaColumnPath})`,
+        });
+      } else {
+        seenSoaColumnIds.set(visitDefinition.soaColumnId, path);
+      }
+
+      const metadataScheduleVisitId = visitDefinition.metadata?.scheduleVisitId;
+      if (
+        typeof metadataScheduleVisitId === 'string' &&
+        metadataScheduleVisitId !== visitDefinition.soaColumnId
+      ) {
+        warnings.push({
+          code: 'visit_definition_soa_column_id_metadata_mismatch',
+          path: `${path}.soaColumnId`,
+          message: `soaColumnId "${visitDefinition.soaColumnId}" disagrees with metadata.scheduleVisitId "${metadataScheduleVisitId}"`,
+        });
+      }
+    }
   });
 
   anchors?.forEach((anchor, index) => {

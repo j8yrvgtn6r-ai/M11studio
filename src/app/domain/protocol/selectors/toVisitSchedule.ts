@@ -1,8 +1,17 @@
 import type { ProtocolDocument } from '../types';
-import { selectScheduleAnchors, selectVisitDefinitions } from '../visitSchedule/lookup';
+import {
+  findVisitDefinitionInDocument,
+  selectScheduleAnchors,
+  selectVisitDefinitions,
+  findVisitDefinitionBySoAColumnIdInDocument,
+} from '../visitSchedule/lookup';
 
-export { selectScheduleAnchors, selectVisitDefinitions };
+export { selectScheduleAnchors, selectVisitDefinitions, findVisitDefinitionBySoAColumnIdInDocument };
 
 export function selectVisitDefinition(document: ProtocolDocument, visitDefinitionId: string) {
-  return document.visitSchedule?.visitDefinitions.find((visitDefinition) => visitDefinition.id === visitDefinitionId) ?? null;
+  return findVisitDefinitionInDocument(document, visitDefinitionId)?.visitDefinition ?? null;
+}
+
+export function selectVisitDefinitionBySoAColumnId(document: ProtocolDocument, soaColumnId: string) {
+  return findVisitDefinitionBySoAColumnIdInDocument(document, soaColumnId)?.visitDefinition ?? null;
 }
