@@ -8,6 +8,26 @@
 
 export type SchemaVersion = '1.0.0';
 
+/** Protocol artifact lifecycle for export and governance. */
+export type ProtocolLifecycleStatus =
+  | 'draft'
+  | 'inReview'
+  | 'approved'
+  | 'published'
+  | 'archived';
+
+/** How the protocol is being authored in M11 Studio. */
+export type AuthoringMode = 'structured' | 'narrative' | 'hybrid';
+
+/** Placeholder for future Standards Repository version pins. */
+export interface StandardsVersionsReference {
+  ichM11?: string;
+  cdiscCore?: string;
+  cdiscControlledTerminology?: string;
+  cdash?: string;
+  sdtm?: string;
+}
+
 export type Requiredness = 'required' | 'optional' | 'conditional';
 
 export type DocumentStatus =
@@ -80,6 +100,9 @@ export interface ProtocolMetadata {
   createdAt: string;
   updatedAt: string;
   defaultUser?: string;
+  lifecycleStatus?: ProtocolLifecycleStatus;
+  authoringMode?: AuthoringMode;
+  standardsVersions?: StandardsVersionsReference;
 }
 
 /** Hierarchical document tree node. */

@@ -1,0 +1,99 @@
+[
+  {
+    "id": "title_page.full_title",
+    "sectionId": "title",
+    "label": "Full Title",
+    "kind": "data",
+    "dataType": "text",
+    "requiredness": "required",
+    "cardinality": "one_to_one",
+    "repeatable": false,
+    "validationRules": [
+      "must_not_be_blank"
+    ],
+    "aiHints": [
+      "Should identify scientific aspects of the trial and population clearly."
+    ],
+    "value": "A Phase 3, Randomized, Double-Blind, Placebo-Controlled Study Evaluating the Efficacy and Safety of Investigational Drug XYZ in Patients with Advanced Non-Small Cell Lung Cancer"
+  },
+  {
+    "id": "title_page.sponsor_protocol_identifier",
+    "sectionId": "title",
+    "label": "Sponsor Protocol Identifier",
+    "kind": "data",
+    "dataType": "text",
+    "requiredness": "required",
+    "cardinality": "one_to_one",
+    "value": "PROTO-XYZ-301"
+  },
+  {
+    "id": "title_page.trial_phase",
+    "sectionId": "title",
+    "label": "Trial Phase",
+    "kind": "value",
+    "dataType": "valid_value",
+    "requiredness": "required",
+    "controlledTerminology": {
+      "codeList": "C217045",
+      "values": [
+        "Early Phase 1",
+        "Phase 1",
+        "Phase 1/Phase 2",
+        "Phase 2",
+        "Phase 2/Phase 3",
+        "Phase 3",
+        "Phase 4"
+      ]
+    },
+    "value": "Phase 3"
+  },
+  {
+    "id": "title_page.original_protocol_indicator",
+    "sectionId": "title",
+    "label": "Original Protocol",
+    "kind": "value",
+    "dataType": "valid_value",
+    "requiredness": "required",
+    "controlledTerminology": {
+      "codeList": "C217046",
+      "values": [
+        {
+          "label": "Yes",
+          "code": "C49488"
+        },
+        {
+          "label": "No",
+          "code": "C49487"
+        }
+      ]
+    },
+    "validationRules": [
+      "if_no_then_amendment_identifier_required"
+    ],
+    "value": "No"
+  },
+  {
+    "id": "title_page.amendment_scope",
+    "sectionId": "amendment",
+    "label": "Amendment Scope",
+    "kind": "value",
+    "dataType": "valid_value",
+    "requiredness": "conditional",
+    "controlledTerminology": {
+      "codeList": "C217047",
+      "values": [
+        {
+          "label": "Global",
+          "code": "C68846"
+        },
+        {
+          "label": "Not Global",
+          "code": "C217026"
+        }
+      ]
+    },
+    "validationRules": [
+      "if_not_global_then_country_region_or_site_identifier_required"
+    ]
+  }
+]

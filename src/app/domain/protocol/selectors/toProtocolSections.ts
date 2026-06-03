@@ -19,6 +19,10 @@ function toProtocolSection(section: SectionNode, document: ProtocolDocument): Pr
     mapped.hasAmendment = true;
   }
 
+  if (section.viewKind !== undefined) {
+    mapped.viewKind = section.viewKind;
+  }
+
   if (commentCount !== undefined) {
     mapped.commentCount = commentCount;
   }

@@ -1,5 +1,8 @@
 export type {
   SchemaVersion,
+  AuthoringMode,
+  ProtocolLifecycleStatus,
+  StandardsVersionsReference,
   Requiredness,
   DocumentStatus,
   GraphEntityStatus,
@@ -28,6 +31,14 @@ export type {
 export { getProtocolDocument, loadProtocol } from './loadProtocol';
 
 export {
+  getProtocolSnapshot,
+  resetProtocolStore,
+  subscribe,
+  updateElement,
+  updateElementValue,
+} from './store';
+
+export {
   getAssessments,
   getAuditEvents,
   getComments,
@@ -53,3 +64,16 @@ export {
 
 export { formatParityReport, runParityCheck } from './parity/checkParity';
 export type { ParityCheckResult, ParityReport } from './parity/checkParity';
+
+export {
+  downloadProtocolJson,
+  getProtocolExportFilename,
+  serializeProtocolDocument,
+} from './export';
+
+export {
+  formatProtocolValidationResult,
+  logDevProtocolValidation,
+  validateProtocol,
+} from './validateProtocol';
+export type { ProtocolValidationMessage, ProtocolValidationResult } from './validateProtocol';

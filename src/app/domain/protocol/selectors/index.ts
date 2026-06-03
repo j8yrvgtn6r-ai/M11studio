@@ -1,4 +1,4 @@
-import { getProtocolDocument } from '../loadProtocol';
+import { getProtocolDocument } from '../store';
 import type { ProtocolDocument } from '../types';
 import { selectAuditEvents, selectComments } from './toCollaboration';
 import { selectDependencyEdges, selectDependencyNodes } from './toDependencyGraph';

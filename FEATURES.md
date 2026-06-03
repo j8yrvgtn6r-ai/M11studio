@@ -159,9 +159,10 @@
   - Adapters produce legacy view DTOs for UI consumption
   - `getProtocolSections()`, `getFieldDefinitions()`, schedule getters, graph getters, etc.
 - [x] **Parity Verification** (`npm run test:parity`)
-  - Compares selector output against legacy `mockData.ts` / `dependencyGraphData.ts`
-  - Legacy files retained for parity only; **runtime app does not import them**
-  - Runtime migration complete — see [MIGRATION_STATUS.md](./MIGRATION_STATUS.md)
+  - Compares selector output against committed JSON fixtures in `domain/protocol/parity/fixtures/`
+  - Legacy mock files removed; parity and runtime use the canonical domain layer only
+  - Regenerate fixtures after intentional selector changes: `npm run generate:parity-fixtures`
+  - See [MIGRATION_STATUS.md](./MIGRATION_STATUS.md)
 - [x] **View-Layer TypeScript Types** (`types/protocol.ts`, `types/dependencyGraph.ts`)
   - ProtocolSection (hierarchical)
   - FieldDefinition (M11 element model)
@@ -277,7 +278,11 @@ src/app/
 │       ├── seed/
 │       │   └── PROTO-XYZ-301.json     # Canonical source of truth
 │       ├── selectors/                 # Adapters → view DTOs
-│       ├── parity/                    # Parity check vs legacy mocks
+│       ├── store/                     # Authoritative Protocol Store
+│       ├── export/                    # JSON export
+│       ├── selectors/                 # Adapters → view DTOs
+│       ├── parity/
+│       │   └── fixtures/              # Committed selector output baselines
 │       ├── types.ts                   # Canonical domain types
 │       ├── loadProtocol.ts
 │       └── index.ts
@@ -297,9 +302,6 @@ src/app/
 │   ├── StatusBar.tsx
 │   ├── ThemeToggle.tsx
 │   └── WelcomeDialog.tsx
-├── data/
-│   ├── mockData.ts                    # Legacy — parity checks only
-│   └── dependencyGraphData.ts         # Legacy — parity checks only
 ├── types/
 │   ├── protocol.ts                    # View-layer DTOs
 │   └── dependencyGraph.ts
@@ -313,7 +315,8 @@ src/styles/
 └── index.css
 
 scripts/
-└── check-protocol-parity.ts         # npm run test:parity
+├── check-protocol-parity.ts         # npm run test:parity
+└── generate-parity-fixtures.ts    # npm run generate:parity-fixtures
 ```
 
 ## 🎯 Core Workflows Demonstrated

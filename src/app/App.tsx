@@ -43,12 +43,14 @@ import {
   getSoACells,
   getValidationIssues,
   getVisits,
+  subscribe,
+  updateElementValue,
+  downloadProtocolJson,
 } from './domain/protocol';
 import type { ProtocolSection, FieldDefinition } from './types/protocol';
 import type { DependencyNode } from './types/dependencyGraph';
 
 const protocolSections = getProtocolSections();
-const fieldDefinitions = getFieldDefinitions();
 const validationIssues = getValidationIssues();
 const auditEvents = getAuditEvents();
 const comments = getComments();
@@ -59,7 +61,7 @@ const soaCells = getSoACells();
 export default function App() {
   const [selectedSectionId, setSelectedSectionId] = useState<string | null>('1');
   const [selectedFieldId, setSelectedFieldId] = useState<string | null>(null);
-  const [fields, setFields] = useState(fieldDefinitions);
+  const [fields, setFields] = useState(() => getFieldDefinitions());
   const [commandOpen, setCommandOpen] = useState(false);
   const [welcomeOpen, setWelcomeOpen] = useState(false);
   const [lastSaved, setLastSaved] = useState(new Date());
@@ -97,6 +99,12 @@ export default function App() {
     return () => document.removeEventListener('keydown', down);
   }, []);
 
+  useEffect(() => {
+    return subscribe(() => {
+      setFields(getFieldDefinitions());
+    });
+  }, []);
+
   const findSection = (sections: ProtocolSection[], id: string): ProtocolSection | null => {
     for (const section of sections) {
       if (section.id === id) return section;
@@ -109,17 +117,12 @@ export default function App() {
   };
 
   const selectedSection = selectedSectionId ? findSection(protocolSections, selectedSectionId) : null;
+  const isScheduleOfActivities = selectedSection?.viewKind === 'schedule-of-activities';
   const sectionFields = fields.filter((f) => f.sectionId === selectedSectionId);
   const selectedField = selectedFieldId ? fields.find((f) => f.id === selectedFieldId) || null : null;
 
   const handleFieldChange = (fieldId: string, value: any) => {
-    setFields((prev) =>
-      prev.map((field) =>
-        field.id === fieldId
-          ? { ...field, value }
-          : field
-      )
-    );
+    updateElementValue(fieldId, value);
   };
 
   const handleSectionSelect = (sectionId: string) => {
@@ -202,7 +205,7 @@ export default function App() {
             Dependency Graph
           </Button>
 
-          <Button variant="outline" size="sm" className="h-8 text-xs">
+          <Button variant="outline" size="sm" className="h-8 text-xs" onClick={downloadProtocolJson}>
             <Download className="h-3.5 w-3.5 mr-1.5" />
             Export
           </Button>
@@ -269,7 +272,7 @@ export default function App() {
 
             {/* Center: Document Viewport */}
             <ResizablePanel id="document-viewport" order={2} defaultSize={50} minSize={30}>
-              {selectedSectionId === '1.3' ? (
+              {isScheduleOfActivities ? (
                 <ScheduleOfActivities
                   visits={visits}
                   assessments={assessments}
@@ -353,7 +356,12 @@ export default function App() {
               <Save className="mr-2 h-4 w-4" />
               Save Protocol
             </CommandItem>
-            <CommandItem>
+            <CommandItem
+              onSelect={() => {
+                downloadProtocolJson();
+                setCommandOpen(false);
+              }}
+            >
               <Download className="mr-2 h-4 w-4" />
               Export Protocol
             </CommandItem>

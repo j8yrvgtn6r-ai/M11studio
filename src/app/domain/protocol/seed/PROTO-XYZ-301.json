@@ -9,7 +9,16 @@
     "therapeuticArea": "Oncology",
     "createdAt": "2026-05-22T10:30:00.000Z",
     "updatedAt": "2026-05-22T16:10:00.000Z",
-    "defaultUser": "Dr. Sarah Chen"
+    "defaultUser": "Dr. Sarah Chen",
+    "lifecycleStatus": "draft",
+    "authoringMode": "structured",
+    "standardsVersions": {
+      "ichM11": "1.0",
+      "cdiscCore": "2.1",
+      "cdiscControlledTerminology": "2024-12-06",
+      "cdash": "2.2",
+      "sdtm": "2.0"
+    }
   },
   "sections": [
     {
@@ -228,7 +237,7 @@
         "type": "objective",
         "name": "Primary Objective: Overall Survival",
         "description": "Evaluate overall survival in patients treated with 177Lu-PSMA-617",
-        "sectionRef": "2.1",
+        "sectionRef": "3",
         "status": ["complete"]
       },
       {
@@ -236,7 +245,7 @@
         "type": "objective",
         "name": "Secondary Objective: Progression-Free Survival",
         "description": "Assess progression-free survival as a secondary endpoint",
-        "sectionRef": "2.1",
+        "sectionRef": "3",
         "status": ["complete"]
       }
     ],
@@ -246,7 +255,7 @@
         "type": "endpoint",
         "name": "Overall Survival",
         "description": "Time from randomization to death from any cause",
-        "sectionRef": "2.2",
+        "sectionRef": "3",
         "status": ["complete"]
       },
       {
@@ -254,7 +263,7 @@
         "type": "endpoint",
         "name": "Progression-Free Survival",
         "description": "Time from randomization to disease progression or death",
-        "sectionRef": "2.2",
+        "sectionRef": "3",
         "status": ["complete"]
       },
       {
@@ -262,7 +271,7 @@
         "type": "endpoint",
         "name": "PSA Response Rate",
         "description": "Proportion of patients with ≥50% PSA decline",
-        "sectionRef": "2.2",
+        "sectionRef": "3",
         "status": ["incomplete"]
       }
     ],
@@ -324,7 +333,7 @@
         "type": "statistical-analysis",
         "name": "Primary Analysis: OS",
         "description": "Kaplan-Meier analysis with log-rank test",
-        "sectionRef": "8.1",
+        "sectionRef": "10",
         "status": ["complete"]
       },
       {
@@ -332,7 +341,7 @@
         "type": "statistical-analysis",
         "name": "Secondary Analysis: PFS",
         "description": "Progression-free survival analysis",
-        "sectionRef": "8.1",
+        "sectionRef": "10",
         "status": ["complete"]
       }
     ],
@@ -342,7 +351,7 @@
         "type": "study-arm",
         "name": "177Lu-PSMA-617 + BSC",
         "description": "Experimental arm with radiopharmaceutical",
-        "sectionRef": "3.1",
+        "sectionRef": "4",
         "status": ["complete"]
       },
       {
@@ -350,7 +359,7 @@
         "type": "study-arm",
         "name": "Best Standard Care",
         "description": "Control arm",
-        "sectionRef": "3.1",
+        "sectionRef": "4",
         "status": ["complete"]
       }
     ],
@@ -360,7 +369,7 @@
         "type": "population",
         "name": "Target Population",
         "description": "mCRPC patients with PSMA-positive disease",
-        "sectionRef": "4.1",
+        "sectionRef": "5",
         "status": ["complete"]
       }
     ],
@@ -370,7 +379,7 @@
         "type": "eligibility",
         "name": "PSMA-positive on PET scan",
         "description": "Confirmed PSMA expression by imaging",
-        "sectionRef": "4.2",
+        "sectionRef": "5",
         "status": ["complete"]
       },
       {
@@ -378,7 +387,7 @@
         "type": "eligibility",
         "name": "Progressive mCRPC",
         "description": "Disease progression despite castration therapy",
-        "sectionRef": "4.2",
+        "sectionRef": "5",
         "status": ["complete"]
       }
     ],
@@ -388,7 +397,7 @@
         "type": "biomarker",
         "name": "PSMA Expression",
         "description": "PSMA-PET scan uptake",
-        "sectionRef": "5.1",
+        "sectionRef": "5",
         "status": ["complete"]
       }
     ],
@@ -398,7 +407,7 @@
         "type": "intervention",
         "name": "177Lu-PSMA-617",
         "description": "7.4 GBq IV every 6 weeks",
-        "sectionRef": "6.1",
+        "sectionRef": "4",
         "status": ["complete"]
       }
     ],
@@ -408,7 +417,7 @@
         "type": "safety-assessment",
         "name": "Adverse Event Monitoring",
         "description": "Continuous AE monitoring per CTCAE v5.0",
-        "sectionRef": "7.1",
+        "sectionRef": "8",
         "status": ["recently-modified"]
       }
     ]

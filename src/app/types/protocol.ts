@@ -3,6 +3,7 @@
 export type RequirednessType = 'required' | 'optional' | 'conditional';
 export type StatusType = 'complete' | 'inProgress' | 'requiredMissing' | 'conditionalMissing' | 'aiSuggestion' | 'reusedLinkedContent' | 'amended';
 export type SeverityType = 'error' | 'warning' | 'info';
+export type SectionViewKind = 'document' | 'schedule-of-activities' | 'graph-only';
 
 export interface ProtocolSection {
   id: string;
@@ -14,6 +15,7 @@ export interface ProtocolSection {
   validationCount?: number;
   commentCount?: number;
   hasAmendment?: boolean;
+  viewKind?: SectionViewKind;
 }
 
 export interface FieldDefinition {

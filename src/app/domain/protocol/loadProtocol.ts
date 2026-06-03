@@ -1,14 +1,10 @@
 import type { ProtocolDocument } from './types';
-import seedProtocol from './seed/PROTO-XYZ-301.json';
+import { getProtocolDocument } from './store';
 
-const protocolDocument = seedProtocol as ProtocolDocument;
-
-/** Returns the canonical seed protocol document. */
+/** Returns the canonical protocol document from the protocol store. */
 export function loadProtocol(): ProtocolDocument {
-  return protocolDocument;
+  return getProtocolDocument();
 }
 
-/** Singleton accessor for the default seed protocol. */
-export function getProtocolDocument(): ProtocolDocument {
-  return protocolDocument;
-}
+/** Singleton accessor for the default protocol document. */
+export { getProtocolDocument } from './store';

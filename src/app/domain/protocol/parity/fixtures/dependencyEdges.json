@@ -1,0 +1,128 @@
+[
+  {
+    "id": "e1",
+    "source": "obj-1",
+    "target": "ep-1",
+    "label": "defines"
+  },
+  {
+    "id": "e2",
+    "source": "obj-2",
+    "target": "ep-2",
+    "label": "defines"
+  },
+  {
+    "id": "e3",
+    "source": "ep-1",
+    "target": "assess-1",
+    "label": "measured by"
+  },
+  {
+    "id": "e4",
+    "source": "ep-2",
+    "target": "assess-1",
+    "label": "measured by"
+  },
+  {
+    "id": "e5",
+    "source": "ep-3",
+    "target": "assess-2",
+    "label": "measured by"
+  },
+  {
+    "id": "e6",
+    "source": "assess-1",
+    "target": "visit-1",
+    "label": "performed at"
+  },
+  {
+    "id": "e7",
+    "source": "assess-1",
+    "target": "visit-3",
+    "label": "performed at"
+  },
+  {
+    "id": "e8",
+    "source": "assess-2",
+    "target": "visit-1",
+    "label": "performed at"
+  },
+  {
+    "id": "e9",
+    "source": "assess-2",
+    "target": "visit-2",
+    "label": "performed at"
+  },
+  {
+    "id": "e10",
+    "source": "assess-2",
+    "target": "visit-3",
+    "label": "performed at"
+  },
+  {
+    "id": "e11",
+    "source": "assess-3",
+    "target": "visit-2",
+    "label": "performed at"
+  },
+  {
+    "id": "e12",
+    "source": "assess-3",
+    "target": "visit-3",
+    "label": "performed at"
+  },
+  {
+    "id": "e13",
+    "source": "ep-1",
+    "target": "stat-1",
+    "label": "analyzed by"
+  },
+  {
+    "id": "e14",
+    "source": "ep-2",
+    "target": "stat-2",
+    "label": "analyzed by"
+  },
+  {
+    "id": "e15",
+    "source": "pop-1",
+    "target": "elig-1",
+    "label": "requires"
+  },
+  {
+    "id": "e16",
+    "source": "pop-1",
+    "target": "elig-2",
+    "label": "requires"
+  },
+  {
+    "id": "e17",
+    "source": "interv-1",
+    "target": "arm-1",
+    "label": "assigned to"
+  },
+  {
+    "id": "e18",
+    "source": "bio-1",
+    "target": "ep-3",
+    "label": "predicts"
+  },
+  {
+    "id": "e19",
+    "source": "bio-1",
+    "target": "elig-1",
+    "label": "defines"
+  },
+  {
+    "id": "e20",
+    "source": "safety-1",
+    "target": "visit-2",
+    "label": "monitored at"
+  },
+  {
+    "id": "e21",
+    "source": "safety-1",
+    "target": "visit-3",
+    "label": "monitored at"
+  }
+]

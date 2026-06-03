@@ -1,0 +1,34 @@
+[
+  {
+    "id": "ae-1",
+    "timestamp": "2026-05-22T10:30:00",
+    "user": "Dr. Sarah Chen",
+    "action": "Created protocol",
+    "details": "Initial protocol creation from template"
+  },
+  {
+    "id": "ae-2",
+    "timestamp": "2026-05-22T11:15:00",
+    "user": "Dr. Sarah Chen",
+    "action": "Updated field",
+    "sectionId": "title",
+    "fieldId": "title_page.full_title",
+    "details": "Modified protocol title"
+  },
+  {
+    "id": "ae-3",
+    "timestamp": "2026-05-22T14:22:00",
+    "user": "Michael Rodriguez (Statistician)",
+    "action": "Updated section",
+    "sectionId": "10",
+    "details": "Added sample size justification"
+  },
+  {
+    "id": "ae-4",
+    "timestamp": "2026-05-22T15:45:00",
+    "user": "Emma Liu (Medical Writer)",
+    "action": "Added comment",
+    "sectionId": "1.3",
+    "details": "Requested clarification on SoA timepoints"
+  }
+]

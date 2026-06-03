@@ -1,0 +1,40 @@
+[
+  {
+    "id": "VR-002-1",
+    "name": "Conditional amendment data missing",
+    "severity": "error",
+    "sectionId": "amendment",
+    "fieldId": "title_page.amendment_scope",
+    "message": "Original Protocol Indicator is \"No\" but Amendment Scope is not specified.",
+    "quickFix": "Set Amendment Scope to \"Global\" or \"Not Global\""
+  },
+  {
+    "id": "VR-003-1",
+    "name": "Non-global amendment scope lacks geographic identifier",
+    "severity": "error",
+    "sectionId": "amendment",
+    "message": "Amendment Scope is \"Not Global\" but no country/region/site identifier provided."
+  },
+  {
+    "id": "VR-005-1",
+    "name": "Assessment referenced in text but absent from SoA",
+    "severity": "warning",
+    "sectionId": "8",
+    "message": "ECG assessment mentioned in section 8.4 but not present in Schedule of Activities.",
+    "quickFix": "Add ECG to Schedule of Activities"
+  },
+  {
+    "id": "VR-004-1",
+    "name": "Objective without endpoint",
+    "severity": "warning",
+    "sectionId": "1.3",
+    "message": "Exploratory objective defined without linked endpoint."
+  },
+  {
+    "id": "VR-001-1",
+    "name": "Required M11 element missing",
+    "severity": "error",
+    "sectionId": "8",
+    "message": "Safety assessment procedures section incomplete."
+  }
+]

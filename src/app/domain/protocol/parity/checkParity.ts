@@ -1,18 +1,4 @@
 import {
-  assessments as legacyAssessments,
-  auditEvents as legacyAuditEvents,
-  comments as legacyComments,
-  fieldDefinitions as legacyFieldDefinitions,
-  protocolSections as legacyProtocolSections,
-  soaCells as legacySoaCells,
-  validationIssues as legacyValidationIssues,
-  visits as legacyVisits,
-} from '../../../data/mockData';
-import {
-  dependencyEdges as legacyDependencyEdges,
-  dependencyNodes as legacyDependencyNodes,
-} from '../../../data/dependencyGraphData';
-import {
   getAssessments,
   getAuditEvents,
   getComments,
@@ -25,6 +11,7 @@ import {
   getVisits,
 } from '../selectors';
 import { deepEqual, formatDifferences } from './deepEqual';
+import { parityFixtures } from './loadFixtures';
 
 export interface ParityCheckResult {
   name: string;
@@ -38,21 +25,21 @@ export interface ParityReport {
 }
 
 const PARITY_TARGETS = [
-  { name: 'protocolSections', legacy: legacyProtocolSections, actual: getProtocolSections },
-  { name: 'fieldDefinitions', legacy: legacyFieldDefinitions, actual: getFieldDefinitions },
-  { name: 'visits', legacy: legacyVisits, actual: getVisits },
-  { name: 'assessments', legacy: legacyAssessments, actual: getAssessments },
-  { name: 'soaCells', legacy: legacySoaCells, actual: getSoACells },
-  { name: 'dependencyNodes', legacy: legacyDependencyNodes, actual: getDependencyNodes },
-  { name: 'dependencyEdges', legacy: legacyDependencyEdges, actual: getDependencyEdges },
-  { name: 'validationIssues', legacy: legacyValidationIssues, actual: getValidationIssues },
-  { name: 'comments', legacy: legacyComments, actual: getComments },
-  { name: 'auditEvents', legacy: legacyAuditEvents, actual: getAuditEvents },
+  { name: 'protocolSections', expected: parityFixtures.protocolSections, actual: getProtocolSections },
+  { name: 'fieldDefinitions', expected: parityFixtures.fieldDefinitions, actual: getFieldDefinitions },
+  { name: 'visits', expected: parityFixtures.visits, actual: getVisits },
+  { name: 'assessments', expected: parityFixtures.assessments, actual: getAssessments },
+  { name: 'soaCells', expected: parityFixtures.soaCells, actual: getSoACells },
+  { name: 'dependencyNodes', expected: parityFixtures.dependencyNodes, actual: getDependencyNodes },
+  { name: 'dependencyEdges', expected: parityFixtures.dependencyEdges, actual: getDependencyEdges },
+  { name: 'validationIssues', expected: parityFixtures.validationIssues, actual: getValidationIssues },
+  { name: 'comments', expected: parityFixtures.comments, actual: getComments },
+  { name: 'auditEvents', expected: parityFixtures.auditEvents, actual: getAuditEvents },
 ] as const;
 
 export function runParityCheck(): ParityReport {
-  const results = PARITY_TARGETS.map(({ name, legacy, actual }) => {
-    const differences = deepEqual(legacy, actual(), name);
+  const results = PARITY_TARGETS.map(({ name, expected, actual }) => {
+    const differences = deepEqual(expected, actual(), name);
     return {
       name,
       passed: differences.length === 0,
@@ -79,6 +66,6 @@ export function formatParityReport(report: ParityReport): string {
     lines.push('');
   }
 
-  lines.push(report.passed ? 'All selector outputs match legacy mock exports.' : 'Parity check failed.');
+  lines.push(report.passed ? 'All selector outputs match parity fixtures.' : 'Parity check failed.');
   return lines.join('\n');
 }

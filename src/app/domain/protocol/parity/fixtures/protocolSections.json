@@ -1,0 +1,157 @@
+[
+  {
+    "id": "title",
+    "title": "Title Page",
+    "level": 0,
+    "conformance": "required",
+    "status": "complete",
+    "validationCount": 0
+  },
+  {
+    "id": "amendment",
+    "title": "Amendment Details",
+    "level": 0,
+    "conformance": "conditional",
+    "status": "requiredMissing",
+    "validationCount": 2,
+    "hasAmendment": true
+  },
+  {
+    "id": "1",
+    "title": "1 PROTOCOL SUMMARY",
+    "level": 1,
+    "conformance": "required",
+    "status": "inProgress",
+    "validationCount": 1,
+    "children": [
+      {
+        "id": "1.1",
+        "title": "1.1 Protocol Synopsis",
+        "level": 2,
+        "conformance": "required",
+        "status": "complete",
+        "validationCount": 0,
+        "children": [
+          {
+            "id": "1.1.1",
+            "title": "1.1.1 Primary and Secondary Objectives and Estimands",
+            "level": 3,
+            "conformance": "required",
+            "status": "complete",
+            "validationCount": 0
+          },
+          {
+            "id": "1.1.2",
+            "title": "1.1.2 Overall Design",
+            "level": 3,
+            "conformance": "required",
+            "status": "complete",
+            "validationCount": 0
+          }
+        ]
+      },
+      {
+        "id": "1.2",
+        "title": "1.2 Trial Schema",
+        "level": 2,
+        "conformance": "required",
+        "status": "complete",
+        "validationCount": 0
+      },
+      {
+        "id": "1.3",
+        "title": "1.3 Schedule of Activities",
+        "level": 2,
+        "conformance": "required",
+        "status": "inProgress",
+        "validationCount": 1,
+        "viewKind": "schedule-of-activities",
+        "commentCount": 2
+      }
+    ]
+  },
+  {
+    "id": "2",
+    "title": "2 INTRODUCTION",
+    "level": 1,
+    "conformance": "required",
+    "status": "complete",
+    "validationCount": 0,
+    "children": [
+      {
+        "id": "2.1",
+        "title": "2.1 Purpose of Trial",
+        "level": 2,
+        "conformance": "required",
+        "status": "complete",
+        "validationCount": 0
+      },
+      {
+        "id": "2.2",
+        "title": "2.2 Assessment of Risks and Benefits",
+        "level": 2,
+        "conformance": "required",
+        "status": "complete",
+        "validationCount": 0
+      }
+    ]
+  },
+  {
+    "id": "3",
+    "title": "3 TRIAL OBJECTIVES AND ASSOCIATED ESTIMANDS",
+    "level": 1,
+    "conformance": "required",
+    "status": "complete",
+    "validationCount": 0,
+    "children": [
+      {
+        "id": "3.1",
+        "title": "3.1 Primary Objective(s) and Associated Estimand(s)",
+        "level": 2,
+        "conformance": "required",
+        "status": "complete",
+        "validationCount": 0
+      },
+      {
+        "id": "3.2",
+        "title": "3.2 Secondary Objective(s) and Associated Estimand(s)",
+        "level": 2,
+        "conformance": "required",
+        "status": "complete",
+        "validationCount": 0
+      }
+    ]
+  },
+  {
+    "id": "4",
+    "title": "4 TRIAL DESIGN",
+    "level": 1,
+    "conformance": "required",
+    "status": "inProgress",
+    "validationCount": 0
+  },
+  {
+    "id": "5",
+    "title": "5 TRIAL POPULATION",
+    "level": 1,
+    "conformance": "required",
+    "status": "inProgress",
+    "validationCount": 0
+  },
+  {
+    "id": "8",
+    "title": "8 TRIAL ASSESSMENTS AND PROCEDURES",
+    "level": 1,
+    "conformance": "required",
+    "status": "conditionalMissing",
+    "validationCount": 3
+  },
+  {
+    "id": "10",
+    "title": "10 STATISTICAL CONSIDERATIONS",
+    "level": 1,
+    "conformance": "required",
+    "status": "inProgress",
+    "validationCount": 0
+  }
+]

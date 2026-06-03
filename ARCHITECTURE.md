@@ -1,5 +1,20 @@
 # M11 Studio - Architecture Overview
 
+## Agent Read Order
+
+Before modifying code, read authority documents in this order:
+
+1. [PROJECT_BRIEF.md](../PROJECT_BRIEF.md)  
+2. [ARCHITECTURE_VISION.md](../ARCHITECTURE_VISION.md)  
+3. [PRODUCT_ROADMAP.md](../PRODUCT_ROADMAP.md)  
+4. [MIGRATION_STATUS.md](../MIGRATION_STATUS.md)  
+5. [STAGE_0_COMPLETION.md](../STAGE_0_COMPLETION.md)  
+6. [ARCHITECTURE.md](./ARCHITECTURE.md) (this file)
+
+Stage 0 is **Complete** — see [STAGE_0_CLOSURE_REPORT.md](../STAGE_0_CLOSURE_REPORT.md).
+
+---
+
 ## System Architecture
 
 ### High-Level Design
@@ -43,14 +58,14 @@ Main application shell that orchestrates all major components and manages global
 **State Management:**
 - `selectedSectionId`: Currently active protocol section
 - `selectedFieldId`: Currently active field for detail inspection
-- `fields`: All field definitions with values (initialized from `getFieldDefinitions()`)
+- `fields`: Field definitions synced from store via `getFieldDefinitions()` and `subscribe()`
 - `showDependencyGraph`: Toggles authoring vs graph workspace
 - `selectedDependencyNode`: Selected graph node for Dependency Inspector
 - `commandOpen`: Command palette visibility
 - `welcomeOpen`: Welcome dialog visibility
 - `lastSaved`: Timestamp of last save operation
 
-**Protocol data:** Loaded at module scope via `getProtocolSections()`, `getFieldDefinitions()`, etc. from `domain/protocol` (canonical seed JSON).
+**Protocol data:** Loaded via the Protocol Store (`domain/protocol/store/`). App and graph components call `get*()` selectors from `domain/protocol`, which read the authoritative in-memory `ProtocolDocument`. Field edits call `updateElementValue()`; export calls `downloadProtocolJson()`.
 
 **Key Responsibilities:**
 - Layout orchestration with ResizablePanelGroup
@@ -258,13 +273,90 @@ PROTO-XYZ-301.json (canonical artifact)
   loadProtocol() / getProtocolDocument()
         │
         ▼
+  domain/protocol/store/     ← authoritative in-memory ProtocolDocument
+        │
+        ▼
   domain/protocol/selectors/  ──►  view DTOs (types/protocol.ts, types/dependencyGraph.ts)
         │
         ▼
   App.tsx, graph components, inspectors
 ```
 
-**Key principle:** One protocol model, many views. Document, SoA, validation, collaboration, and dependency graphs all derive from the same seed JSON. The 2D and 3D graphs share `clinicalDesign` entities and `relationships`—there is no separate graph dataset.
+**Key principle:** One protocol model, many views. Document, SoA, validation, collaboration, and dependency graphs all derive from the Protocol Store (initialized from seed JSON). The 2D and 3D graphs share `clinicalDesign` entities and `relationships`—there is no separate graph dataset.
+
+### Protocol Store (`domain/protocol/store/`)
+
+**Authoritative runtime document:** in-memory `ProtocolDocument` loaded once from seed JSON at module initialization.
+
+| API | Purpose |
+|-----|---------|
+| `getProtocolDocument()` | Read authoritative document |
+| `getProtocolSnapshot()` | Deep copy for export / inspection |
+| `updateElementValue()` | Persist field edits by element id |
+| `resetProtocolStore()` | Reload from seed |
+| `subscribe()` | Notify UI on store changes |
+
+**Export:** `domain/protocol/export/` serializes `getProtocolSnapshot()` as indented JSON download.
+
+**Integrity:** `domain/protocol/validateProtocol.ts` — structural validation; `npm run validate:protocol`. Dev mode logs results on store load via `logDevProtocolValidation()`.
+
+### Clinical Design Linkage Model
+
+Stage 0 links graph nodes, schedule objects, and protocol sections through explicit IDs in the canonical `ProtocolDocument`. Views do not maintain separate identity maps.
+
+#### 1. Clinical Design entities (graph nodes)
+
+**Location:** `clinicalDesign` (objectives, endpoints, assessments, visits, arms, populations, etc.)
+
+| Field | Purpose |
+|-------|---------|
+| `id` | Stable entity identifier; used in `relationships.sourceId` / `targetId` and optional schedule links |
+| `sectionRef` | Protocol section id for double-click navigation from graph → document viewport |
+| `type` | Graph node type rendered in 2D/3D views |
+
+**Selector path:** `clinicalDesign` → `selectDependencyNodes()` → `DependencyNode.sectionId` (from `sectionRef`).
+
+**Navigation:** Double-clicking a graph node sets `selectedSectionId` to `sectionRef`. Values in `PROTO-XYZ-301.json` point to existing sections (e.g. objectives/endpoints → `"3"`, statistical analyses → `"10"`, SoA-related entities → `"1.3"`).
+
+#### 2. Schedule entities (SoA grid)
+
+**Location:** `schedule.visits`, `schedule.assessments`, `schedule.cells`
+
+| Field | Purpose |
+|-------|---------|
+| `id` | Row/column identity within the SoA grid (`v1`, `a8`, etc.) |
+| `entityId` | Optional link to a `clinicalDesign` entity id (partial coverage in seed) |
+| `linkedSectionId` | Optional narrative anchor (not fully validated in Stage 0) |
+
+**Selector path:** `schedule` → `selectVisits()` / `selectAssessments()` / `selectSoACells()`.
+
+**SoA view routing:** Section `1.3` carries `viewKind: "schedule-of-activities"`. App renders `ScheduleOfActivities` when the selected section has that view kind—not via hardcoded section id.
+
+#### 3. Current linkage strategy (Stage 0)
+
+```
+clinicalDesign entity                    schedule row
+       │                                      │
+       │ entityId (optional)                  │ visitId / assessmentId
+       └──────────────┬───────────────────────┘
+                      │
+              same ProtocolDocument
+                      │
+       relationships[] ──► 2D / 3D graph edges
+       sectionRef     ──► document section navigation
+       elements[]     ──► M11 field authoring (sectionId)
+```
+
+**Seed coverage today:**
+
+| Link type | Coverage | Example |
+|-----------|----------|---------|
+| Graph `sectionRef` → section | Full for all design entities | `obj-1` → section `"3"` |
+| Schedule `entityId` → clinical design | Partial | `v1` → `visit-1`, `a8` → `assess-1`, `a7` → `assess-3` |
+| Schedule cell → visit + assessment | Full | `{ visitId: "v3", assessmentId: "a9" }` |
+| Relationships → entity ids | Full | `{ sourceId: "obj-1", targetId: "ep-1" }` |
+
+**Stage 3** will expand optional `entityId` coverage and cell-level metadata. **Stage 1** may add mutations that keep schedule and clinical design in sync.
 
 ### Canonical Protocol (`domain/protocol/`)
 
@@ -302,21 +394,16 @@ UI-facing DTOs unchanged during migration:
 - `Visit`, `Assessment`, `SoACell`
 - `DependencyNode`, `DependencyEdge`
 
-### Legacy Mock Data (parity only — runtime migration complete)
-
-**Files:** `data/mockData.ts`, `data/dependencyGraphData.ts`
-
-Retained **only** for migration parity verification (`npm run test:parity`). **No runtime component imports these files.** They will be removed once parity checks use snapshot fixtures instead of legacy exports.
-
-See [MIGRATION_STATUS.md](../MIGRATION_STATUS.md) for the full migration checklist, import audit, and recommended deletion order.
-
 ### Parity Verification (`domain/protocol/parity/`)
 
-`runParityCheck()` compares all selector outputs against legacy mock exports. Run via:
+Committed JSON fixtures under `parity/fixtures/` hold expected selector outputs. `runParityCheck()` compares live selector results against those fixtures. Run via:
 
 ```bash
 npm run test:parity
+npm run generate:parity-fixtures   # regenerate after intentional selector changes
 ```
+
+Legacy mock files (`mockData.ts`, `dependencyGraphData.ts`) have been removed. Parity no longer imports them.
 
 ### Utilities (`utils/statusColors.ts`)
 Status color mapping functions:
@@ -487,8 +574,8 @@ CSS custom properties allow:
 
 ### Parity Tests (Implemented)
 - **Command:** `npm run test:parity`
-- **Location:** `domain/protocol/parity/checkParity.ts`, `scripts/check-protocol-parity.ts`
-- **Purpose:** Verify selector outputs match legacy mock exports during migration
+- **Location:** `domain/protocol/parity/checkParity.ts`, `parity/fixtures/`, `scripts/check-protocol-parity.ts`
+- **Purpose:** Verify selector outputs match committed JSON fixture baselines
 
 ### Recommended Additional Coverage
 - **Unit Tests**: Utilities, validators, status color functions
@@ -562,7 +649,7 @@ Build output from Vite can be hosted on:
 npm install
 npm run dev
 
-# Verify selector parity (migration safety net)
+# Verify selector parity (fixture baselines)
 npm run test:parity
 
 # Production build

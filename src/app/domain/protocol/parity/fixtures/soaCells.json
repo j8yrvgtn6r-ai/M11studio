@@ -1,0 +1,222 @@
+[
+  {
+    "visitId": "v1",
+    "assessmentId": "a1",
+    "required": true
+  },
+  {
+    "visitId": "v1",
+    "assessmentId": "a2",
+    "required": true
+  },
+  {
+    "visitId": "v1",
+    "assessmentId": "a3",
+    "required": true
+  },
+  {
+    "visitId": "v1",
+    "assessmentId": "a4",
+    "required": true
+  },
+  {
+    "visitId": "v1",
+    "assessmentId": "a5",
+    "required": true
+  },
+  {
+    "visitId": "v1",
+    "assessmentId": "a6",
+    "required": true
+  },
+  {
+    "visitId": "v1",
+    "assessmentId": "a7",
+    "required": true
+  },
+  {
+    "visitId": "v1",
+    "assessmentId": "a8",
+    "required": true
+  },
+  {
+    "visitId": "v2",
+    "assessmentId": "a4",
+    "required": true
+  },
+  {
+    "visitId": "v2",
+    "assessmentId": "a5",
+    "required": true
+  },
+  {
+    "visitId": "v2",
+    "assessmentId": "a7",
+    "required": true
+  },
+  {
+    "visitId": "v3",
+    "assessmentId": "a4",
+    "required": true
+  },
+  {
+    "visitId": "v3",
+    "assessmentId": "a5",
+    "required": true
+  },
+  {
+    "visitId": "v3",
+    "assessmentId": "a7",
+    "required": true
+  },
+  {
+    "visitId": "v3",
+    "assessmentId": "a9",
+    "required": true
+  },
+  {
+    "visitId": "v3",
+    "assessmentId": "a10",
+    "required": true
+  },
+  {
+    "visitId": "v3",
+    "assessmentId": "a11",
+    "required": true
+  },
+  {
+    "visitId": "v3",
+    "assessmentId": "a12",
+    "required": true
+  },
+  {
+    "visitId": "v4",
+    "assessmentId": "a5",
+    "required": true
+  },
+  {
+    "visitId": "v4",
+    "assessmentId": "a10",
+    "required": true
+  },
+  {
+    "visitId": "v4",
+    "assessmentId": "a12",
+    "required": true
+  },
+  {
+    "visitId": "v5",
+    "assessmentId": "a5",
+    "required": true
+  },
+  {
+    "visitId": "v5",
+    "assessmentId": "a10",
+    "required": true
+  },
+  {
+    "visitId": "v5",
+    "assessmentId": "a12",
+    "required": true
+  },
+  {
+    "visitId": "v6",
+    "assessmentId": "a4",
+    "required": true
+  },
+  {
+    "visitId": "v6",
+    "assessmentId": "a5",
+    "required": true
+  },
+  {
+    "visitId": "v6",
+    "assessmentId": "a7",
+    "required": true
+  },
+  {
+    "visitId": "v6",
+    "assessmentId": "a8",
+    "required": true
+  },
+  {
+    "visitId": "v6",
+    "assessmentId": "a10",
+    "required": true
+  },
+  {
+    "visitId": "v6",
+    "assessmentId": "a11",
+    "required": true
+  },
+  {
+    "visitId": "v6",
+    "assessmentId": "a12",
+    "required": true
+  },
+  {
+    "visitId": "v7",
+    "assessmentId": "a4",
+    "required": true
+  },
+  {
+    "visitId": "v7",
+    "assessmentId": "a5",
+    "required": true
+  },
+  {
+    "visitId": "v7",
+    "assessmentId": "a7",
+    "required": true
+  },
+  {
+    "visitId": "v7",
+    "assessmentId": "a9",
+    "required": true
+  },
+  {
+    "visitId": "v7",
+    "assessmentId": "a10",
+    "required": true
+  },
+  {
+    "visitId": "v7",
+    "assessmentId": "a12",
+    "required": true
+  },
+  {
+    "visitId": "v8",
+    "assessmentId": "a4",
+    "required": true
+  },
+  {
+    "visitId": "v8",
+    "assessmentId": "a5",
+    "required": true
+  },
+  {
+    "visitId": "v8",
+    "assessmentId": "a7",
+    "required": true
+  },
+  {
+    "visitId": "v8",
+    "assessmentId": "a8",
+    "required": true
+  },
+  {
+    "visitId": "v8",
+    "assessmentId": "a10",
+    "required": true
+  },
+  {
+    "visitId": "v9",
+    "assessmentId": "a10",
+    "required": true
+  },
+  {
+    "visitId": "v9",
+    "assessmentId": "a11",
+    "required": true
+  }
+]
