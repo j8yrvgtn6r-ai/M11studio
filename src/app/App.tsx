@@ -38,6 +38,7 @@ import {
   getAssessments,
   getAuditEvents,
   getComments,
+  getDependencyNodes,
   getFieldDefinitions,
   getProtocolSections,
   getSoACells,
@@ -67,6 +68,7 @@ export default function App() {
   const [lastSaved, setLastSaved] = useState(new Date());
   const [showDependencyGraph, setShowDependencyGraph] = useState(false);
   const [selectedDependencyNode, setSelectedDependencyNode] = useState<DependencyNode | null>(null);
+  const [dependencyGraphRevision, setDependencyGraphRevision] = useState(0);
 
   console.log('M11 Studio loaded');
 
@@ -102,6 +104,14 @@ export default function App() {
   useEffect(() => {
     return subscribe(() => {
       setFields(getFieldDefinitions());
+      setDependencyGraphRevision((revision) => revision + 1);
+      setSelectedDependencyNode((current) => {
+        if (!current) {
+          return null;
+        }
+
+        return getDependencyNodes().find((node) => node.id === current.id) ?? current;
+      });
     });
   }, []);
 
@@ -230,6 +240,7 @@ export default function App() {
             {/* Dependency Graph */}
             <ResizablePanel id="dependency-graph-main" order={1} defaultSize={70} minSize={50}>
               <DependencyGraphContainer
+                graphRevision={dependencyGraphRevision}
                 onNodeDoubleClick={(nodeId, sectionId) => {
                   if (sectionId) {
                     setShowDependencyGraph(false);

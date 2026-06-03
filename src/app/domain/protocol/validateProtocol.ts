@@ -1,8 +1,6 @@
-import type {
-  ClinicalDesignEntities,
-  ProtocolDocument,
-  SectionNode,
-} from './types';
+import type { ProtocolDocument } from './types';
+import { validateClinicalDesignEntities, collectSectionIds } from './clinicalDesign/entityValidation';
+import { validateRelationships } from './clinicalDesign/relationshipValidation';
 
 export interface ProtocolValidationMessage {
   code: string;
@@ -14,48 +12,6 @@ export interface ProtocolValidationResult {
   valid: boolean;
   errors: ProtocolValidationMessage[];
   warnings: ProtocolValidationMessage[];
-}
-
-function collectSectionIds(sections: SectionNode[]): Set<string> {
-  const ids = new Set<string>();
-
-  const walk = (nodes: SectionNode[]) => {
-    for (const node of nodes) {
-      ids.add(node.id);
-      if (node.children?.length) {
-        walk(node.children);
-      }
-    }
-  };
-
-  walk(sections);
-  return ids;
-}
-
-function collectClinicalDesignEntityIds(clinicalDesign: ClinicalDesignEntities): Set<string> {
-  const ids = new Set<string>();
-  const entityGroups = [
-    clinicalDesign.objectives,
-    clinicalDesign.endpoints,
-    clinicalDesign.estimands ?? [],
-    clinicalDesign.assessments,
-    clinicalDesign.visits,
-    clinicalDesign.studyArms,
-    clinicalDesign.populations,
-    clinicalDesign.eligibilityCriteria,
-    clinicalDesign.interventions,
-    clinicalDesign.statisticalAnalyses,
-    clinicalDesign.biomarkers ?? [],
-    clinicalDesign.safetyAssessments ?? [],
-  ];
-
-  for (const entities of entityGroups) {
-    for (const entity of entities) {
-      ids.add(entity.id);
-    }
-  }
-
-  return ids;
 }
 
 function checkUniqueIds(
@@ -146,32 +102,7 @@ export function validateProtocol(document: ProtocolDocument): ProtocolValidation
     }
   });
 
-  const relationshipIds = document.relationships.map((relationship) => relationship.id);
-  checkUniqueIds(relationshipIds, 'relationships', errors);
-
-  const clinicalDesignEntityIds = collectClinicalDesignEntityIds(document.clinicalDesign);
-
-  document.relationships.forEach((relationship, index) => {
-    if (!clinicalDesignEntityIds.has(relationship.sourceId)) {
-      pushMissingReferenceError(
-        errors,
-        `relationships[${index}].sourceId`,
-        'sourceId',
-        relationship.sourceId,
-        'clinicalDesign entities'
-      );
-    }
-
-    if (!clinicalDesignEntityIds.has(relationship.targetId)) {
-      pushMissingReferenceError(
-        errors,
-        `relationships[${index}].targetId`,
-        'targetId',
-        relationship.targetId,
-        'clinicalDesign entities'
-      );
-    }
-  });
+  validateRelationships(document, errors, warnings);
 
   const scheduleVisitIds = document.schedule.visits.map((visit) => visit.id);
   checkUniqueIds(scheduleVisitIds, 'schedule.visits', errors);
@@ -220,6 +151,8 @@ export function validateProtocol(document: ProtocolDocument): ProtocolValidation
       });
     }
   });
+
+  validateClinicalDesignEntities(document, errors, warnings);
 
   return {
     valid: errors.length === 0,

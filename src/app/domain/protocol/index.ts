@@ -34,9 +34,51 @@ export {
   getProtocolSnapshot,
   resetProtocolStore,
   subscribe,
+  createDesignEntity,
+  createRelationship,
+  deleteDesignEntity,
+  deleteRelationship,
+  updateDesignEntity,
   updateElement,
   updateElementValue,
+  updateRelationship,
 } from './store';
+
+export type {
+  CreateDesignEntityInput,
+  CreateRelationshipInput,
+  UpdateDesignEntityPatch,
+  UpdateRelationshipPatch,
+} from './store';
+
+export {
+  CLINICAL_DESIGN_COLLECTION_KEYS,
+  collectAllDesignEntities,
+  designEntityExists,
+  designEntityExistsInDocument,
+  entityHasRelationshipReferences,
+  findDesignEntity,
+  findDesignEntityInDocument,
+  findRelationship,
+  findRelationshipInDocument,
+  findRelationshipsReferencingEntityInDocument,
+  getDesignEntityCollectionKey,
+  relationshipExists,
+} from './clinicalDesign';
+
+export type {
+  ClinicalDesignCollectionKey,
+  DesignEntityLocation,
+  RelationshipLocation,
+} from './clinicalDesign';
+
+export {
+  collectSectionIds,
+  isEntityTypeCompatibleWithCollection,
+  isValidSectionRef,
+  validateClinicalDesignEntities,
+  validateRelationships,
+} from './clinicalDesign';
 
 export {
   getAssessments,

@@ -26,9 +26,6 @@ import { Maximize2, Minimize2, RefreshCw, Grid3x3, Network } from 'lucide-react'
 import { getDependencyEdges, getDependencyNodes } from '../domain/protocol';
 import type { DependencyNode } from '../types/dependencyGraph';
 
-const dependencyNodes = getDependencyNodes();
-const dependencyEdges = getDependencyEdges();
-
 const nodeTypes = {
   protocolNode: ProtocolNode,
 };
@@ -37,14 +34,18 @@ type EdgeStyle = 'solid' | 'dashed' | 'dotted' | 'double';
 type LayoutMode = 'freeform' | 'dependency-flow' | 'swim-lane' | 'force-directed';
 
 interface DependencyGraphNodeEditorProps {
+  graphRevision?: number;
   onNodeDoubleClick?: (nodeId: string, sectionId?: string) => void;
   onNodeSelect?: (node: DependencyNode | null) => void;
 }
 
 export function DependencyGraphNodeEditor({
+  graphRevision = 0,
   onNodeDoubleClick,
   onNodeSelect,
 }: DependencyGraphNodeEditorProps) {
+  const dependencyNodes = useMemo(() => getDependencyNodes(), [graphRevision]);
+  const dependencyEdges = useMemo(() => getDependencyEdges(), [graphRevision]);
   const [layoutMode, setLayoutMode] = useState<LayoutMode>('dependency-flow');
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [showMiniMap, setShowMiniMap] = useState(true);
@@ -60,21 +61,18 @@ export function DependencyGraphNodeEditor({
   };
 
   // Layout algorithms
-  const calculateLayout = useCallback(
-    (mode: LayoutMode) => {
-      switch (mode) {
-        case 'dependency-flow':
-          return calculateDependencyFlowLayout();
-        case 'swim-lane':
-          return calculateSwimLaneLayout();
-        case 'force-directed':
-          return calculateForceDirectedLayout();
-        default:
-          return calculateFreeformLayout();
-      }
-    },
-    []
-  );
+  const calculateLayout = (mode: LayoutMode) => {
+    switch (mode) {
+      case 'dependency-flow':
+        return calculateDependencyFlowLayout();
+      case 'swim-lane':
+        return calculateSwimLaneLayout();
+      case 'force-directed':
+        return calculateForceDirectedLayout();
+      default:
+        return calculateFreeformLayout();
+    }
+  };
 
   const calculateDependencyFlowLayout = () => {
     // Topological sort to arrange nodes in dependency order
@@ -207,7 +205,7 @@ export function DependencyGraphNodeEditor({
         },
       };
     });
-  }, [layoutMode]);
+  }, [layoutMode, dependencyNodes, dependencyEdges]);
 
   // Determine edge style based on relationship
   const getEdgeStyle = (sourceType: string, targetType: string): EdgeStyle => {
@@ -221,8 +219,8 @@ export function DependencyGraphNodeEditor({
 
     // Direct dependency: most relationships
     if (
-      sourceType === 'assessment' && targetType === 'visit' ||
-      sourceType === 'endpoint' && targetType === 'statistical-analysis'
+      (sourceType === 'assessment' && targetType === 'visit') ||
+      (sourceType === 'endpoint' && targetType === 'statistical-analysis')
     ) {
       return 'solid';
     }
@@ -294,7 +292,7 @@ export function DependencyGraphNodeEditor({
         labelBgBorderRadius: 3,
       };
     });
-  }, [selectedNodeId]);
+  }, [selectedNodeId, dependencyNodes, dependencyEdges]);
 
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
@@ -304,10 +302,34 @@ export function DependencyGraphNodeEditor({
     setNodes(initialNodes);
   }, [layoutMode, setNodes, initialNodes]);
 
+  // Preserve positions while refreshing labels from the store
+  React.useEffect(() => {
+    if (graphRevision === 0) {
+      return;
+    }
+
+    setNodes((current) => {
+      const positions = Object.fromEntries(current.map((node) => [node.id, node.position]));
+
+      return initialNodes.map((node) => ({
+        ...node,
+        position: positions[node.id] ?? node.position,
+      }));
+    });
+  }, [graphRevision, initialNodes, setNodes]);
+
   // Update edges when selection changes
   React.useEffect(() => {
     setEdges(initialEdges);
   }, [selectedNodeId, setEdges, initialEdges]);
+
+  React.useEffect(() => {
+    if (graphRevision === 0) {
+      return;
+    }
+
+    setEdges(initialEdges);
+  }, [graphRevision, initialEdges, setEdges]);
 
   const onNodeClick = useCallback(
     (event: React.MouseEvent, node: Node) => {
@@ -317,7 +339,7 @@ export function DependencyGraphNodeEditor({
         onNodeSelect(depNode);
       }
     },
-    [onNodeSelect]
+    [dependencyNodes, onNodeSelect]
   );
 
   const onNodeDoubleClickHandler = useCallback(
@@ -327,7 +349,7 @@ export function DependencyGraphNodeEditor({
         onNodeDoubleClick(node.id, depNode.sectionId);
       }
     },
-    [onNodeDoubleClick]
+    [dependencyNodes, onNodeDoubleClick]
   );
 
   const onPaneClick = useCallback(() => {

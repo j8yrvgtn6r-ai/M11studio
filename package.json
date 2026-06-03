@@ -8,7 +8,8 @@
     "dev": "vite",
     "test:parity": "npx vite-node scripts/check-protocol-parity.ts",
     "generate:parity-fixtures": "npx vite-node scripts/generate-parity-fixtures.ts",
-    "validate:protocol": "npx vite-node scripts/validate-protocol.ts"
+    "validate:protocol": "npx vite-node scripts/validate-protocol.ts",
+    "smoke:clinical-design": "npx vite-node scripts/smoke-clinical-design-mutations.ts"
   },
   "dependencies": {
     "@emotion/react": "11.14.0",

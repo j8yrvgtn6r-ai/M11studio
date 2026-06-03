@@ -16,9 +16,6 @@ import {
 import { getDependencyEdges, getDependencyNodes } from '../domain/protocol';
 import type { DependencyNode, NodeStatus } from '../types/dependencyGraph';
 
-const dependencyNodes = getDependencyNodes();
-const dependencyEdges = getDependencyEdges();
-
 const nodeTypeColors: Record<string, string> = {
   objective: '#3b82f6',
   endpoint: '#8b5cf6',
@@ -45,6 +42,7 @@ const statusColors: Record<NodeStatus, string> = {
 };
 
 interface DependencyGraph3DProps {
+  graphRevision?: number;
   onNodeDoubleClick?: (nodeId: string, sectionId?: string) => void;
   onNodeSelect?: (node: DependencyNode | null) => void;
   selectedNodeId?: string | null;
@@ -52,12 +50,15 @@ interface DependencyGraph3DProps {
 }
 
 export function DependencyGraph3D({
+  graphRevision = 0,
   onNodeDoubleClick,
   onNodeSelect,
   selectedNodeId,
   searchQuery = '',
 }: DependencyGraph3DProps) {
   const fgRef = useRef<any>();
+  const dependencyNodes = useMemo(() => getDependencyNodes(), [graphRevision]);
+  const dependencyEdges = useMemo(() => getDependencyEdges(), [graphRevision]);
   const [impactAnalysisMode, setImpactAnalysisMode] = useState(false);
   const [tracePathMode, setTracePathMode] = useState(false);
   const [pathStartNode, setPathStartNode] = useState<string | null>(null);
@@ -112,7 +113,7 @@ export function DependencyGraph3D({
     }));
 
     return { nodes, links };
-  }, []);
+  }, [dependencyNodes, dependencyEdges]);
 
   // Get connected nodes for highlighting
   const getConnectedNodes = useCallback(
@@ -167,7 +168,7 @@ export function DependencyGraph3D({
 
       return { all: connected, upstream, downstream };
     },
-    [impactAnalysisMode]
+    [dependencyEdges, impactAnalysisMode]
   );
 
   // Handle node click

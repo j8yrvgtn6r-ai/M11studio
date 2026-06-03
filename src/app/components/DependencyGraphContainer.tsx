@@ -8,11 +8,16 @@ import { DependencyGraph3D } from './DependencyGraph3D';
 import type { DependencyNode } from '../types/dependencyGraph';
 
 interface DependencyGraphContainerProps {
+  graphRevision?: number;
   onNodeDoubleClick?: (nodeId: string, sectionId?: string) => void;
   onNodeSelect?: (node: DependencyNode | null) => void;
 }
 
-export function DependencyGraphContainer({ onNodeDoubleClick, onNodeSelect }: DependencyGraphContainerProps) {
+export function DependencyGraphContainer({
+  graphRevision = 0,
+  onNodeDoubleClick,
+  onNodeSelect,
+}: DependencyGraphContainerProps) {
   const [viewMode, setViewMode] = useState<'2d' | '3d'>('2d');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedNode, setSelectedNode] = useState<DependencyNode | null>(null);
@@ -58,11 +63,13 @@ export function DependencyGraphContainer({ onNodeDoubleClick, onNodeSelect }: De
       <div className="flex-1 overflow-hidden">
         {viewMode === '2d' ? (
           <DependencyGraphNodeEditor
+            graphRevision={graphRevision}
             onNodeDoubleClick={onNodeDoubleClick}
             onNodeSelect={handleNodeSelect}
           />
         ) : (
           <DependencyGraph3D
+            graphRevision={graphRevision}
             onNodeDoubleClick={onNodeDoubleClick}
             onNodeSelect={handleNodeSelect}
             selectedNodeId={selectedNode?.id || null}
