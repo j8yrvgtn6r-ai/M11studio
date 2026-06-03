@@ -97,6 +97,17 @@
 - [x] Section drafting responses
 - [x] SoA row suggestions
 
+### Dependency Graph (2D & 3D)
+- [x] Toggle between authoring workspace and graph workspace from toolbar
+- [x] **2D Node Editor** (`DependencyGraphNodeEditor`) — React Flow with custom `ProtocolNode`
+  - Layout modes: dependency flow, swim lane, force-directed, freeform
+  - MiniMap, edge styling by relationship type, node selection
+- [x] **3D Graph** (`DependencyGraph3D`) — ForceGraph3D with Three.js labels
+  - Impact analysis, camera presets, search, focus/home controls
+- [x] **Shared data model** — both views use `getDependencyNodes()` / `getDependencyEdges()` from canonical seed
+- [x] **Dependency Inspector** — parent/child deps, indirect impact analysis
+- [x] Double-click node → navigate to linked document section
+
 ### Top Toolbar
 - [x] Application logo and title
 - [x] Command palette trigger (⌘K indicator)
@@ -141,21 +152,31 @@
 - [x] Grouped results (Sections, Actions)
 
 ### Data Model
-- [x] **TypeScript Types**
+- [x] **Canonical Protocol Document** (`domain/protocol/seed/PROTO-XYZ-301.json`)
+  - Sections, elements, clinical design entities, schedule, relationships
+  - Validation issues and collaboration records in one artifact
+- [x] **Domain Selectors** (`domain/protocol/selectors/`)
+  - Adapters produce legacy view DTOs for UI consumption
+  - `getProtocolSections()`, `getFieldDefinitions()`, schedule getters, graph getters, etc.
+- [x] **Parity Verification** (`npm run test:parity`)
+  - Compares selector output against legacy `mockData.ts` / `dependencyGraphData.ts`
+  - Legacy files retained for parity only; **runtime app does not import them**
+  - Runtime migration complete — see [MIGRATION_STATUS.md](./MIGRATION_STATUS.md)
+- [x] **View-Layer TypeScript Types** (`types/protocol.ts`, `types/dependencyGraph.ts`)
   - ProtocolSection (hierarchical)
   - FieldDefinition (M11 element model)
   - ValidationIssue (severity, message, quick fix)
   - AuditEvent (user, action, timestamp)
   - Comment (user, content, resolved status)
   - Visit, Assessment, SoACell
-- [x] **Mock Data**
-  - Phase 3 oncology protocol (PROTO-XYZ-301)
-  - 14 protocol sections (Title through References)
+  - DependencyNode, DependencyEdge
+- [x] **Sample Protocol Coverage** (PROTO-XYZ-301 via seed JSON)
+  - 14 protocol sections (Title through Statistical Considerations)
   - 5 field definitions with controlled terminology
   - 5 validation issues (2 errors, 3 warnings)
-  - 4 audit events
-  - 2 comments
-  - 9 visits × 12 assessments SoA grid
+  - 4 audit events, 2 comments
+  - 9 visits × 12 assessments SoA grid (44 populated cells)
+  - 22 graph nodes, 21 relationships (shared by 2D and 3D graphs)
 
 ### Validation Rules (Implemented)
 - [x] VR-001: Required M11 element missing
@@ -251,31 +272,48 @@
 
 ```
 src/app/
+├── domain/
+│   └── protocol/
+│       ├── seed/
+│       │   └── PROTO-XYZ-301.json     # Canonical source of truth
+│       ├── selectors/                 # Adapters → view DTOs
+│       ├── parity/                    # Parity check vs legacy mocks
+│       ├── types.ts                   # Canonical domain types
+│       ├── loadProtocol.ts
+│       └── index.ts
 ├── components/
-│   ├── ui/                      # 46 shadcn/ui components
-│   ├── DetailInspector.tsx      # 5-tab inspector panel
-│   ├── DocumentMinimap.tsx      # Compressed protocol map
-│   ├── DocumentViewport.tsx     # Structured form editor
-│   ├── KeyboardShortcuts.tsx    # Shortcuts help dialog
-│   ├── ProtocolCopilot.tsx      # AI chat assistant
-│   ├── ProtocolExplorer.tsx     # Hierarchical tree navigator
-│   ├── ScheduleOfActivities.tsx # Interactive SoA grid
-│   ├── StatusBar.tsx            # Bottom status bar
-│   ├── ThemeToggle.tsx          # Light/Dark/System selector
-│   └── WelcomeDialog.tsx        # First-visit onboarding
+│   ├── ui/                            # 46 shadcn/ui components
+│   ├── DetailInspector.tsx
+│   ├── DocumentMinimap.tsx
+│   ├── DocumentViewport.tsx
+│   ├── DependencyGraphContainer.tsx
+│   ├── DependencyGraphNodeEditor.tsx
+│   ├── DependencyGraph3D.tsx
+│   ├── DependencyInspector.tsx
+│   ├── KeyboardShortcuts.tsx
+│   ├── ProtocolCopilot.tsx
+│   ├── ProtocolExplorer.tsx
+│   ├── ScheduleOfActivities.tsx
+│   ├── StatusBar.tsx
+│   ├── ThemeToggle.tsx
+│   └── WelcomeDialog.tsx
 ├── data/
-│   └── mockData.ts              # Phase 3 oncology protocol data
+│   ├── mockData.ts                    # Legacy — parity checks only
+│   └── dependencyGraphData.ts         # Legacy — parity checks only
 ├── types/
-│   └── protocol.ts              # TypeScript type definitions
+│   ├── protocol.ts                    # View-layer DTOs
+│   └── dependencyGraph.ts
 ├── utils/
-│   └── statusColors.ts          # Status color utilities
-└── App.tsx                       # Main application shell
+│   └── statusColors.ts
+└── App.tsx                            # Loads data via domain selectors
 
 src/styles/
-├── theme.css                     # CSS custom properties + status colors
-├── fonts.css                     # Font imports
-├── tailwind.css                  # Tailwind directives
-└── index.css                     # Main stylesheet
+├── theme.css
+├── tailwind.css
+└── index.css
+
+scripts/
+└── check-protocol-parity.ts         # npm run test:parity
 ```
 
 ## 🎯 Core Workflows Demonstrated
@@ -285,8 +323,9 @@ src/styles/
 3. **Validation Review**: See badge count → open validation tab → apply quick fix
 4. **AI Assistance**: Open copilot → ask for compliance check → apply suggestions
 5. **SoA Management**: Select section 1.3 → view grid → click cells → see mappings
-6. **Theme Switching**: Click theme toggle → select light/dark/system
-7. **Command Palette**: Press ⌘K → search sections/actions → execute
+6. **Graph Exploration**: Toggle Dependency Graph → select nodes in 2D or 3D → inspect relationships
+7. **Theme Switching**: Click theme toggle → select light/dark/system
+8. **Command Palette**: Press ⌘K → search sections/actions → execute
 
 ## 🔮 Future Enhancement Hooks
 
@@ -302,7 +341,7 @@ src/styles/
 - **Components**: 9 custom + 46 UI library = 55 total
 - **Lines of Code**: ~2,500 (excluding UI library)
 - **Type Definitions**: 12 interfaces, 5 type aliases
-- **Mock Data Records**: 140+ (sections, fields, visits, assessments, cells)
+- **Mock Data Records**: 140+ in canonical seed JSON (sections, fields, visits, assessments, cells, graph entities)
 - **Status Colors**: 7 semantic colors × 2 themes = 14 variants
 - **Validation Rules**: 5 implemented, extensible architecture
 - **User Roles**: 7 defined (Author, Writer, Scientist, Statistician, Reviewer, Librarian, Admin)
@@ -322,4 +361,4 @@ src/styles/
 
 ---
 
-**Status**: Production-ready prototype demonstrating full M11 Studio concept with Phase 3 oncology protocol example data.
+**Status**: Production-ready prototype with unified canonical protocol model (PROTO-XYZ-301 seed JSON), selector-based view adapters, shared 2D/3D dependency graph data, and **runtime migration complete**. Legacy mock files remain for parity checks only — see [MIGRATION_STATUS.md](./MIGRATION_STATUS.md).

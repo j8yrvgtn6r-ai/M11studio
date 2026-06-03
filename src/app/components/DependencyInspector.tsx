@@ -12,7 +12,10 @@ import {
   TrendingUp,
 } from 'lucide-react';
 import type { DependencyNode } from '../types/dependencyGraph';
-import { dependencyEdges, dependencyNodes } from '../data/dependencyGraphData';
+import { getDependencyEdges, getDependencyNodes } from '../domain/protocol';
+
+const dependencyNodes = getDependencyNodes();
+const dependencyEdges = getDependencyEdges();
 
 interface DependencyInspectorProps {
   selectedNode: DependencyNode | null;

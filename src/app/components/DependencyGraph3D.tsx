@@ -13,8 +13,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from './ui/select';
-import { dependencyNodes, dependencyEdges } from '../data/dependencyGraphData';
+import { getDependencyEdges, getDependencyNodes } from '../domain/protocol';
 import type { DependencyNode, NodeStatus } from '../types/dependencyGraph';
+
+const dependencyNodes = getDependencyNodes();
+const dependencyEdges = getDependencyEdges();
 
 const nodeTypeColors: Record<string, string> = {
   objective: '#3b82f6',

@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "build": "vite build",
-    "dev": "vite"
+    "dev": "vite",
+    "test:parity": "npx vite-node scripts/check-protocol-parity.ts"
   },
   "dependencies": {
     "@emotion/react": "11.14.0",

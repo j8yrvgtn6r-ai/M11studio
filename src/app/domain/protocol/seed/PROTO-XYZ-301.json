@@ -1,0 +1,611 @@
+{
+  "schemaVersion": "1.0.0",
+  "id": "PROTO-XYZ-301",
+  "title": "A Phase 3, Randomized, Double-Blind, Placebo-Controlled Study Evaluating the Efficacy and Safety of Investigational Drug XYZ in Patients with Advanced Non-Small Cell Lung Cancer",
+  "m11Version": "1.0",
+  "metadata": {
+    "phase": "Phase 3",
+    "sponsor": "XYZ Pharmaceuticals",
+    "therapeuticArea": "Oncology",
+    "createdAt": "2026-05-22T10:30:00.000Z",
+    "updatedAt": "2026-05-22T16:10:00.000Z",
+    "defaultUser": "Dr. Sarah Chen"
+  },
+  "sections": [
+    {
+      "id": "title",
+      "title": "Title Page",
+      "level": 0,
+      "conformance": "required",
+      "status": "complete"
+    },
+    {
+      "id": "amendment",
+      "title": "Amendment Details",
+      "level": 0,
+      "conformance": "conditional",
+      "status": "requiredMissing",
+      "hasAmendment": true
+    },
+    {
+      "id": "1",
+      "title": "1 PROTOCOL SUMMARY",
+      "level": 1,
+      "conformance": "required",
+      "status": "inProgress",
+      "children": [
+        {
+          "id": "1.1",
+          "title": "1.1 Protocol Synopsis",
+          "level": 2,
+          "conformance": "required",
+          "status": "complete",
+          "children": [
+            {
+              "id": "1.1.1",
+              "title": "1.1.1 Primary and Secondary Objectives and Estimands",
+              "level": 3,
+              "conformance": "required",
+              "status": "complete"
+            },
+            {
+              "id": "1.1.2",
+              "title": "1.1.2 Overall Design",
+              "level": 3,
+              "conformance": "required",
+              "status": "complete"
+            }
+          ]
+        },
+        {
+          "id": "1.2",
+          "title": "1.2 Trial Schema",
+          "level": 2,
+          "conformance": "required",
+          "status": "complete"
+        },
+        {
+          "id": "1.3",
+          "title": "1.3 Schedule of Activities",
+          "level": 2,
+          "conformance": "required",
+          "status": "inProgress",
+          "viewKind": "schedule-of-activities"
+        }
+      ]
+    },
+    {
+      "id": "2",
+      "title": "2 INTRODUCTION",
+      "level": 1,
+      "conformance": "required",
+      "status": "complete",
+      "children": [
+        {
+          "id": "2.1",
+          "title": "2.1 Purpose of Trial",
+          "level": 2,
+          "conformance": "required",
+          "status": "complete"
+        },
+        {
+          "id": "2.2",
+          "title": "2.2 Assessment of Risks and Benefits",
+          "level": 2,
+          "conformance": "required",
+          "status": "complete"
+        }
+      ]
+    },
+    {
+      "id": "3",
+      "title": "3 TRIAL OBJECTIVES AND ASSOCIATED ESTIMANDS",
+      "level": 1,
+      "conformance": "required",
+      "status": "complete",
+      "children": [
+        {
+          "id": "3.1",
+          "title": "3.1 Primary Objective(s) and Associated Estimand(s)",
+          "level": 2,
+          "conformance": "required",
+          "status": "complete"
+        },
+        {
+          "id": "3.2",
+          "title": "3.2 Secondary Objective(s) and Associated Estimand(s)",
+          "level": 2,
+          "conformance": "required",
+          "status": "complete"
+        }
+      ]
+    },
+    {
+      "id": "4",
+      "title": "4 TRIAL DESIGN",
+      "level": 1,
+      "conformance": "required",
+      "status": "inProgress"
+    },
+    {
+      "id": "5",
+      "title": "5 TRIAL POPULATION",
+      "level": 1,
+      "conformance": "required",
+      "status": "inProgress"
+    },
+    {
+      "id": "8",
+      "title": "8 TRIAL ASSESSMENTS AND PROCEDURES",
+      "level": 1,
+      "conformance": "required",
+      "status": "conditionalMissing",
+      "validationCount": 3
+    },
+    {
+      "id": "10",
+      "title": "10 STATISTICAL CONSIDERATIONS",
+      "level": 1,
+      "conformance": "required",
+      "status": "inProgress"
+    }
+  ],
+  "elements": [
+    {
+      "id": "title_page.full_title",
+      "sectionId": "title",
+      "label": "Full Title",
+      "kind": "data",
+      "dataType": "text",
+      "requiredness": "required",
+      "cardinality": "one_to_one",
+      "repeatable": false,
+      "validationRuleIds": ["must_not_be_blank"],
+      "aiHints": ["Should identify scientific aspects of the trial and population clearly."],
+      "value": "A Phase 3, Randomized, Double-Blind, Placebo-Controlled Study Evaluating the Efficacy and Safety of Investigational Drug XYZ in Patients with Advanced Non-Small Cell Lung Cancer"
+    },
+    {
+      "id": "title_page.sponsor_protocol_identifier",
+      "sectionId": "title",
+      "label": "Sponsor Protocol Identifier",
+      "kind": "data",
+      "dataType": "text",
+      "requiredness": "required",
+      "cardinality": "one_to_one",
+      "value": "PROTO-XYZ-301"
+    },
+    {
+      "id": "title_page.trial_phase",
+      "sectionId": "title",
+      "label": "Trial Phase",
+      "kind": "value",
+      "dataType": "valid_value",
+      "requiredness": "required",
+      "controlledTerminology": {
+        "codeList": "C217045",
+        "values": ["Early Phase 1", "Phase 1", "Phase 1/Phase 2", "Phase 2", "Phase 2/Phase 3", "Phase 3", "Phase 4"]
+      },
+      "value": "Phase 3"
+    },
+    {
+      "id": "title_page.original_protocol_indicator",
+      "sectionId": "title",
+      "label": "Original Protocol",
+      "kind": "value",
+      "dataType": "valid_value",
+      "requiredness": "required",
+      "controlledTerminology": {
+        "codeList": "C217046",
+        "values": [
+          { "label": "Yes", "code": "C49488" },
+          { "label": "No", "code": "C49487" }
+        ]
+      },
+      "validationRuleIds": ["if_no_then_amendment_identifier_required"],
+      "value": "No"
+    },
+    {
+      "id": "title_page.amendment_scope",
+      "sectionId": "amendment",
+      "label": "Amendment Scope",
+      "kind": "value",
+      "dataType": "valid_value",
+      "requiredness": "conditional",
+      "controlledTerminology": {
+        "codeList": "C217047",
+        "values": [
+          { "label": "Global", "code": "C68846" },
+          { "label": "Not Global", "code": "C217026" }
+        ]
+      },
+      "validationRuleIds": ["if_not_global_then_country_region_or_site_identifier_required"]
+    }
+  ],
+  "clinicalDesign": {
+    "objectives": [
+      {
+        "id": "obj-1",
+        "type": "objective",
+        "name": "Primary Objective: Overall Survival",
+        "description": "Evaluate overall survival in patients treated with 177Lu-PSMA-617",
+        "sectionRef": "2.1",
+        "status": ["complete"]
+      },
+      {
+        "id": "obj-2",
+        "type": "objective",
+        "name": "Secondary Objective: Progression-Free Survival",
+        "description": "Assess progression-free survival as a secondary endpoint",
+        "sectionRef": "2.1",
+        "status": ["complete"]
+      }
+    ],
+    "endpoints": [
+      {
+        "id": "ep-1",
+        "type": "endpoint",
+        "name": "Overall Survival",
+        "description": "Time from randomization to death from any cause",
+        "sectionRef": "2.2",
+        "status": ["complete"]
+      },
+      {
+        "id": "ep-2",
+        "type": "endpoint",
+        "name": "Progression-Free Survival",
+        "description": "Time from randomization to disease progression or death",
+        "sectionRef": "2.2",
+        "status": ["complete"]
+      },
+      {
+        "id": "ep-3",
+        "type": "endpoint",
+        "name": "PSA Response Rate",
+        "description": "Proportion of patients with ≥50% PSA decline",
+        "sectionRef": "2.2",
+        "status": ["incomplete"]
+      }
+    ],
+    "assessments": [
+      {
+        "id": "assess-1",
+        "type": "assessment",
+        "name": "Tumor Assessment (CT/MRI)",
+        "description": "Imaging assessment using RECIST 1.1 criteria",
+        "sectionRef": "1.3",
+        "status": ["complete"]
+      },
+      {
+        "id": "assess-2",
+        "type": "assessment",
+        "name": "PSA Level",
+        "description": "Prostate-specific antigen blood test",
+        "sectionRef": "1.3",
+        "status": ["complete"]
+      },
+      {
+        "id": "assess-3",
+        "type": "assessment",
+        "name": "Safety Labs",
+        "description": "Hematology and chemistry panels",
+        "sectionRef": "1.3",
+        "status": ["validation-issue"]
+      }
+    ],
+    "visits": [
+      {
+        "id": "visit-1",
+        "type": "visit",
+        "name": "Screening Visit",
+        "description": "Baseline assessments and eligibility confirmation",
+        "sectionRef": "1.3",
+        "status": ["complete"]
+      },
+      {
+        "id": "visit-2",
+        "type": "visit",
+        "name": "Cycle 1 Day 1",
+        "description": "First treatment administration",
+        "sectionRef": "1.3",
+        "status": ["complete"]
+      },
+      {
+        "id": "visit-3",
+        "type": "visit",
+        "name": "Follow-up Visits",
+        "description": "Regular monitoring visits every 6 weeks",
+        "sectionRef": "1.3",
+        "status": ["incomplete", "ai-recommendation"]
+      }
+    ],
+    "statisticalAnalyses": [
+      {
+        "id": "stat-1",
+        "type": "statistical-analysis",
+        "name": "Primary Analysis: OS",
+        "description": "Kaplan-Meier analysis with log-rank test",
+        "sectionRef": "8.1",
+        "status": ["complete"]
+      },
+      {
+        "id": "stat-2",
+        "type": "statistical-analysis",
+        "name": "Secondary Analysis: PFS",
+        "description": "Progression-free survival analysis",
+        "sectionRef": "8.1",
+        "status": ["complete"]
+      }
+    ],
+    "studyArms": [
+      {
+        "id": "arm-1",
+        "type": "study-arm",
+        "name": "177Lu-PSMA-617 + BSC",
+        "description": "Experimental arm with radiopharmaceutical",
+        "sectionRef": "3.1",
+        "status": ["complete"]
+      },
+      {
+        "id": "arm-2",
+        "type": "study-arm",
+        "name": "Best Standard Care",
+        "description": "Control arm",
+        "sectionRef": "3.1",
+        "status": ["complete"]
+      }
+    ],
+    "populations": [
+      {
+        "id": "pop-1",
+        "type": "population",
+        "name": "Target Population",
+        "description": "mCRPC patients with PSMA-positive disease",
+        "sectionRef": "4.1",
+        "status": ["complete"]
+      }
+    ],
+    "eligibilityCriteria": [
+      {
+        "id": "elig-1",
+        "type": "eligibility",
+        "name": "PSMA-positive on PET scan",
+        "description": "Confirmed PSMA expression by imaging",
+        "sectionRef": "4.2",
+        "status": ["complete"]
+      },
+      {
+        "id": "elig-2",
+        "type": "eligibility",
+        "name": "Progressive mCRPC",
+        "description": "Disease progression despite castration therapy",
+        "sectionRef": "4.2",
+        "status": ["complete"]
+      }
+    ],
+    "biomarkers": [
+      {
+        "id": "bio-1",
+        "type": "biomarker",
+        "name": "PSMA Expression",
+        "description": "PSMA-PET scan uptake",
+        "sectionRef": "5.1",
+        "status": ["complete"]
+      }
+    ],
+    "interventions": [
+      {
+        "id": "interv-1",
+        "type": "intervention",
+        "name": "177Lu-PSMA-617",
+        "description": "7.4 GBq IV every 6 weeks",
+        "sectionRef": "6.1",
+        "status": ["complete"]
+      }
+    ],
+    "safetyAssessments": [
+      {
+        "id": "safety-1",
+        "type": "safety-assessment",
+        "name": "Adverse Event Monitoring",
+        "description": "Continuous AE monitoring per CTCAE v5.0",
+        "sectionRef": "7.1",
+        "status": ["recently-modified"]
+      }
+    ]
+  },
+  "schedule": {
+    "visits": [
+      { "id": "v1", "entityId": "visit-1", "label": "Screening", "order": 1, "timepoint": "Day -28 to -1" },
+      { "id": "v2", "label": "Baseline", "order": 2, "timepoint": "Day 1" },
+      { "id": "v3", "entityId": "visit-2", "label": "C1D1", "order": 3, "timepoint": "Cycle 1 Day 1" },
+      { "id": "v4", "label": "C1D8", "order": 4, "timepoint": "Cycle 1 Day 8" },
+      { "id": "v5", "label": "C1D15", "order": 5, "timepoint": "Cycle 1 Day 15" },
+      { "id": "v6", "label": "C2D1", "order": 6, "timepoint": "Cycle 2 Day 1" },
+      { "id": "v7", "label": "C3D1", "order": 7, "timepoint": "Cycle 3 Day 1" },
+      { "id": "v8", "label": "EOT", "order": 8, "timepoint": "End of Treatment" },
+      { "id": "v9", "entityId": "visit-3", "label": "FU30", "order": 9, "timepoint": "Follow-up +30d" }
+    ],
+    "assessments": [
+      { "id": "a1", "label": "Informed Consent", "category": "Administrative" },
+      { "id": "a2", "label": "Demographics", "category": "Baseline", "linkedSectionId": "5" },
+      { "id": "a3", "label": "Medical History", "category": "Baseline", "linkedSectionId": "5" },
+      { "id": "a4", "label": "Physical Examination", "category": "Safety", "linkedSectionId": "8.4" },
+      { "id": "a5", "label": "Vital Signs", "category": "Safety", "linkedSectionId": "8.4" },
+      { "id": "a6", "label": "ECG", "category": "Safety", "linkedSectionId": "8.4" },
+      { "id": "a7", "entityId": "assess-3", "label": "Laboratory Tests", "category": "Safety", "linkedSectionId": "8.4" },
+      { "id": "a8", "entityId": "assess-1", "label": "Tumor Assessment (RECIST)", "category": "Efficacy", "linkedSectionId": "8.3" },
+      { "id": "a9", "label": "PK Sampling", "category": "PK", "linkedSectionId": "8.5" },
+      { "id": "a10", "label": "Adverse Events", "category": "Safety", "linkedSectionId": "9" },
+      { "id": "a11", "label": "Concomitant Medications", "category": "Safety", "linkedSectionId": "6.10" },
+      { "id": "a12", "label": "Study Drug Administration", "category": "Intervention", "linkedSectionId": "6.3" }
+    ],
+    "cells": [
+      { "visitId": "v1", "assessmentId": "a1", "required": true },
+      { "visitId": "v1", "assessmentId": "a2", "required": true },
+      { "visitId": "v1", "assessmentId": "a3", "required": true },
+      { "visitId": "v1", "assessmentId": "a4", "required": true },
+      { "visitId": "v1", "assessmentId": "a5", "required": true },
+      { "visitId": "v1", "assessmentId": "a6", "required": true },
+      { "visitId": "v1", "assessmentId": "a7", "required": true },
+      { "visitId": "v1", "assessmentId": "a8", "required": true },
+      { "visitId": "v2", "assessmentId": "a4", "required": true },
+      { "visitId": "v2", "assessmentId": "a5", "required": true },
+      { "visitId": "v2", "assessmentId": "a7", "required": true },
+      { "visitId": "v3", "assessmentId": "a4", "required": true },
+      { "visitId": "v3", "assessmentId": "a5", "required": true },
+      { "visitId": "v3", "assessmentId": "a7", "required": true },
+      { "visitId": "v3", "assessmentId": "a9", "required": true },
+      { "visitId": "v3", "assessmentId": "a10", "required": true },
+      { "visitId": "v3", "assessmentId": "a11", "required": true },
+      { "visitId": "v3", "assessmentId": "a12", "required": true },
+      { "visitId": "v4", "assessmentId": "a5", "required": true },
+      { "visitId": "v4", "assessmentId": "a10", "required": true },
+      { "visitId": "v4", "assessmentId": "a12", "required": true },
+      { "visitId": "v5", "assessmentId": "a5", "required": true },
+      { "visitId": "v5", "assessmentId": "a10", "required": true },
+      { "visitId": "v5", "assessmentId": "a12", "required": true },
+      { "visitId": "v6", "assessmentId": "a4", "required": true },
+      { "visitId": "v6", "assessmentId": "a5", "required": true },
+      { "visitId": "v6", "assessmentId": "a7", "required": true },
+      { "visitId": "v6", "assessmentId": "a8", "required": true },
+      { "visitId": "v6", "assessmentId": "a10", "required": true },
+      { "visitId": "v6", "assessmentId": "a11", "required": true },
+      { "visitId": "v6", "assessmentId": "a12", "required": true },
+      { "visitId": "v7", "assessmentId": "a4", "required": true },
+      { "visitId": "v7", "assessmentId": "a5", "required": true },
+      { "visitId": "v7", "assessmentId": "a7", "required": true },
+      { "visitId": "v7", "assessmentId": "a9", "required": true },
+      { "visitId": "v7", "assessmentId": "a10", "required": true },
+      { "visitId": "v7", "assessmentId": "a12", "required": true },
+      { "visitId": "v8", "assessmentId": "a4", "required": true },
+      { "visitId": "v8", "assessmentId": "a5", "required": true },
+      { "visitId": "v8", "assessmentId": "a7", "required": true },
+      { "visitId": "v8", "assessmentId": "a8", "required": true },
+      { "visitId": "v8", "assessmentId": "a10", "required": true },
+      { "visitId": "v9", "assessmentId": "a10", "required": true },
+      { "visitId": "v9", "assessmentId": "a11", "required": true }
+    ]
+  },
+  "relationships": [
+    { "id": "e1", "sourceId": "obj-1", "targetId": "ep-1", "label": "defines", "kind": "defines" },
+    { "id": "e2", "sourceId": "obj-2", "targetId": "ep-2", "label": "defines", "kind": "defines" },
+    { "id": "e3", "sourceId": "ep-1", "targetId": "assess-1", "label": "measured by", "kind": "measured-by" },
+    { "id": "e4", "sourceId": "ep-2", "targetId": "assess-1", "label": "measured by", "kind": "measured-by" },
+    { "id": "e5", "sourceId": "ep-3", "targetId": "assess-2", "label": "measured by", "kind": "measured-by" },
+    { "id": "e6", "sourceId": "assess-1", "targetId": "visit-1", "label": "performed at", "kind": "performed-at" },
+    { "id": "e7", "sourceId": "assess-1", "targetId": "visit-3", "label": "performed at", "kind": "performed-at" },
+    { "id": "e8", "sourceId": "assess-2", "targetId": "visit-1", "label": "performed at", "kind": "performed-at" },
+    { "id": "e9", "sourceId": "assess-2", "targetId": "visit-2", "label": "performed at", "kind": "performed-at" },
+    { "id": "e10", "sourceId": "assess-2", "targetId": "visit-3", "label": "performed at", "kind": "performed-at" },
+    { "id": "e11", "sourceId": "assess-3", "targetId": "visit-2", "label": "performed at", "kind": "performed-at" },
+    { "id": "e12", "sourceId": "assess-3", "targetId": "visit-3", "label": "performed at", "kind": "performed-at" },
+    { "id": "e13", "sourceId": "ep-1", "targetId": "stat-1", "label": "analyzed by", "kind": "analyzed-by" },
+    { "id": "e14", "sourceId": "ep-2", "targetId": "stat-2", "label": "analyzed by", "kind": "analyzed-by" },
+    { "id": "e15", "sourceId": "pop-1", "targetId": "elig-1", "label": "requires", "kind": "requires" },
+    { "id": "e16", "sourceId": "pop-1", "targetId": "elig-2", "label": "requires", "kind": "requires" },
+    { "id": "e17", "sourceId": "interv-1", "targetId": "arm-1", "label": "assigned to", "kind": "assigned-to" },
+    { "id": "e18", "sourceId": "bio-1", "targetId": "ep-3", "label": "predicts", "kind": "predicts" },
+    { "id": "e19", "sourceId": "bio-1", "targetId": "elig-1", "label": "defines", "kind": "defines" },
+    { "id": "e20", "sourceId": "safety-1", "targetId": "visit-2", "label": "monitored at", "kind": "monitored-at" },
+    { "id": "e21", "sourceId": "safety-1", "targetId": "visit-3", "label": "monitored at", "kind": "monitored-at" }
+  ],
+  "validationIssues": [
+    {
+      "id": "VR-002-1",
+      "ruleId": "VR-002",
+      "name": "Conditional amendment data missing",
+      "severity": "error",
+      "sectionId": "amendment",
+      "elementId": "title_page.amendment_scope",
+      "message": "Original Protocol Indicator is \"No\" but Amendment Scope is not specified.",
+      "quickFix": "Set Amendment Scope to \"Global\" or \"Not Global\""
+    },
+    {
+      "id": "VR-003-1",
+      "ruleId": "VR-003",
+      "name": "Non-global amendment scope lacks geographic identifier",
+      "severity": "error",
+      "sectionId": "amendment",
+      "message": "Amendment Scope is \"Not Global\" but no country/region/site identifier provided."
+    },
+    {
+      "id": "VR-005-1",
+      "ruleId": "VR-005",
+      "name": "Assessment referenced in text but absent from SoA",
+      "severity": "warning",
+      "sectionId": "8",
+      "message": "ECG assessment mentioned in section 8.4 but not present in Schedule of Activities.",
+      "quickFix": "Add ECG to Schedule of Activities"
+    },
+    {
+      "id": "VR-004-1",
+      "ruleId": "VR-004",
+      "name": "Objective without endpoint",
+      "severity": "warning",
+      "sectionId": "1.3",
+      "message": "Exploratory objective defined without linked endpoint."
+    },
+    {
+      "id": "VR-001-1",
+      "ruleId": "VR-001",
+      "name": "Required M11 element missing",
+      "severity": "error",
+      "sectionId": "8",
+      "message": "Safety assessment procedures section incomplete."
+    }
+  ],
+  "collaboration": {
+    "comments": [
+      {
+        "id": "c-1",
+        "timestamp": "2026-05-22T15:45:00.000Z",
+        "user": "Emma Liu",
+        "sectionId": "1.3",
+        "content": "Should we include PK sampling at Cycle 3 Day 1?",
+        "resolved": false
+      },
+      {
+        "id": "c-2",
+        "timestamp": "2026-05-22T16:10:00.000Z",
+        "user": "Dr. Sarah Chen",
+        "sectionId": "1.3",
+        "content": "Yes, added to the schedule. Please review.",
+        "resolved": false
+      }
+    ],
+    "auditEvents": [
+      {
+        "id": "ae-1",
+        "timestamp": "2026-05-22T10:30:00.000Z",
+        "user": "Dr. Sarah Chen",
+        "action": "Created protocol",
+        "details": "Initial protocol creation from template"
+      },
+      {
+        "id": "ae-2",
+        "timestamp": "2026-05-22T11:15:00.000Z",
+        "user": "Dr. Sarah Chen",
+        "action": "Updated field",
+        "sectionId": "title",
+        "elementId": "title_page.full_title",
+        "details": "Modified protocol title"
+      },
+      {
+        "id": "ae-3",
+        "timestamp": "2026-05-22T14:22:00.000Z",
+        "user": "Michael Rodriguez (Statistician)",
+        "action": "Updated section",
+        "sectionId": "10",
+        "details": "Added sample size justification"
+      },
+      {
+        "id": "ae-4",
+        "timestamp": "2026-05-22T15:45:00.000Z",
+        "user": "Emma Liu (Medical Writer)",
+        "action": "Added comment",
+        "sectionId": "1.3",
+        "details": "Requested clarification on SoA timepoints"
+      }
+    ]
+  }
+}

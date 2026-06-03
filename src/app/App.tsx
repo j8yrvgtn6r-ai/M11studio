@@ -35,17 +35,26 @@ import {
   Network,
 } from 'lucide-react';
 import {
-  protocolSections,
-  fieldDefinitions,
-  validationIssues,
-  auditEvents,
-  comments,
-  visits,
-  assessments,
-  soaCells,
-} from './data/mockData';
+  getAssessments,
+  getAuditEvents,
+  getComments,
+  getFieldDefinitions,
+  getProtocolSections,
+  getSoACells,
+  getValidationIssues,
+  getVisits,
+} from './domain/protocol';
 import type { ProtocolSection, FieldDefinition } from './types/protocol';
 import type { DependencyNode } from './types/dependencyGraph';
+
+const protocolSections = getProtocolSections();
+const fieldDefinitions = getFieldDefinitions();
+const validationIssues = getValidationIssues();
+const auditEvents = getAuditEvents();
+const comments = getComments();
+const visits = getVisits();
+const assessments = getAssessments();
+const soaCells = getSoACells();
 
 export default function App() {
   const [selectedSectionId, setSelectedSectionId] = useState<string | null>('1');

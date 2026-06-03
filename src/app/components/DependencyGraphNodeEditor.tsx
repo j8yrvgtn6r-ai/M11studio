@@ -23,8 +23,11 @@ import {
 } from './ui/select';
 import { ProtocolNode } from './nodes/ProtocolNode';
 import { Maximize2, Minimize2, RefreshCw, Grid3x3, Network } from 'lucide-react';
-import { dependencyNodes, dependencyEdges } from '../data/dependencyGraphData';
+import { getDependencyEdges, getDependencyNodes } from '../domain/protocol';
 import type { DependencyNode } from '../types/dependencyGraph';
+
+const dependencyNodes = getDependencyNodes();
+const dependencyEdges = getDependencyEdges();
 
 const nodeTypes = {
   protocolNode: ProtocolNode,

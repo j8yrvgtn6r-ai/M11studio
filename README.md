@@ -28,6 +28,12 @@ M11 Studio transforms clinical protocol authoring from a document-centric proces
 - Linked to protocol sections for traceability
 - Visual indicators for required vs optional procedures
 
+### 🔗 Dependency Graph (2D & 3D)
+- Node-editor style 2D graph (React Flow) and force-directed 3D graph (ForceGraph3D)
+- Both views render the same canonical protocol relationships from seed JSON
+- Dependency Inspector with parent/child dependencies and impact analysis
+- Double-click navigation back to document sections
+
 ### 🎨 Enterprise UI/UX
 - Dark mode by default with light/system theme support
 - Resizable panels for customized workspace layouts
@@ -61,55 +67,94 @@ M11 Studio transforms clinical protocol authoring from a document-centric proces
 
 ```bash
 # Install dependencies
-pnpm install
+npm install
 
 # Start development server
-# Note: The dev server is already running in this environment
+npm run dev
+
+# Verify selector parity against legacy mock exports
+npm run test:parity
 
 # Build for production
-# Note: Do not run vite build in this environment
+npm run build
 ```
+
+## Data Architecture
+
+M11 Studio uses a **single canonical protocol artifact** as the source of truth:
+
+- **Seed JSON:** `src/app/domain/protocol/seed/PROTO-XYZ-301.json`
+- **Domain layer:** `src/app/domain/protocol/` (types, loaders, selectors, parity checks)
+- **View DTOs:** `src/app/types/protocol.ts` and `src/app/types/dependencyGraph.ts` (unchanged UI contracts)
+
+All runtime views consume data through **selector/adapters** in `src/app/domain/protocol/selectors/`, re-exported from `src/app/domain/protocol`:
+
+| Selector | Used by |
+|----------|---------|
+| `getProtocolSections()` | Protocol Explorer, Minimap, App shell |
+| `getFieldDefinitions()` | Document Viewport (via App state) |
+| `getVisits()`, `getAssessments()`, `getSoACells()` | Schedule of Activities |
+| `getValidationIssues()`, `getComments()`, `getAuditEvents()` | Detail Inspector, Status Bar |
+| `getDependencyNodes()`, `getDependencyEdges()` | 2D graph, 3D graph, Dependency Inspector |
+
+**2D and 3D dependency graphs** derive from the same protocol relationship model (`clinicalDesign` entities + `relationships` in the seed JSON)—not separate graph datasets.
+
+Legacy files `src/app/data/mockData.ts` and `src/app/data/dependencyGraphData.ts` are **retained only for parity verification** (`npm run test:parity`). The runtime app no longer imports them.
+
+See [MIGRATION_STATUS.md](./MIGRATION_STATUS.md) for the full migration checklist and remaining cleanup steps.
 
 ## Project Structure
 
 ```
 src/
 ├── app/
+│   ├── domain/
+│   │   └── protocol/
+│   │       ├── seed/
+│   │       │   └── PROTO-XYZ-301.json   # Canonical protocol artifact
+│   │       ├── selectors/               # Adapters → view DTOs
+│   │       ├── parity/                  # Legacy parity verification
+│   │       ├── types.ts                 # Canonical domain types
+│   │       ├── loadProtocol.ts
+│   │       └── index.ts
 │   ├── components/
-│   │   ├── ui/              # Shadcn/UI components
+│   │   ├── ui/                          # Shadcn/UI components
 │   │   ├── ProtocolExplorer.tsx
 │   │   ├── DocumentViewport.tsx
 │   │   ├── DocumentMinimap.tsx
 │   │   ├── DetailInspector.tsx
 │   │   ├── ProtocolCopilot.tsx
 │   │   ├── ScheduleOfActivities.tsx
-│   │   └── ThemeToggle.tsx
+│   │   ├── DependencyGraphContainer.tsx
+│   │   ├── DependencyGraphNodeEditor.tsx  # 2D graph (React Flow)
+│   │   ├── DependencyGraph3D.tsx            # 3D graph (ForceGraph3D)
+│   │   └── DependencyInspector.tsx
 │   ├── data/
-│   │   └── mockData.ts      # Sample protocol data
+│   │   ├── mockData.ts                  # Legacy — parity only
+│   │   └── dependencyGraphData.ts       # Legacy — parity only
 │   ├── types/
-│   │   └── protocol.ts      # TypeScript type definitions
+│   │   ├── protocol.ts                  # View-layer DTOs
+│   │   └── dependencyGraph.ts
 │   ├── utils/
-│   │   └── statusColors.ts  # Status color utilities
-│   └── App.tsx              # Main application
+│   │   └── statusColors.ts
+│   └── App.tsx
 └── styles/
-    ├── theme.css            # CSS custom properties
-    └── index.css            # Style imports
+    ├── theme.css
+    └── index.css
 ```
 
 ## Sample Data
 
-The application includes two pre-populated example protocols:
+The application ships with one fully populated example protocol loaded from the canonical seed:
 
-1. **Phase 3 Oncology Protocol** (PROTO-XYZ-301)
-   - Randomized, double-blind, placebo-controlled
-   - Advanced non-small cell lung cancer
-   - Global amendment example
-   - Comprehensive Schedule of Activities
+**Phase 3 Oncology Protocol** (`PROTO-XYZ-301`) — defined in `src/app/domain/protocol/seed/PROTO-XYZ-301.json`
 
-2. **Phase 2 Rare Disease Protocol** (planned)
-   - Small sample size rationale
-   - Biomarker-driven design
-   - Adaptive design features
+- Randomized, double-blind, placebo-controlled oncology study
+- Global amendment example with validation issues
+- Comprehensive Schedule of Activities (9 visits × 12 assessments)
+- Clinical design dependency graph (22 nodes, 21 relationships) shared by 2D and 3D views
+
+A second example protocol (Phase 2 rare disease) remains planned for a future release.
 
 ## M11 Data Model
 

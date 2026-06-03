@@ -1,329 +1,264 @@
-# M11 Studio
+# Akyrian M11 Studio
 
-## Vision
+## Executive Summary
 
-M11 Studio is an IDE-style protocol engineering environment designed to author, validate, visualize, and manage ICH M11-compliant clinical trial protocols.
+M11 Studio is a protocol engineering environment designed to transform clinical trial protocols from static documents into structured, computable, standards-aware digital assets.
 
-Unlike traditional protocol authoring systems that treat protocols as narratives (i.e. - Word documents or PDF), M11 Studio treats the protocol as a structured graph of interconnected objects including objectives, endpoints, assessments, visits, schedules of activities, populations, interventions, statistical analyses, and regulatory metadata.
-In addition, in the spirit of the ICH M11 Template, M11 Studio generates a machine-readable file that represents the clinical trial protocol as a digital artifact (JSON) and not a narrative or story. 
+Traditional protocol authoring tools treat protocols as Word documents. M11 Studio treats protocols as structured systems composed of interconnected clinical design objects including objectives, endpoints, assessments, visits, schedules of activities, study populations, interventions, statistical analyses, and regulatory metadata.
 
-The long-term vision is to create a "AI driven IDE for Clinical Protocols" where protocol design, operational planning, data collection strategy, and downstream regulatory deliverables are represented as a single connected knowledge model.
+The platform is designed around the principles of the ICH M11 Clinical Electronic Structured Harmonised Protocol Template (CeSHarP), CDISC standards, and emerging AI-assisted protocol design workflows.
 
----
+The long-term vision is to create the industry's first Protocol Engineering Environment: a platform where protocol design, validation, visualization, operational planning, data collection strategy, and downstream regulatory deliverables are represented through a single connected knowledge model.
 
-# Product Philosophy
+## Product Vision
 
 Protocols are not documents.
 
-Protocols are systems. Protocols are machine-readable code artifacts.
+Protocols are machine-readable systems (like code, like JSON).
 
-A protocol should be represented as a network of structured objects with explicit dependencies and relationships.
+A protocol is a network of interconnected design decisions that influence every aspect of a clinical trial, including:
 
-The document view is only one visualization of the underlying protocol model.
+- Objectives
+- Endpoints
+- Assessments
+- Visits
+- Study Arms
+- Populations
+- Interventions
+- Statistical Analyses
+- Data Collection Requirements
+- Regulatory Deliverables
 
-The protocol graph is the primary source of truth.
+The protocol document is only one view of this underlying design model.
 
----
+M11 Studio aims to expose, manage, validate, and visualize those relationships.
 
-# Primary Users
+## Mission
 
-* Clinical Scientists
-* Medical Writers
-* Protocol Authors
-* Clinical Operations Teams
-* Regulatory Affairs
-* Biostatisticians
-* Study Designers
-* Sponsors
-* CRO Personnel
-* Regulators like FDA or other NRA Personnel
+Enable protocol authors, clinical scientists, medical writers, biostatisticians, and clinical operations teams to design higher-quality protocols through structured authoring, standards-aware validation, AI-assisted workflows, and graph-based visualization.
 
----
+## Target Users
 
-# Core Design Principles
+### Primary Users
 
-## IDE First
+- Clinical Scientists
+- Medical Writers
+- Protocol Authors
+- Clinical Development Teams
+- Clinical Operations Teams
+- Biostatisticians
+- Translational Medicine Teams
+- Regulatory Affairs Teams
 
-The application should feel closer to:
+### Secondary Users
 
-* Cursor
-* VS Code
-* JetBrains IDEs
-* Notion AI
+- Regulators
+- CRO Personnel
+- Clinical Trial Managers
+- Data Management Teams
+- Clinical Programmers
+- Medical Monitors
 
-than to:
+## Core Product Principles
 
-* Microsoft Word
-* SharePoint
-* Traditional Document Management Systems
+### Standards First
 
-Users should navigate through protocol structures using explorers, inspectors, validation panes, graph views, and AI-assisted workflows.
+The platform is driven by industry standards.
 
----
+Examples include:
 
-## Structured Content
+- ICH M11
+- CDISC CORE
+- CDISC Controlled Terminology
+- CDASH
+- SDTM
+- M11 Clinical Electronic Structured Harmonized Protocol (CeSHarP), Guidance for Industry, Technical Specification Document
 
-Protocol content should be stored as structured objects.
+Standards should be treated as machine-readable assets that can be interpreted, validated, and operationalized.
 
-Avoid treating protocol sections as large free-text blobs whenever possible.
+### Structured Before Narrative
 
-Every protocol element should be represented as a distinct object with metadata and relationships.
+Structured protocol objects are the primary source of truth.
 
-The actual content of the Protocol must follow CDISC Controlled Terminology i.e. CDISC CORE (CDISC Open Rules Engine) https://www.cdisc.org/core
+Narrative protocol text is a rendering of those structured objects.
 
----
+Whenever possible:
 
-## Graph Native
+- Define structured data first.
+- Generate narrative from structure.
+- Validate narrative against structure.
 
-The protocol dependency graph is a first-class feature.
+### One Clinical Design Model
 
-All protocol objects should ultimately be represented within a shared graph model.
-
-Examples:
-
-Objective → Endpoint
-
-Endpoint → Assessment
-
-Assessment → Visit
-
-Visit → Schedule of Activities
-
-Endpoint → Statistical Analysis
-
-Population → Eligibility Criteria
-
-Intervention → Study Arm
-
----
-
-## Multiple Views, One Data Model
-
-The same protocol data should be visualized through multiple views:
-
-* Document View
-* Protocol Explorer
-* Schedule of Activities View
-* Validation View
-* Dependency Graph (2D)
-* Dependency Graph (3D)
-* AI Copilot
-
-Views are visualizations of the same underlying protocol model.
-
-Do not create separate data models for different views.
-
----
-
-# Current Major Features
-
-## Protocol Explorer
-
-Hierarchical navigation of protocol sections.
-
-Supports M11 protocol structure.
-
----
-
-## Structured Authoring Workspace
-
-Section editing and protocol content management.
-
----
-
-## Validation Engine
-
-Real-time protocol validation.
+All views must derive from a common underlying model.
 
 Examples:
 
-* Missing required M11 content
-* Endpoint without objective
-* Incomplete protocol sections
-* Structural inconsistencies
+- Protocol Explorer
+- Document View
+- Schedule of Activities
+- Validation Engine
+- Dependency Graph
+- AI Copilot
+- User Configurable, User-Specific Views (Statistics, Clinical Operations, Data Management)
 
-The validation engine should behave similarly to code linting tools.
+No view should maintain an independent representation of protocol intent.
 
----
+### Graph Native Architecture
 
-## Schedule of Activities
+The protocol should be represented internally as a connected graph of clinical design objects.
 
-The SoA is represented as structured protocol data.
+Example:
 
-Future enhancements:
+Objective → Endpoint → Assessment → Visit → Schedule of Activities → Data Collection → Analysis
 
-* Visit Builder
-* Arm Builder
-* Procedure Library
-* Cycle Templates
-* Assessment Templates
+The graph is a first-class architectural construct.
 
----
+### AI-Assisted, Human-Governed
 
-## Dependency Graph (2D)
+AI should assist protocol development but never silently modify protocol content.
 
-Node-editor style visualization of protocol relationships.
+All AI-generated changes must be:
 
-Inspired by:
+- Explainable
+- Reviewable
+- Auditable
+- Approveable by users
 
-* Node-RED
-* Unreal Blueprint
-* Houdini
-* TouchDesigner
+Humans remain the final authority.
 
----
+## Major Functional Domains
 
-## Dependency Graph (3D)
+### Standards Repository
 
-ForceGraph3D visualization of the same dependency model.
+Maintains machine-readable representations of:
 
-Purpose:
+- ICH M11 Specification
+- CDISC CORE
+- Controlled Terminology
+- CDASH
+- SDTM
 
-* Explore complex protocol relationships
-* Understand downstream impacts
-* Visualize protocol architecture
+The repository serves as the foundation for validation and protocol generation.
 
-This is not a separate graph.
+### Protocol Authoring
 
-It is an alternate renderer of the same graph data.
+Supports:
 
----
+- De novo protocol creation
+- Structured protocol editing
+- Legacy protocol ingestion
+- Protocol conversion to M11 format (from DOCX or PDF)
+- Amendment authoring
+- Version Control, Version Locking, Change Comparison
 
-## AI Protocol Copilot
+### Schedule of Activities Configuration
 
-AI assistant integrated directly into protocol authoring workflows.
+The Schedule of Activities (SoA) is treated as a structured protocol artifact.
 
-Future capabilities:
+The SoA is not a passive table.
 
-* Draft protocol sections
-* Explain M11 requirements
-* Generate protocol content
-* Identify inconsistencies
-* Generate SoA entries
-* Suggest downstream mappings
+The SoA is a configurable model that defines:
 
----
+- Study Information
+- Epochs
+- Arms
+- Visits (with visit windows)
+- Activities
+- Elements
+- Assessment / Procedures
+- Conditional procedures
+- Early termination behavior
+- Follow-up schedules and assessments
+- Interactive matrix of Assessment/Procedures (rows) against Visits (columns)
 
-# Long-Term Product Direction
+### Validation Engine
 
-The protocol graph should ultimately expand beyond protocol authoring.
+Supports multiple validation layers:
 
-Future graph nodes may include:
+**M11 Structural Validation**
 
-* CDASH Forms
-* CRFs
-* SDTM Domains
-* Source Documents
-* Monitoring Activities
-* Study Risks
-* Regulatory Deliverables
-* Data Collection Workflows
-* Site Operations
+Ensures required protocol sections and attributes are present.
 
-Long-term objective:
+**Terminology Validation**
 
-Represent the entire clinical trial lifecycle as a connected graph.
+Ensures alignment with CDISC CORE and controlled terminology.
 
-Protocol
+**Internal Consistency Validation**
 
-↓
+Identifies inconsistencies across protocol sections.
 
-Study Design
+**Clinical Design Validation**
 
-↓
+Evaluates relationships between objectives, endpoints, assessments, visits, and analyses.
 
-Data Collection
+**Operational Feasibility Validation**
 
-↓
+Identifies protocol complexity, burden, and operational risks.
 
-Source Documents
+### Protocol Copilot
 
-↓
-
-Monitoring
-
-↓
-
-SDTM
-
-↓
-
-Analysis
-
-↓
-
-Submission
-
----
-
-# Technical Direction
-
-## Preferred Architecture
-
-React
-TypeScript
-Supabase
-ForceGraph3D
-React Flow (where appropriate)
-
----
-
-## Data Model Philosophy
-
-Create reusable domain objects.
+Provides AI-assisted protocol development.
 
 Examples:
 
-Protocol
+- Draft content
+- Explain standards
+- Suggest improvements
+- Generate SoA entries
+- Identify inconsistencies
+- Recommend terminology
+- Assist protocol conversion
+- Assist protocol changes or amendments
 
-Section
+All recommendations remain user-reviewable.
 
-Objective
+### Dependency Visualization
 
-Endpoint
+Provides 2D and 3D visualizations of protocol relationships.
 
-Assessment
+The graph should support:
 
-Visit
+- Protocol exploration
+- Impact analysis
+- Traceability
+- Design review
+- Cross-functional communication
 
-ScheduleActivity
+## Long-Term Vision
 
-StudyArm
+M11 Studio is intended to evolve beyond protocol authoring.
 
-Population
+Future protocol objects may include:
 
-ValidationIssue
+- CDASH Forms
+- eCRFs
+- Source Data Definitions
+- SDTM Domains
+- Monitoring Activities
+- Risk Indicators
+- Regulatory Deliverables
+- Site Operations
+- Study Execution Workflows
 
-GraphNode
+Long term, M11 Studio should represent the complete lifecycle of a clinical trial as a connected knowledge graph.
 
-GraphEdge
+Protocol Design → Study Conduct → Data Collection → Monitoring → Analysis → Submission
 
-Avoid duplicating domain models across views.
+## Success Criteria
 
----
+M11 Studio succeeds when:
 
-# Development Rules
+- Protocol quality improves.
+- Standards compliance improves.
+- Protocol inconsistencies are reduced.
+- Authoring time decreases.
+- Protocol complexity becomes visible and manageable.
+- Downstream study execution becomes more predictable.
+- Clinical trial knowledge becomes structured, searchable, and computable.
 
-1. Preserve the IDE-style experience.
+## Guiding Question
 
-2. Preserve the graph-native architecture.
-
-3. Avoid dashboard-style redesigns.
-
-4. Avoid converting structured objects into unstructured text.
-
-5. Do not create separate graph data models for 2D and 3D views.
-
-6. Favor modular reusable components.
-
-7. Favor extensibility over short-term hacks.
-
-8. The protocol graph is a strategic asset and should remain central to the product.
-
----
-
-# Guiding Question
-
-Whenever making architectural decisions ask:
+For every architectural, design, or product decision ask:
 
 "Does this move M11 Studio closer to becoming the protocol engineering environment for the clinical trial industry?"

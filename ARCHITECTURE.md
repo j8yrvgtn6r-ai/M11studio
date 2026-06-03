@@ -43,10 +43,14 @@ Main application shell that orchestrates all major components and manages global
 **State Management:**
 - `selectedSectionId`: Currently active protocol section
 - `selectedFieldId`: Currently active field for detail inspection
-- `fields`: All field definitions with values
+- `fields`: All field definitions with values (initialized from `getFieldDefinitions()`)
+- `showDependencyGraph`: Toggles authoring vs graph workspace
+- `selectedDependencyNode`: Selected graph node for Dependency Inspector
 - `commandOpen`: Command palette visibility
 - `welcomeOpen`: Welcome dialog visibility
 - `lastSaved`: Timestamp of last save operation
+
+**Protocol data:** Loaded at module scope via `getProtocolSections()`, `getFieldDefinitions()`, etc. from `domain/protocol` (canonical seed JSON).
 
 **Key Responsibilities:**
 - Layout orchestration with ResizablePanelGroup
@@ -221,26 +225,98 @@ Bottom info bar displaying:
 #### KeyboardShortcuts
 Help dialog listing all keyboard shortcuts with icon + description + key combo badge.
 
+### Dependency Graph Components
+
+#### DependencyGraphContainer
+**File:** `DependencyGraphContainer.tsx`
+
+Orchestrates 2D/3D graph tabs, search, and selection callbacks. Used when `showDependencyGraph` is true in `App.tsx`.
+
+#### DependencyGraphNodeEditor (2D)
+**File:** `DependencyGraphNodeEditor.tsx`
+
+React Flow node-editor visualization. Data from `getDependencyNodes()` / `getDependencyEdges()`.
+
+#### DependencyGraph3D (3D)
+**File:** `DependencyGraph3D.tsx`
+
+ForceGraph3D visualization of the **same** relationship model as the 2D graph.
+
+#### DependencyInspector
+**File:** `DependencyInspector.tsx`
+
+Sidebar panel showing parent/child dependencies and impact analysis for the selected graph node.
+
 ## Data Layer
 
-### Types (`types/protocol.ts`)
-Comprehensive TypeScript type definitions:
-- `ProtocolSection` - Hierarchical section model
-- `FieldDefinition` - M11 element schema
-- `ValidationIssue` - Validation rule violations
-- `AuditEvent` - Change tracking records
-- `Comment` - Discussion thread items
-- `Visit`, `Assessment`, `SoACell` - Schedule of Activities models
-- Enums: `StatusType`, `SeverityType`, `RequirednessType`
+### Architecture Overview
 
-### Mock Data (`data/mockData.ts`)
-Pre-populated Phase 3 oncology protocol:
-- 14 protocol sections (hierarchical)
-- 5 field definitions with values
-- 5 validation issues (2 errors, 3 warnings)
-- 4 audit events
-- 2 comments
-- 9 visits × 12 assessments = 108 SoA cells
+```
+PROTO-XYZ-301.json (canonical artifact)
+        │
+        ▼
+  loadProtocol() / getProtocolDocument()
+        │
+        ▼
+  domain/protocol/selectors/  ──►  view DTOs (types/protocol.ts, types/dependencyGraph.ts)
+        │
+        ▼
+  App.tsx, graph components, inspectors
+```
+
+**Key principle:** One protocol model, many views. Document, SoA, validation, collaboration, and dependency graphs all derive from the same seed JSON. The 2D and 3D graphs share `clinicalDesign` entities and `relationships`—there is no separate graph dataset.
+
+### Canonical Protocol (`domain/protocol/`)
+
+**Seed artifact:** `domain/protocol/seed/PROTO-XYZ-301.json`
+
+Contains:
+- `sections` — hierarchical document tree
+- `elements` — authored M11 fields
+- `clinicalDesign` — objectives, endpoints, assessments, visits, arms, etc.
+- `schedule` — visits, assessments, SoA cells
+- `relationships` — directed edges for dependency graphs
+- `validationIssues`, `collaboration` — static validation and audit data (until live rule engine)
+
+**Canonical types:** `domain/protocol/types.ts` (`ProtocolDocument`, `DesignEntity`, `ProtocolRelationship`, etc.)
+
+**Selectors:** `domain/protocol/selectors/` adapt canonical data to existing view DTOs:
+
+| Selector | View DTO |
+|----------|----------|
+| `getProtocolSections()` | `ProtocolSection[]` |
+| `getFieldDefinitions()` | `FieldDefinition[]` |
+| `getVisits()` / `getAssessments()` / `getSoACells()` | SoA models |
+| `getValidationIssues()` | `ValidationIssue[]` |
+| `getComments()` / `getAuditEvents()` | Collaboration models |
+| `getDependencyNodes()` / `getDependencyEdges()` | Graph models |
+
+**Runtime consumers:**
+- `App.tsx` — authoring workspace data
+- `DependencyGraphNodeEditor.tsx`, `DependencyGraph3D.tsx`, `DependencyInspector.tsx` — graph data
+
+### View Types (`types/protocol.ts`, `types/dependencyGraph.ts`)
+
+UI-facing DTOs unchanged during migration:
+- `ProtocolSection`, `FieldDefinition`, `ValidationIssue`, `AuditEvent`, `Comment`
+- `Visit`, `Assessment`, `SoACell`
+- `DependencyNode`, `DependencyEdge`
+
+### Legacy Mock Data (parity only — runtime migration complete)
+
+**Files:** `data/mockData.ts`, `data/dependencyGraphData.ts`
+
+Retained **only** for migration parity verification (`npm run test:parity`). **No runtime component imports these files.** They will be removed once parity checks use snapshot fixtures instead of legacy exports.
+
+See [MIGRATION_STATUS.md](../MIGRATION_STATUS.md) for the full migration checklist, import audit, and recommended deletion order.
+
+### Parity Verification (`domain/protocol/parity/`)
+
+`runParityCheck()` compares all selector outputs against legacy mock exports. Run via:
+
+```bash
+npm run test:parity
+```
 
 ### Utilities (`utils/statusColors.ts`)
 Status color mapping functions:
@@ -396,10 +472,10 @@ Modular design allows:
 - Export formats (PDF, Word, FHIR, CDISC ODM)
 
 ### API Integration (Ready)
-Data layer abstraction allows easy swap from mock data to API calls:
-- `mockData.ts` → `apiClient.ts`
-- Add React Query for caching/mutations
-- Keep component props unchanged
+The domain layer is designed for backend swap without changing component props:
+- `PROTO-XYZ-301.json` → API fetch / Supabase persistence
+- Selectors remain the adapter boundary; add React Query for caching/mutations
+- Keep view DTO shapes stable for UI components
 
 ### Theming (Extensible)
 CSS custom properties allow:
@@ -407,9 +483,14 @@ CSS custom properties allow:
 - Multiple theme presets (not just light/dark)
 - Per-protocol branding
 
-## Testing Strategy (Not Implemented)
+## Testing Strategy
 
-### Recommended Test Coverage
+### Parity Tests (Implemented)
+- **Command:** `npm run test:parity`
+- **Location:** `domain/protocol/parity/checkParity.ts`, `scripts/check-protocol-parity.ts`
+- **Purpose:** Verify selector outputs match legacy mock exports during migration
+
+### Recommended Additional Coverage
 - **Unit Tests**: Utilities, validators, status color functions
 - **Component Tests**: Each major component in isolation with mock props
 - **Integration Tests**: Multi-component workflows (select section → edit field → validate)
@@ -478,17 +559,14 @@ Build output from Vite can be hosted on:
 ### Development Workflow
 ```bash
 # Local development
-pnpm install
-# Dev server auto-starts in Figma Make environment
+npm install
+npm run dev
 
-# Type checking (when tsc installed)
-pnpm exec tsc --noEmit
+# Verify selector parity (migration safety net)
+npm run test:parity
 
-# Linting (when ESLint configured)
-pnpm exec eslint src/
-
-# Production build (not in Figma Make)
-pnpm run build
+# Production build
+npm run build
 ```
 
 ### Version Control (Recommended)
@@ -501,6 +579,7 @@ pnpm run build
 - [x] Architecture overview (this file)
 - [x] Feature list (FEATURES.md)
 - [x] User guide (README.md)
+- [x] Migration status (MIGRATION_STATUS.md)
 - [ ] API documentation (when backend added)
 
 ## Glossary of M11 Terms
@@ -517,6 +596,6 @@ pnpm run build
 
 ---
 
-**Document Version**: 1.0  
-**Last Updated**: 2026-05-22  
+**Document Version**: 1.1  
+**Last Updated**: 2026-06-02  
 **Maintained By**: M11 Studio Development Team
