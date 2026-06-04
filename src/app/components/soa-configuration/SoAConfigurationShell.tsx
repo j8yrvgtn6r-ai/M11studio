@@ -15,6 +15,7 @@ import { formatGeneratedAt } from './formatGeneratedAt';
 import { GeneratedSoAMatrix } from './GeneratedSoAMatrix';
 import { SoAConfigurationOverviewTab } from './SoAConfigurationOverviewTab';
 import { SoAConfigurationPlaceholderTab } from './SoAConfigurationPlaceholderTab';
+import { SoAConfigurationVisitsTab } from './SoAConfigurationVisitsTab';
 import { SOA_CONFIGURATION_TABS } from './soaConfigurationTabs';
 
 interface SoAConfigurationShellProps {
@@ -109,6 +110,8 @@ export function SoAConfigurationShell({ onCellClick }: SoAConfigurationShellProp
                   <TabsContent key={tab.id} value={tab.id} className="mt-0 outline-none">
                     {tab.id === 'overview' ? (
                       <SoAConfigurationOverviewTab />
+                    ) : tab.id === 'visits' ? (
+                      <SoAConfigurationVisitsTab />
                     ) : (
                       <SoAConfigurationPlaceholderTab tab={tab} />
                     )}
