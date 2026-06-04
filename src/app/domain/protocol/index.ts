@@ -50,15 +50,18 @@ export {
   createAssessmentScheduleRule,
   createDesignEntity,
   createRelationship,
+  createSoAAssessmentDefinition,
   deleteAssessmentScheduleRule,
   deleteDesignEntity,
   deleteRelationship,
+  deleteSoAAssessmentDefinition,
   updateAssessmentScheduleRule,
   updateDesignEntity,
   updateElement,
   updateElementValue,
   updateRelationship,
   updateScheduleAnchor,
+  updateSoAAssessmentDefinition,
   updateVisitDefinition,
   regenerateScheduleCache,
   isAuthoritativeScheduleCacheStale,
@@ -68,11 +71,21 @@ export type {
   CreateAssessmentScheduleRuleInput,
   CreateDesignEntityInput,
   CreateRelationshipInput,
+  CreateSoAAssessmentDefinitionInput,
   UpdateAssessmentScheduleRulePatch,
   UpdateDesignEntityPatch,
   UpdateRelationshipPatch,
   UpdateScheduleAnchorPatch,
+  UpdateSoAAssessmentDefinitionPatch,
   UpdateVisitDefinitionPatch,
+} from './store';
+
+export {
+  describeSoAAssessmentDefinitionMutationFailure,
+  getCreateSoAAssessmentDefinitionFailure,
+  getDeleteSoAAssessmentDefinitionFailure,
+  getUpdateSoAAssessmentDefinitionFailure,
+  soaAssessmentDefinitionHasScheduleRules,
 } from './store';
 
 export {

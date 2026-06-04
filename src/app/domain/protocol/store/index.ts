@@ -34,4 +34,21 @@ export type {
   UpdateAssessmentScheduleRulePatch,
 } from './assessmentScheduleRuleMutations';
 
+export {
+  createSoAAssessmentDefinition,
+  deleteSoAAssessmentDefinition,
+  describeSoAAssessmentDefinitionMutationFailure,
+  getCreateSoAAssessmentDefinitionFailure,
+  getDeleteSoAAssessmentDefinitionFailure,
+  getUpdateSoAAssessmentDefinitionFailure,
+  soaAssessmentDefinitionHasScheduleRules,
+  updateSoAAssessmentDefinition,
+} from './soaAssessmentDefinitionMutations';
+
+export type {
+  CreateSoAAssessmentDefinitionInput,
+  SoAAssessmentDefinitionMutationFailure,
+  UpdateSoAAssessmentDefinitionPatch,
+} from './soaAssessmentDefinitionMutations';
+
 export { isAuthoritativeScheduleCacheStale, regenerateScheduleCache, regenerateScheduleCacheAfterMutation } from './scheduleCacheMutations';

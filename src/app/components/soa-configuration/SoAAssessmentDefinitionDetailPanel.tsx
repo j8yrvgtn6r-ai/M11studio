@@ -6,6 +6,17 @@ import type { DesignEntityLocation } from '../../domain/protocol/clinicalDesign'
 import type { SoAAssessmentGeneratedImpact, SoAAssessmentVisitAppearance } from './soaAssessmentImpact';
 import type { SoAAssessmentValidationEntry } from './soaAssessmentValidationIndex';
 import { Alert, AlertDescription, AlertTitle } from '../ui/alert';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '../ui/alert-dialog';
 import { Badge } from '../ui/badge';
 import { Button } from '../ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
@@ -21,6 +32,12 @@ interface SoAAssessmentDefinitionDetailPanelProps {
   visitAppearances: SoAAssessmentVisitAppearance[];
   linkedSections: string[];
   generatedImpact: SoAAssessmentGeneratedImpact | null;
+  canDelete: boolean;
+  deleteBlockedReason: string | null;
+  deleteError: string | null;
+  onEdit: () => void;
+  onDelete: () => void;
+  onClearDeleteError: () => void;
 }
 
 function DetailField({ label, value }: { label: string; value: ReactNode }) {
@@ -40,6 +57,12 @@ export function SoAAssessmentDefinitionDetailPanel({
   visitAppearances,
   linkedSections,
   generatedImpact,
+  canDelete,
+  deleteBlockedReason,
+  deleteError,
+  onEdit,
+  onDelete,
+  onClearDeleteError,
 }: SoAAssessmentDefinitionDetailPanelProps) {
   if (!definition) {
     return (
@@ -66,14 +89,59 @@ export function SoAAssessmentDefinitionDetailPanel({
             <CardDescription className="mt-1 truncate">{definition.category}</CardDescription>
           </div>
           <div className="flex flex-col gap-1.5 shrink-0">
-            <Button variant="outline" size="sm" disabled className="text-xs">
-              Edit coming soon
+            <Button variant="outline" size="sm" className="text-xs" onClick={onEdit}>
+              Edit
             </Button>
-            <Button variant="outline" size="sm" disabled className="text-xs">
-              Delete coming soon
-            </Button>
+            <AlertDialog
+              onOpenChange={(open) => {
+                if (!open) {
+                  onClearDeleteError();
+                }
+              }}
+            >
+              <AlertDialogTrigger asChild>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="text-xs text-destructive hover:text-destructive"
+                  disabled={!canDelete}
+                  title={deleteBlockedReason ?? undefined}
+                >
+                  Delete
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Delete assessment?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    Remove <span className="font-mono">{definition.id}</span> from the SoA assessment catalog.
+                    Generated schedule cells for this row will be removed if no rules reference it.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                {deleteError ? (
+                  <Alert variant="destructive">
+                    <AlertDescription>{deleteError}</AlertDescription>
+                  </Alert>
+                ) : null}
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogAction
+                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                    onClick={(event) => {
+                      event.preventDefault();
+                      onDelete();
+                    }}
+                  >
+                    Delete
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
           </div>
         </div>
+        {!canDelete && deleteBlockedReason ? (
+          <p className="text-xs text-muted-foreground pt-1">{deleteBlockedReason}</p>
+        ) : null}
         <div className="flex flex-wrap gap-1.5 pt-2">
           <Badge variant="outline" className="text-[10px] font-mono">
             {definition.id}

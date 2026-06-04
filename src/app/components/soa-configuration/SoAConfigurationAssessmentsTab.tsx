@@ -1,21 +1,31 @@
 import { useEffect, useMemo, useState } from 'react';
 
-import { AlertCircle, AlertTriangle } from 'lucide-react';
+import { AlertCircle, AlertTriangle, Plus } from 'lucide-react';
 
 import {
+  deleteSoAAssessmentDefinition,
+  describeSoAAssessmentDefinitionMutationFailure,
   findDesignEntityInDocument,
   getAssessmentScheduleRulesForAssessment,
   getAssessments,
+  getDeleteSoAAssessmentDefinitionFailure,
   getProtocolDocument,
   getSoACells,
   getSoAAssessmentDefinitions,
   getVisitDefinitions,
+  soaAssessmentDefinitionHasScheduleRules,
   subscribe,
 } from '../../domain/protocol';
+import { Alert, AlertDescription } from '../ui/alert';
 import { Badge } from '../ui/badge';
+import { Button } from '../ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
 import { ScrollArea, ScrollBar } from '../ui/scroll-area';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table';
+import {
+  SoAAssessmentDefinitionEditorDialog,
+  type SoAAssessmentDefinitionEditorMode,
+} from './SoAAssessmentDefinitionEditorDialog';
 import { SoAAssessmentDefinitionDetailPanel } from './SoAAssessmentDefinitionDetailPanel';
 import {
   buildAssessmentVisitAppearances,
@@ -27,12 +37,30 @@ import { buildSoAAssessmentValidationIndex } from './soaAssessmentValidationInde
 export function SoAConfigurationAssessmentsTab() {
   const [protocolRevision, setProtocolRevision] = useState(0);
   const [selectedAssessmentId, setSelectedAssessmentId] = useState<string | null>(null);
+  const [editorOpen, setEditorOpen] = useState(false);
+  const [editorMode, setEditorMode] = useState<SoAAssessmentDefinitionEditorMode>('create');
+  const [showNarrativeNotice, setShowNarrativeNotice] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   useEffect(() => {
     return subscribe(() => {
       setProtocolRevision((revision) => revision + 1);
     });
   }, []);
+
+  useEffect(() => {
+    if (!showNarrativeNotice) {
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      setShowNarrativeNotice(false);
+    }, 8000);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, [showNarrativeNotice]);
 
   const document = useMemo(() => getProtocolDocument(), [protocolRevision]);
   const definitions = useMemo(
@@ -78,99 +106,182 @@ export function SoAConfigurationAssessmentsTab() {
       )
     : null;
 
+  const selectedHasScheduleRules = selectedDefinition
+    ? soaAssessmentDefinitionHasScheduleRules(selectedDefinition.id, document)
+    : false;
+  const selectedDeleteFailure = selectedDefinition
+    ? getDeleteSoAAssessmentDefinitionFailure(selectedDefinition.id, document)
+    : null;
+  const selectedDeleteBlockedReason =
+    selectedDeleteFailure === 'referenced_by_rules'
+      ? describeSoAAssessmentDefinitionMutationFailure('referenced_by_rules')
+      : null;
+
+  function openCreateEditor() {
+    setEditorMode('create');
+    setEditorOpen(true);
+  }
+
+  function openEditEditor() {
+    setEditorMode('edit');
+    setEditorOpen(true);
+  }
+
+  function handleMutationSuccess(definitionId: string) {
+    setSelectedAssessmentId(definitionId);
+    setShowNarrativeNotice(true);
+    setDeleteError(null);
+  }
+
+  function handleDelete() {
+    if (!selectedDefinition) {
+      return;
+    }
+
+    const failure = getDeleteSoAAssessmentDefinitionFailure(selectedDefinition.id, document);
+    if (failure) {
+      setDeleteError(describeSoAAssessmentDefinitionMutationFailure(failure));
+      return;
+    }
+
+    if (!deleteSoAAssessmentDefinition(selectedDefinition.id)) {
+      setDeleteError('Could not delete SoA assessment definition.');
+      return;
+    }
+
+    setDeleteError(null);
+    setShowNarrativeNotice(true);
+  }
+
   return (
-    <div className="flex flex-col lg:flex-row gap-4 min-h-[360px]">
-      <Card className="flex-[3] min-w-0 flex flex-col min-h-[360px]">
-        <CardHeader className="pb-3 shrink-0">
-          <CardTitle className="text-base">SoA assessment definitions</CardTitle>
-          <CardDescription>
-            Read-only catalog from <span className="font-mono">soaAssessmentDefinitions</span> ({definitions.length})
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="p-0 flex-1 min-h-0">
-          <ScrollArea className="h-full max-h-[360px]">
-            <div className="min-w-max">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="min-w-[70px] font-mono text-xs">Id</TableHead>
-                    <TableHead className="min-w-[160px]">Label</TableHead>
-                    <TableHead className="min-w-[100px]">Category</TableHead>
-                    <TableHead className="min-w-[60px] text-right">Order</TableHead>
-                    <TableHead className="min-w-[90px] font-mono text-xs">Section</TableHead>
-                    <TableHead className="min-w-[120px] font-mono text-xs">Clinical design</TableHead>
-                    <TableHead className="min-w-[80px] text-right">Rules</TableHead>
-                    <TableHead className="min-w-[90px] text-right">Validation</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {definitions.map((definition) => {
-                    const validation = validationIndex.get(definition.id);
-                    const errorCount = validation?.errors.length ?? 0;
-                    const warningCount = validation?.warnings.length ?? 0;
-                    const ruleCount = getAssessmentScheduleRulesForAssessment(definition.id, document).length;
-                    const isSelected = definition.id === selectedAssessmentId;
+    <div className="space-y-3">
+      {showNarrativeNotice ? (
+        <Alert>
+          <AlertDescription className="flex items-center gap-2">
+            <Badge variant="secondary" className="text-[10px] shrink-0">
+              Governance
+            </Badge>
+            Narrative impact tracking coming soon.
+          </AlertDescription>
+        </Alert>
+      ) : null}
 
-                    return (
-                      <TableRow
-                        key={definition.id}
-                        data-state={isSelected ? 'selected' : undefined}
-                        className="cursor-pointer data-[state=selected]:bg-accent/40"
-                        onClick={() => setSelectedAssessmentId(definition.id)}
-                      >
-                        <TableCell className="font-mono text-xs">{definition.id}</TableCell>
-                        <TableCell className="font-medium text-sm">{definition.label}</TableCell>
-                        <TableCell className="text-xs">{definition.category}</TableCell>
-                        <TableCell className="text-xs text-right tabular-nums">{definition.order}</TableCell>
-                        <TableCell className="font-mono text-xs">{definition.linkedSectionId ?? '—'}</TableCell>
-                        <TableCell className="font-mono text-xs">
-                          {definition.clinicalDesignAssessmentId ?? '—'}
-                        </TableCell>
-                        <TableCell className="text-xs text-right tabular-nums">{ruleCount}</TableCell>
-                        <TableCell className="text-right">
-                          <div className="flex justify-end gap-1">
-                            {errorCount > 0 ? (
-                              <Badge variant="destructive" className="text-[10px] gap-0.5 px-1.5">
-                                <AlertCircle className="h-3 w-3" />
-                                {errorCount}
-                              </Badge>
-                            ) : null}
-                            {warningCount > 0 ? (
-                              <Badge
-                                variant="outline"
-                                className="text-[10px] gap-0.5 px-1.5 border-amber-500/50 text-amber-700 dark:text-amber-400"
-                              >
-                                <AlertTriangle className="h-3 w-3" />
-                                {warningCount}
-                              </Badge>
-                            ) : null}
-                            {errorCount === 0 && warningCount === 0 ? (
-                              <span className="text-xs text-muted-foreground">—</span>
-                            ) : null}
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
+      <div className="flex flex-col lg:flex-row gap-4 min-h-[360px]">
+        <Card className="flex-[3] min-w-0 flex flex-col min-h-[360px]">
+          <CardHeader className="pb-3 shrink-0">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <CardTitle className="text-base">SoA assessment definitions</CardTitle>
+                <CardDescription>
+                  Catalog from <span className="font-mono">soaAssessmentDefinitions</span> ({definitions.length})
+                </CardDescription>
+              </div>
+              <Button size="sm" className="shrink-0 gap-1.5" onClick={openCreateEditor}>
+                <Plus className="h-4 w-4" />
+                Create assessment
+              </Button>
             </div>
-            <ScrollBar orientation="horizontal" />
-          </ScrollArea>
-        </CardContent>
-      </Card>
+          </CardHeader>
+          <CardContent className="p-0 flex-1 min-h-0">
+            <ScrollArea className="h-full max-h-[360px]">
+              <div className="min-w-max">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="min-w-[70px] font-mono text-xs">Id</TableHead>
+                      <TableHead className="min-w-[160px]">Label</TableHead>
+                      <TableHead className="min-w-[100px]">Category</TableHead>
+                      <TableHead className="min-w-[60px] text-right">Order</TableHead>
+                      <TableHead className="min-w-[90px] font-mono text-xs">Section</TableHead>
+                      <TableHead className="min-w-[120px] font-mono text-xs">Clinical design</TableHead>
+                      <TableHead className="min-w-[80px] text-right">Rules</TableHead>
+                      <TableHead className="min-w-[90px] text-right">Validation</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {definitions.map((definition) => {
+                      const validation = validationIndex.get(definition.id);
+                      const errorCount = validation?.errors.length ?? 0;
+                      const warningCount = validation?.warnings.length ?? 0;
+                      const ruleCount = getAssessmentScheduleRulesForAssessment(definition.id, document).length;
+                      const isSelected = definition.id === selectedAssessmentId;
 
-      <div className="flex-[2] min-w-[280px] min-h-[360px]">
-        <SoAAssessmentDefinitionDetailPanel
-          definition={selectedDefinition}
-          clinicalDesignAssessment={selectedClinicalDesign}
-          validation={selectedValidation}
-          rules={selectedRules}
-          visitAppearances={selectedVisitAppearances}
-          linkedSections={selectedLinkedSections}
-          generatedImpact={selectedGeneratedImpact}
-        />
+                      return (
+                        <TableRow
+                          key={definition.id}
+                          data-state={isSelected ? 'selected' : undefined}
+                          className="cursor-pointer data-[state=selected]:bg-accent/40"
+                          onClick={() => setSelectedAssessmentId(definition.id)}
+                        >
+                          <TableCell className="font-mono text-xs">{definition.id}</TableCell>
+                          <TableCell className="font-medium text-sm">{definition.label}</TableCell>
+                          <TableCell className="text-xs">{definition.category}</TableCell>
+                          <TableCell className="text-xs text-right tabular-nums">{definition.order}</TableCell>
+                          <TableCell className="font-mono text-xs">{definition.linkedSectionId ?? '—'}</TableCell>
+                          <TableCell className="font-mono text-xs">
+                            {definition.clinicalDesignAssessmentId ?? '—'}
+                          </TableCell>
+                          <TableCell className="text-xs text-right tabular-nums">{ruleCount}</TableCell>
+                          <TableCell className="text-right">
+                            <div className="flex justify-end gap-1">
+                              {errorCount > 0 ? (
+                                <Badge variant="destructive" className="text-[10px] gap-0.5 px-1.5">
+                                  <AlertCircle className="h-3 w-3" />
+                                  {errorCount}
+                                </Badge>
+                              ) : null}
+                              {warningCount > 0 ? (
+                                <Badge
+                                  variant="outline"
+                                  className="text-[10px] gap-0.5 px-1.5 border-amber-500/50 text-amber-700 dark:text-amber-400"
+                                >
+                                  <AlertTriangle className="h-3 w-3" />
+                                  {warningCount}
+                                </Badge>
+                              ) : null}
+                              {errorCount === 0 && warningCount === 0 ? (
+                                <span className="text-xs text-muted-foreground">—</span>
+                              ) : null}
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </div>
+              <ScrollBar orientation="horizontal" />
+            </ScrollArea>
+          </CardContent>
+        </Card>
+
+        <div className="flex-[2] min-w-[280px] min-h-[360px]">
+          <SoAAssessmentDefinitionDetailPanel
+            definition={selectedDefinition}
+            clinicalDesignAssessment={selectedClinicalDesign}
+            validation={selectedValidation}
+            rules={selectedRules}
+            visitAppearances={selectedVisitAppearances}
+            linkedSections={selectedLinkedSections}
+            generatedImpact={selectedGeneratedImpact}
+            canDelete={Boolean(selectedDefinition) && !selectedHasScheduleRules}
+            deleteBlockedReason={selectedDeleteBlockedReason}
+            deleteError={deleteError}
+            onEdit={openEditEditor}
+            onDelete={handleDelete}
+            onClearDeleteError={() => setDeleteError(null)}
+          />
+        </div>
       </div>
+
+      <SoAAssessmentDefinitionEditorDialog
+        open={editorOpen}
+        mode={editorMode}
+        definition={selectedDefinition}
+        document={document}
+        onOpenChange={setEditorOpen}
+        onSuccess={handleMutationSuccess}
+      />
     </div>
   );
 }

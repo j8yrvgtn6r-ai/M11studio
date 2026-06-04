@@ -22,10 +22,14 @@ import {
   generateScheduleFromRules,
   reportGeneratedScheduleDiff,
   verifyGeneratedScheduleIndependentOfLegacyScheduleMetadata,
+  getCreateSoAAssessmentDefinitionFailure,
+  getDeleteSoAAssessmentDefinitionFailure,
 } from '../src/app/domain/protocol';
 import {
   createAssessmentScheduleRule,
+  createSoAAssessmentDefinition,
   deleteAssessmentScheduleRule,
+  deleteSoAAssessmentDefinition,
   getProtocolDocument,
   getProtocolSnapshot,
   regenerateScheduleCache,
@@ -33,6 +37,7 @@ import {
   subscribe,
   updateAssessmentScheduleRule,
   updateScheduleAnchor,
+  updateSoAAssessmentDefinition,
   updateVisitDefinition,
 } from '../src/app/domain/protocol/store';
 import { validateProtocol } from '../src/app/domain/protocol/validateProtocol';
@@ -682,6 +687,132 @@ if (
   fail('auto-regeneration should maintain generated schedule cache metadata');
 }
 
+const hashBeforeSoADefinitionMutation = getProtocolDocument().schedule.metadata?.sourceHash;
+const soaDefinitionCountBeforeCreate = getSoAAssessmentDefinitions().length;
+
+const smokeSoADefinitionId = 'a-smoke-catalog';
+if (
+  !createSoAAssessmentDefinition({
+    id: smokeSoADefinitionId,
+    label: 'Smoke Catalog Assessment',
+    category: 'Smoke',
+    order: 99,
+    linkedSectionId: '8',
+    metadata: { smokeTest: true },
+  })
+) {
+  fail('create valid SoA assessment definition should succeed');
+}
+
+const createdSoADefinition = getSoAAssessmentDefinition(smokeSoADefinitionId);
+if (
+  !createdSoADefinition ||
+  createdSoADefinition.label !== 'Smoke Catalog Assessment' ||
+  createdSoADefinition.linkedSectionId !== '8'
+) {
+  fail('createSoAAssessmentDefinition should persist catalog metadata');
+}
+
+if (getSoAAssessmentDefinitions().length !== soaDefinitionCountBeforeCreate + 1) {
+  fail('createSoAAssessmentDefinition should append to soaAssessmentDefinitions');
+}
+
+if (isScheduleCacheStale(getProtocolDocument())) {
+  fail('isScheduleCacheStale() should be false after creating SoA assessment definition');
+}
+
+const hashAfterSoACreate = getProtocolDocument().schedule.metadata?.sourceHash;
+if (!hashAfterSoACreate || hashAfterSoACreate === hashBeforeSoADefinitionMutation) {
+  fail('schedule.metadata.sourceHash should change when soaAssessmentDefinitions change');
+}
+
+if (
+  getProtocolDocument().schedule.metadata?.sourceSoAAssessmentDefinitionCount !==
+  soaDefinitionCountBeforeCreate + 1
+) {
+  fail('createSoAAssessmentDefinition should update schedule cache sourceSoAAssessmentDefinitionCount');
+}
+
+if (
+  createSoAAssessmentDefinition({
+    id: smokeSoADefinitionId,
+    label: 'Duplicate',
+    category: 'Smoke',
+    order: 100,
+  })
+) {
+  fail('duplicate SoA assessment definition id should fail');
+}
+
+if (
+  getCreateSoAAssessmentDefinitionFailure(getProtocolDocument(), {
+    id: 'a-smoke-invalid-section',
+    label: 'Invalid section',
+    category: 'Smoke',
+    order: 100,
+    linkedSectionId: 'nonexistent-section-id',
+  }) !== 'invalid_linked_section'
+) {
+  fail('getCreateSoAAssessmentDefinitionFailure should report invalid_linked_section');
+}
+
+if (
+  createSoAAssessmentDefinition({
+    id: 'a-smoke-invalid-section',
+    label: 'Invalid section',
+    category: 'Smoke',
+    order: 100,
+    linkedSectionId: 'nonexistent-section-id',
+  })
+) {
+  fail('invalid linkedSectionId should fail SoA assessment definition create');
+}
+
+if (
+  !updateSoAAssessmentDefinition(smokeSoADefinitionId, {
+    label: 'Updated Smoke Catalog Assessment',
+    order: 100,
+  })
+) {
+  fail('update valid SoA assessment definition should succeed');
+}
+
+const updatedSoADefinition = getSoAAssessmentDefinition(smokeSoADefinitionId);
+if (
+  !updatedSoADefinition ||
+  updatedSoADefinition.label !== 'Updated Smoke Catalog Assessment' ||
+  updatedSoADefinition.order !== 100
+) {
+  fail('updateSoAAssessmentDefinition should persist catalog metadata');
+}
+
+if (getDeleteSoAAssessmentDefinitionFailure('a1') !== 'referenced_by_rules') {
+  fail('getDeleteSoAAssessmentDefinitionFailure should block delete when schedule rules reference assessment');
+}
+
+if (deleteSoAAssessmentDefinition('a1')) {
+  fail('deleteSoAAssessmentDefinition should fail when schedule rules reference assessment');
+}
+
+if (!deleteSoAAssessmentDefinition(smokeSoADefinitionId)) {
+  fail('delete SoA assessment definition without schedule rules should succeed');
+}
+
+if (getSoAAssessmentDefinition(smokeSoADefinitionId)) {
+  fail('deleted SoA assessment definition should be removed from store');
+}
+
+if (getSoAAssessmentDefinitions().length !== soaDefinitionCountBeforeCreate) {
+  fail('deleteSoAAssessmentDefinition should remove catalog row and auto-regenerate schedule cache');
+}
+
+if (
+  getProtocolDocument().schedule.metadata?.sourceSoAAssessmentDefinitionCount !==
+  soaDefinitionCountBeforeCreate
+) {
+  fail('deleteSoAAssessmentDefinition should restore schedule cache sourceSoAAssessmentDefinitionCount');
+}
+
 resetProtocolStore();
 
 console.log('Visit schedule smoke test passed.');
@@ -693,6 +824,7 @@ console.log(`  lookup helpers verified`);
 console.log(`  anchor and visitDefinition validation verified`);
 console.log(`  visit window and policy mutations verified`);
 console.log(`  assessment schedule rule CRUD verified`);
+console.log(`  SoA assessment definition CRUD verified`);
 console.log(`  feature-flagged schedule selectors verified`);
 console.log(`  schedule cache regeneration and auto-regeneration verified`);
 console.log(`  subscriber notifications: ${subscriberNotifications}`);
