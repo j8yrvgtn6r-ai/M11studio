@@ -13,6 +13,7 @@ import { ScrollArea } from '../ui/scroll-area';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
 import { formatGeneratedAt } from './formatGeneratedAt';
 import { GeneratedSoAMatrix } from './GeneratedSoAMatrix';
+import { SoAConfigurationAssessmentsTab } from './SoAConfigurationAssessmentsTab';
 import { SoAConfigurationOverviewTab } from './SoAConfigurationOverviewTab';
 import { SoAConfigurationPlaceholderTab } from './SoAConfigurationPlaceholderTab';
 import { SoAConfigurationVisitsTab } from './SoAConfigurationVisitsTab';
@@ -110,6 +111,8 @@ export function SoAConfigurationShell({ onCellClick }: SoAConfigurationShellProp
                   <TabsContent key={tab.id} value={tab.id} className="mt-0 outline-none">
                     {tab.id === 'overview' ? (
                       <SoAConfigurationOverviewTab />
+                    ) : tab.id === 'soa-assessments' ? (
+                      <SoAConfigurationAssessmentsTab />
                     ) : tab.id === 'visits' ? (
                       <SoAConfigurationVisitsTab />
                     ) : (

@@ -6,7 +6,7 @@
 **Focus:** Operational *when* of study visits, assessment timing rules, and generated Schedule of Activities  
 **Status:** Planned  
 **Baseline:** Stage 1a complete (`89ee8bf` — clinical design graph editing foundation)  
-**Last updated:** 2026-06-02
+**Last updated:** 2026-06-02 (Stage 2e workflow reorder)
 
 ---
 
@@ -614,6 +614,23 @@ Recommended: **AssessmentScheduleRules are authoritative for SoA cells**; `perfo
 
 ## 8. SoA Configuration Layer
 
+### 8.0 Matrix foundation (product logic)
+
+The generated SoA matrix is **Assessment × Visit**:
+
+| Layer | Source | Role |
+|-------|--------|------|
+| **Y axis (rows)** | `soaAssessmentDefinitions[]` | Assessment/procedure rows in the grid |
+| **X axis (columns)** | `visitSchedule.visitDefinitions[]` (+ `anchors[]`) | Visit columns with timing and display metadata |
+| **Cells (intersections)** | `assessmentScheduleRules[]` | Whether/how an assessment occurs at a visit |
+| **Grouping** | Epochs, activities, elements (`clinicalDesign` + relationships) | Organize visits and link narrative after the matrix foundation exists |
+| **Branching scope** | `clinicalDesign.studyArms[]` | Arm restrictions on rules; prerequisite for conditional logic (arms are not a matrix axis) |
+| **Pathway logic** | future `conditionalProtocolLogic[]` | e.g. switch arms on treatment failure—depends on assessments, visits, arms, and rules |
+
+**Authoring sequence:** SoA Assessment Definitions → Study Visit Definitions → Assessment Schedule Rules → Epochs/Activities/Elements → Study Arms → Conditional Protocol Logic.
+
+Rules are only meaningful once both assessment rows and visit columns exist. Conditional logic such as *“if treatment fails, switch to Study Arm 2”* cannot be meaningfully authored until arms are defined.
+
 ### 8.1 What the configuration layer is
 
 The **SoA Configuration Layer** is the combined editable model:
@@ -745,19 +762,28 @@ Many protocols contain **conditional branching logic** that changes treatment, a
 
 ### 8.5 SoA Configuration UI — Tab Model (Future)
 
-Within **SoA Configuration**, the long-term UI organizes authoring into dedicated tabs:
+Within **SoA Configuration**, tabs follow the **matrix foundation workflow** (§8.0). Tab rail order and Stage 2e PR sequence align with this product logic—not clinical-design hierarchy:
 
 ```
-[ Assessments ]  [ Visits ]  [ Conditional Protocol Logic ]
+[ Overview ]
+[ SoA Assessments ]  [ Visits ]  [ Schedule Rules ]
+[ Epochs ]  [ Activities ]  [ Elements ]
+[ Arms ]
+[ Conditional Protocol Logic — future ]
 ```
 
-| Tab | Binds to |
-|-----|----------|
-| **Assessments** | `soaAssessmentDefinitions`, clinical design assessment links, row order and presentation |
-| **Visits** | `visitSchedule.anchors`, `visitSchedule.visitDefinitions`, windows, re-anchor/ripple policies, display metadata |
-| **Conditional Protocol Logic** | Future `ProtocolDecisionRule` / `ConditionalPathwayRule` catalog — define, visualize, validate, and maintain protocol branching behavior |
+| Step | Tab | Binds to | Matrix role |
+|------|-----|----------|---------------|
+| 1 | **SoA Assessments** | `soaAssessmentDefinitions`, clinical design assessment links, row order and presentation | Y axis |
+| 2 | **Visits** | `visitSchedule.anchors`, `visitSchedule.visitDefinitions`, windows, re-anchor/ripple policies, display metadata | X axis |
+| 3 | **Schedule Rules** | `assessmentScheduleRules` — required, timing, arm restrictions | Cells |
+| 4 | **Epochs / Activities / Elements** | `clinicalDesign` epochs, assessments, elements; relationships | Grouping & narrative linkage |
+| 5 | **Arms** | `clinicalDesign.studyArms` | Branching scope for rules and future CPL |
+| 6 | **Conditional Protocol Logic** | Future `ProtocolDecisionRule` / `ConditionalPathwayRule` catalog | Pathway branching |
 
-Stage **2e** delivers a **minimal** subset (visits + rules + generated grid preview). The **Conditional Protocol Logic** tab is deferred until the domain model and validators exist.
+Stage **2e** delivers the matrix foundation (steps 1–3) as read-only views first, then CRUD editors. Steps 4–6 follow in Stage 2e tail / 2f / Stage 3. The **Conditional Protocol Logic** tab remains a read-only placeholder until the domain model and validators exist.
+
+**Implementation note:** Visits read-only UI shipped in 2e PR 2 before Assessments (prior plan order). Remaining 2e work follows §8.0 sequence; shell tab rail will be reordered to match.
 
 ---
 
@@ -965,17 +991,32 @@ Any change to the following must automatically trigger **narrative impact analys
 
 ---
 
-### Stage 2e — Minimal SoA configuration UI
+### Stage 2e — SoA configuration UI (matrix foundation workflow)
+
+**Product workflow order:** SoA Assessments → Visits → Schedule Rules → Epochs/Activities/Elements → Arms → Conditional Logic placeholder.
+
+| ID | Task | Complexity | Description | Status |
+|----|------|------------|-------------|--------|
+| **S2e-0** | SoA Configuration shell + tab rail + overview | M | `SOA-SHELL`, `SOA-OVERVIEW`, read-only grid band | **Done** (`54668b8`) |
+| **S2e-1** | SoA Assessment Definitions read-only | M | List/detail from `soaAssessmentDefinitions[]`; validation badges | **Next** |
+| **S2e-2** | SoA Assessment Definitions CRUD | M | Catalog list/edit; row order; `clinicalDesignAssessmentId`, `linkedSectionId` | Planned |
+| **S2e-3** | Study Visit Definitions read-only | M | List/detail from `visitSchedule` + anchors; validation badges | **Done** (`7d6287e`) |
+| **S2e-4** | Visit Definitions + Schedule Anchors CRUD | M | §5.8 controls; write-through to store mutations | Planned |
+| **S2e-5** | Assessment Schedule Rules read-only | M | Matrix-style rule list; filter by visit/assessment; link to grid cells | Planned |
+| **S2e-6** | Assessment Schedule Rules CRUD | M | Toggle required / add rule; arm restrictions when arms exist | Planned |
+| **S2e-7** | Grid click → rule focus | S | Cell click opens rule editor for `(visitId, assessmentId)` | Planned |
+| **S2e-8** | Tab rail reorder + empty-state workflow hints | S | Rail order matches §8.5; “next step” prompts per workflow | Planned |
+| **S2e-9** | No direct cell matrix editing | S | Enforce write-through to rules only | Planned |
+
+**Exit criteria (Stage 2e):** User defines assessment rows and visit columns, adds/removes a rule, and sees the grid update via store regen; export reflects rules. No direct `schedule.cells` editing.
+
+**Follow-on (Stage 2e tail / 2f — not matrix foundation):**
 
 | ID | Task | Complexity | Description |
 |----|------|------------|-------------|
-| **S2e-1** | Visit schedule + anchor panel | M | List/edit anchors, visit windows, re-anchor policies (§5.8) |
-| **S2e-2** | Rule editor stub | M | Toggle required / add rule; anchor + offset preview |
-| **S2e-3** | SoA grid refresh | S | `subscribe()` already patterns from Stage 1 |
-| **S2e-4** | Cell click → rule focus | S | Navigate from grid cell to rule metadata |
-| **S2e-5** | No direct cell matrix editing | S | Enforce write-through to rules only |
-
-**Exit criteria:** User can add/remove a rule and see grid update; export reflects rules.
+| **S2e-10** | Epochs / Activities / Elements read-only → CRUD | M | Grouping tabs after matrix foundation |
+| **S2e-11** | Study Arms read-only → CRUD | M | Arms before arm-scoped rule authoring and CPL |
+| **S2e-12** | Conditional Logic tab placeholder (maintain) | S | Read-only explainer until Stage 3 CPL domain |
 
 ---
 
@@ -1004,12 +1045,29 @@ S2c-1 → S2c-2 → S2c-3 → S2c-4 → S2c-5               (assessment rules)
         ↓
 S2d-1 → S2d-2 → S2d-3 → S2d-4 → S2d-5               (generated SoA)
         ↓
-S2e-1 → S2e-2 → S2e-3 → S2e-4 → S2e-5               (minimal UI)
+S2e-0 → S2e-1 → S2e-2 → S2e-3 → S2e-4               (shell; assessments; visits CRUD)
+        → S2e-5 → S2e-6 → S2e-7 → S2e-8 → S2e-9     (rules; grid focus; rail reorder)
+        → S2e-10 → S2e-11 → S2e-12                    (epochs/activities/elements; arms; CPL placeholder)
         ↓
 S2f-1 → S2f-2 → S2f-3 → S2f-4 → S2f-5               (consistency scaffolding)
 ```
 
-**First PR recommendation:** **S2a-1 + S2a-2** — `ScheduleAnchor` types + read helpers; seed gains `visitSchedule.anchors` without changing SoA behavior.
+**Stage 2e matrix foundation (user-facing order):**
+
+| Step | PR focus | Delivers |
+|------|----------|----------|
+| 0 | Shell | Tab rail, overview, read-only grid (**done**) |
+| 1 | SoA Assessments read-only | Y-axis catalog visibility (**next**) |
+| 2 | SoA Assessments CRUD | Row catalog authoring |
+| 3 | Visits read-only | X-axis catalog visibility (**done**, shipped early) |
+| 4 | Visits + anchors CRUD | Visit/anchor authoring |
+| 5 | Schedule Rules read-only | Cell/intersection visibility |
+| 6 | Schedule Rules CRUD | Matrix intersection authoring |
+| 7+ | Grid click-through, validation inspector, rail reorder | Write-through UX |
+
+**First PR recommendation (historical):** **S2a-1 + S2a-2** — `ScheduleAnchor` types + read helpers.
+
+**Next PR recommendation (revised):** **S2e-1** — SoA Assessment Definitions read-only list + detail panel.
 
 **MVP milestone (Stage 2d):** Generated SoA matches seed matrix; graph and document views unchanged.
 
@@ -1030,7 +1088,7 @@ S2f-1 → S2f-2 → S2f-3 → S2f-4 → S2f-5               (consistency scaffol
 ### Views
 
 - [ ] SoA grid reads generated schedule (no separate mock state)  
-- [ ] Minimal configuration UI edits visit windows and rules (Stage 2e)  
+- [ ] Minimal configuration UI edits **SoA assessment catalog**, visit windows, and rules in workflow order (Stage 2e)  
 - [ ] Dependency graph still uses `clinicalDesign` + `relationships`  
 
 ### Integrity
@@ -1064,7 +1122,7 @@ S2f-1 → S2f-2 → S2f-3 → S2f-4 → S2f-5               (consistency scaffol
 | Full narrative NLP consistency | Roadmap Stage 4 |
 | Live validation engine UI | Roadmap Stage 4 |
 | Execution-layer visit date simulation | Post–Stage 2 operational module |
-| Epoch / study arm configuration UI | Stage 2+ or parallel epic |
+| Epoch / study arm configuration UI | Stage 2e-10 / 2e-11 (after matrix foundation) |
 | CDASH / SDTM mapping on cells | Roadmap Stage 6+ |
 | Copilot-generated schedule proposals | Roadmap Stage 5 (within governance) |
 | Supabase persistence | Parallel track |
@@ -1145,8 +1203,10 @@ Stage 2 (this plan)
   clinicalDesign + visitSchedule + soaAssessmentDefinitions
   + assessmentScheduleRules → generated schedule
         │
-        ├─► SoA Configuration UI (2e)
-        │     [ Assessments ] [ Visits ] [ Conditional Protocol Logic — future ]
+        ├─► SoA Configuration UI (2e) — matrix foundation workflow
+        │     [ SoA Assessments ] → [ Visits ] → [ Schedule Rules ]
+        │     → [ Epochs / Activities / Elements ] → [ Arms ]
+        │     → [ Conditional Protocol Logic — future ]
         │
         ├─► Conditional Protocol Logic (post–Stage 2)
         │     arm / dose / visit / assessment / status branching
@@ -1164,7 +1224,7 @@ Stage 2 (this plan)
 | Layer | Authority |
 |-------|-----------|
 | Clinical Design | WHAT the trial evaluates and includes |
-| Visit Schedule + AssessmentScheduleRules + SoA catalog | WHEN and HOW activities occur at visits |
+| Visit Schedule + AssessmentScheduleRules + SoA catalog | WHEN and HOW activities occur at visits (Assessment × Visit matrix) |
 | Conditional Protocol Logic (future) | WHY/WHEN pathways branch based on outcomes |
 | Generated SoA matrix | Derived view for grid, export, SDE-oriented consumers |
 | Narrative (`sections` / `elements`) | Governed prose driven by structured sources; updated through approval workflow |

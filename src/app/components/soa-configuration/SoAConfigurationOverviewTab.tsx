@@ -24,13 +24,15 @@ export function SoAConfigurationOverviewTab() {
   const document = getProtocolDocument();
   const scheduleMetadata = getSchedule().metadata;
   const validationIssues = getValidationIssues();
-  const scheduleIssueCount = validationIssues.filter(
-    (issue) =>
+  const scheduleIssueCount = validationIssues.filter((issue) => {
+    const ruleId = issue.ruleId ?? '';
+    return (
       issue.sectionId === '1.3' ||
-      issue.ruleId.includes('schedule') ||
-      issue.ruleId.includes('visit') ||
-      issue.ruleId.includes('soa'),
-  ).length;
+      ruleId.includes('schedule') ||
+      ruleId.includes('visit') ||
+      ruleId.includes('soa')
+    );
+  }).length;
 
   const uniqueEpochCount = useMemo(() => {
     const epochs = new Set(

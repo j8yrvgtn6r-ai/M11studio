@@ -1,12 +1,12 @@
 export type SoAConfigurationTabId =
   | 'overview'
-  | 'arms'
-  | 'epochs'
+  | 'soa-assessments'
   | 'visits'
+  | 'schedule-rules'
+  | 'epochs'
   | 'activities'
   | 'elements'
-  | 'soa-assessments'
-  | 'schedule-rules'
+  | 'arms'
   | 'conditional-logic'
   | 'change-control';
 
@@ -24,19 +24,24 @@ export const SOA_CONFIGURATION_TABS: SoAConfigurationTabDefinition[] = [
     description: 'Study-level summary, validation health, and generated schedule status.',
   },
   {
-    id: 'arms',
-    label: 'Arms',
-    description: 'Configure study arms, randomization references, and arm-scoped schedule rules.',
-  },
-  {
-    id: 'epochs',
-    label: 'Epochs',
-    description: 'Define study epochs and sequencing across the clinical design timeline.',
+    id: 'soa-assessments',
+    label: 'SoA Assessments',
+    description: 'Edit SoA catalog rows: labels, categories, ordering, and narrative links.',
   },
   {
     id: 'visits',
     label: 'Visits',
     description: 'Author visit definitions, anchors, windows, and display metadata.',
+  },
+  {
+    id: 'schedule-rules',
+    label: 'Schedule Rules',
+    description: 'Define assessment schedule rules that drive the generated SoA matrix.',
+  },
+  {
+    id: 'epochs',
+    label: 'Epochs',
+    description: 'Define study epochs and sequencing across the clinical design timeline.',
   },
   {
     id: 'activities',
@@ -49,14 +54,9 @@ export const SOA_CONFIGURATION_TABS: SoAConfigurationTabDefinition[] = [
     description: 'Configure study design elements and epoch mapping.',
   },
   {
-    id: 'soa-assessments',
-    label: 'SoA Assessments',
-    description: 'Edit SoA catalog rows: labels, categories, ordering, and narrative links.',
-  },
-  {
-    id: 'schedule-rules',
-    label: 'Schedule Rules',
-    description: 'Define assessment schedule rules that drive the generated SoA matrix.',
+    id: 'arms',
+    label: 'Arms',
+    description: 'Configure study arms, randomization references, and arm-scoped schedule rules.',
   },
   {
     id: 'conditional-logic',

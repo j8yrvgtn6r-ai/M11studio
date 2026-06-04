@@ -32,10 +32,49 @@ The SoA Configuration experience must:
 | 2 | **Generated SoA is a cache/view** | Grid displays `document.schedule` after auto-regeneration; no toggle implying two competing truths. |
 | 3 | **Write-through, never write-around** | Any grid interaction (click, toggle required, add intersection) opens or focuses the underlying **Assessment Schedule Rule** or catalog row. |
 | 4 | **One intersection source** | Assessment × visit presence, requiredness, timing notes, and arm restrictions live on rules. |
-| 5 | **Clinical design owns WHAT; schedule owns WHEN/WHERE** | Arms, epochs, activities, elements link to visit/assessment configuration; SoA catalog projects rows/columns. |
-| 6 | **Governance by default** | Configuration changes trigger validation, narrative impact analysis, and audit events before (or alongside) commit. |
-| 7 | **Amendment-aware** | All edits occur in a protocol version context; comparison and change control are built in. |
-| 8 | **OpenStudyBuilder-aligned semantics** | Study structure → visits → activities → schedule matrix mirrors industry MDR/EDC configuration patterns. |
+| 5 | **Matrix foundation before branching** | Authors define **SoA assessment rows (Y)** and **visit columns (X)** before **schedule rules (cells)**; arms, epochs, activities, and conditional logic refine structure afterward. |
+| 6 | **Clinical design owns WHAT; schedule owns WHEN/WHERE** | Epochs, activities, elements, and arms organize and link to the matrix; they do not replace catalog rows, visit definitions, or rules as intersection sources. |
+| 7 | **Governance by default** | Configuration changes trigger validation, narrative impact analysis, and audit events before (or alongside) commit. |
+| 8 | **Amendment-aware** | All edits occur in a protocol version context; comparison and change control are built in. |
+| 9 | **OpenStudyBuilder-aligned semantics** | Activity-centric scheduling built on assessment rows + visit columns + rule intersections; study structure refines grouping and branching after the matrix foundation exists. |
+
+---
+
+## 2.1 Matrix foundation and product workflow
+
+The generated SoA matrix is fundamentally **Assessment × Visit**:
+
+```
+                    Visit 1    Visit 2    Visit 3   …  (X axis)
+                  ┌─────────┬─────────┬─────────┐
+Assessment A (Y)  │  rule   │  rule   │         │
+Assessment B      │  rule   │         │  rule   │
+Assessment C      │         │  rule   │  rule   │
+                  └─────────┴─────────┴─────────┘
+                         ↑
+              assessmentScheduleRules[]
+              (required, timing, arm scope, …)
+```
+
+| Matrix layer | Domain source | Axis / role |
+|--------------|---------------|-------------|
+| **SoA Assessment Definitions** | `soaAssessmentDefinitions[]` | **Y axis** — row catalog (label, category, order, narrative links) |
+| **Study Visit Definitions** | `visitSchedule.visitDefinitions[]` + `visitSchedule.anchors[]` | **X axis** — column catalog (timing, windows, re-anchor/ripple policies, display metadata) |
+| **Assessment Schedule Rules** | `assessmentScheduleRules[]` | **Cells** — whether/how an assessment occurs at a visit |
+| **Study Epochs & Study Activities** | `clinicalDesign` epochs/activities + relationships | **Grouping & organization** — epoch assignment, performed-at links, narrative structure after rows/columns exist |
+| **Study Arms** | `clinicalDesign.studyArms[]` | **Branching scope** — arm restrictions on rules; prerequisite for arm-specific and conditional behavior (arms are not a visible matrix axis) |
+| **Conditional Protocol Logic** | future `conditionalProtocolLogic[]` | **Pathway branching** — e.g. switch arms on treatment failure; depends on assessments, visits, arms, and rules |
+
+**Authoring logic:**
+
+1. Define **what appears as SoA rows** (`soaAssessmentDefinitions`) before schedule intersections are meaningful.
+2. Define **when visits occur** (`visitSchedule`) after assessment rows exist, but **before** rule authoring—authors need both axes to reason about the matrix.
+3. Author **rules** only once both axes exist—a rule is always `(assessmentId, visitDefinitionId)`.
+4. Refine **epochs, activities, and elements** to organize visits and link clinical design to narrative sections.
+5. Define **arms** before arm-scoped rules and conditional logic—logic such as *“if treatment fails, switch to Study Arm 2”* cannot be authored without arms.
+6. Add **conditional protocol logic** last among configuration tabs—it consumes the foundational matrix plus arms.
+
+**UI implication:** Tab rail order and Stage 2e delivery sequence follow this workflow (see §5.3–5.4, §16). The read-only generated grid remains visible throughout as the derived preview.
 
 ---
 
@@ -46,8 +85,8 @@ The SoA Configuration experience must:
 │  PROTOCOL EXPLORER — Section 1.3 "Schedule of Activities"               │
 │  ┌───────────────────────────────────────────────────────────────────┐  │
 │  │  SoA Configuration Workspace (editable source layers)              │  │
-│  │  Arms │ Epochs │ Visits │ Activities │ Elements │ Assessments │   │  │
-│  │  Rules │ Conditional Logic (future) │ Validation │ Narrative Impact│  │
+│  │  Assessments → Visits → Rules → Epochs/Activities/Elements → Arms │  │
+│  │  → Conditional Logic (future) │ Validation │ Narrative Impact      │  │
 │  └───────────────────────────────────────────────────────────────────┘  │
 │  ┌───────────────────────────────────────────────────────────────────┐  │
 │  │  Generated SoA Matrix (read-only)                                  │  │
@@ -123,16 +162,45 @@ OpenStudyBuilder ([site](https://www.openstudybuilder.com/), [repo](https://gith
 
 ### 5.3 Tab rail (configuration areas)
 
-Primary tabs map 1:1 to user-facing configuration domains:
+Primary tabs map 1:1 to user-facing configuration domains. **Tab order follows the matrix foundation workflow** (§2.1)—not alphabetical or clinical-design hierarchy:
 
 ```
-[ Overview ]  [ Arms ]  [ Epochs ]  [ Visits ]  [ Activities ]  [ Elements ]
-[ SoA Assessments ]  [ Schedule Rules ]  [ Conditional Logic ★ ]  [ Change Control ]
+[ Overview ]
+[ SoA Assessments ]  [ Visits ]  [ Schedule Rules ]
+[ Epochs ]  [ Activities ]  [ Elements ]
+[ Arms ]
+[ Conditional Logic ★ ]  [ Change Control ]
 ```
 
-★ **Conditional Protocol Logic** — visible from Phase 3 onward; read-only explainer + backlog in Phase 1–2.
+| Tab group | Workflow step | Matrix role |
+|-----------|---------------|-------------|
+| **SoA Assessments** | 1 | Y axis — row catalog |
+| **Visits** | 2 | X axis — visit definitions + anchors |
+| **Schedule Rules** | 3 | Cell intersections |
+| **Epochs / Activities / Elements** | 4 | Grouping, clinical design linkage, narrative refs |
+| **Arms** | 5 | Arm scope for rules; prerequisite for branching |
+| **Conditional Logic ★** | 6 | Pathway rules (future authoring) |
+
+★ **Conditional Protocol Logic** — visible from Phase 1 onward as a planned tab; read-only explainer + backlog until Phase 3 authoring.
 
 **Overview** tab: study-level summary, validation dashboard, narrative impact queue, generation health (`sourceHash`, stale cache warnings).
+
+**Note (implementation):** The shell tab rail will be reordered to match this sequence during Stage 2e. Early PRs may ship tabs out of rail order (e.g. Visits read-only before Assessments editor)—domain and docs treat **Assessments → Visits → Rules** as the canonical product sequence.
+
+### 5.4 Recommended authoring workflow order
+
+When guiding authors or sequencing in-app empty states, onboarding, and “next step” prompts:
+
+| Step | Tab | Author action | Depends on |
+|------|-----|---------------|------------|
+| 1 | SoA Assessments | Add/reorder SoA row catalog entries; link clinical assessments and narrative sections | — |
+| 2 | Visits | Define anchors and visit definitions; set windows and re-anchor policies | Assessment rows exist (for cross-reference in help text; not a hard domain dependency) |
+| 3 | Schedule Rules | Create `(assessment, visit)` rules; set required, timing, arm restrictions | Both catalog rows and visit definitions |
+| 4 | Epochs / Activities / Elements | Assign epochs to visits; link activities; map study elements | Matrix foundation in place |
+| 5 | Arms | Define study arms; scope rules by arm | Rules catalog useful for arm-restricted authoring |
+| 6 | Conditional Logic | Define decision rules and pathway impacts (future) | Arms + matrix + rules |
+
+**Grid preview:** The generated SoA matrix at the bottom of the workspace updates after rule and source mutations regardless of which tab is active—it always reflects the current **Assessment × Visit** cache.
 
 ---
 
@@ -206,31 +274,24 @@ Primary tabs map 1:1 to user-facing configuration domains:
 
 ## 7. Tab structure & primary workflows
 
-### 7.1 Tab: Study Arms
+Tabs are documented below by **domain**. For **authoring sequence**, follow §2.1 and §5.4: **SoA Assessments → Visits → Schedule Rules → Epochs/Activities/Elements → Arms → Conditional Logic**.
 
-**Purpose:** Define treatment and control arms that constrain schedule rules and conditional pathways.
+### 7.1 Tab: SoA Assessment Definitions *(workflow step 1 — Y axis)*
 
-| Workflow | Steps | Validation | Narrative impact |
-|----------|-------|------------|----------------|
-| Add arm | Arms list → Create → fill id, name, type → Save | Unique id; graph integrity | Sections describing randomization / treatment arms |
-| Link arm to rules | Rule editor → armRestrictions multi-select | Rules reference valid arm ids | SoA footnotes, Section 6 arm descriptions |
-| Delete arm | Confirm → check rules/CPL references | Block if referenced | Flag affected narrative |
-
-**Inspector panels:** linked rules count, conditional pathways (future), section refs.
-
-### 7.2 Tab: Study Epochs
-
-**Purpose:** Define screening / treatment / follow-up periods that organize visits.
+**Purpose:** **Row catalog** for the generated matrix—presentation and stable rule targets (`a1`–`aN`). Define assessment/procedure rows before schedule intersections make sense.
 
 | Workflow | Steps |
 |----------|-------|
-| Define epoch sequence | Create epochs → set previous/next → assign visit definitions |
-| Map to study elements | Cross-link element records to epoch ids |
-| Validate continuity | Ensure no orphan epochs; visits reference valid epoch |
+| Add SoA row | Catalog list → label, category, order |
+| Link clinical assessment | Set `clinicalDesignAssessmentId` |
+| Link narrative section | Set `linkedSectionId` / legacy refs |
+| Reorder rows | Drag order → updates `order` field → regen cache |
 
-### 7.3 Tab: Study Visit Definitions
+**Constraint:** Rules must reference catalog ids only (enforced in domain).
 
-**Purpose:** Authoritative **WHEN** layer—anchors, nominal timing, windows, re-anchoring.
+### 7.2 Tab: Study Visit Definitions *(workflow step 2 — X axis)*
+
+**Purpose:** Authoritative **WHEN** layer—anchors, nominal timing, windows, re-anchoring. Visits form matrix columns; configure after assessment rows are available, before schedule rules.
 
 | Workflow | Steps | Key fields |
 |----------|-------|------------|
@@ -250,41 +311,9 @@ Primary tabs map 1:1 to user-facing configuration domains:
 
 **Missed visits:** per-visit `missedVisitPolicy` enum (`recordDeviationOnly`, `rescheduleWithinWindow`, `excludeFromAnalysis`, etc.) with EDC-oriented help text.
 
-### 7.4 Tab: Study Activities
+### 7.3 Tab: Assessment Schedule Rules *(workflow step 3 — cells)*
 
-**Purpose:** Clinical **WHAT**—activities performed in the study (graph entities).
-
-| Workflow | Steps |
-|----------|-------|
-| Define activity | Activities list → create assessment entity in clinical design |
-| Link to SoA row | Prompt to create/update matching `soaAssessmentDefinitions` catalog entry |
-| performed-at relationships | Graph or inline relationship editor to visits (validated vs rules) |
-
-### 7.5 Tab: Study Elements
-
-**Purpose:** Design periods / elements (e.g., Screening, Treatment, Follow-up) aligned with USDM StudyElement constructs.
-
-| Workflow | Steps |
-|----------|-------|
-| Map elements to epochs | Element editor ↔ epoch linkage |
-| Narrative binding | `sectionRef` on elements for governance |
-
-### 7.6 Tab: SoA Assessment Definitions
-
-**Purpose:** **Row catalog** for the generated matrix—presentation and stable rule targets (`a1`–`aN`).
-
-| Workflow | Steps |
-|----------|-------|
-| Add SoA row | Catalog list → label, category, order |
-| Link clinical assessment | Set `clinicalDesignAssessmentId` |
-| Link narrative section | Set `linkedSectionId` / legacy refs |
-| Reorder rows | Drag order → updates `order` field → regen cache |
-
-**Constraint:** Rules must reference catalog ids only (enforced in domain).
-
-### 7.7 Tab: Assessment Schedule Rules
-
-**Purpose:** **Intersection authoring**—the primary scheduling workflow.
+**Purpose:** **Intersection authoring**—the primary scheduling workflow once both axes exist.
 
 | Workflow | Steps |
 |----------|-------|
@@ -292,7 +321,7 @@ Primary tabs map 1:1 to user-facing configuration domains:
 | Toggle required | Rule editor `required` field (not grid cell toggle) |
 | Set timing note | `timingNote` → flows to generated cell `notes` |
 | Override windows | Rule-level `windowBeforeDays` / `windowAfterDays` |
-| Arm scope | `armRestrictions[]` |
+| Arm scope | `armRestrictions[]` (meaningful after arms are defined) |
 | Relative timing | `relativeTiming` enum (before/after administration, continuous, interval-weeks) |
 | Dose-delay independence | `independentOfDoseDelay` (imaging/survival); surfaces `imaging_rolling_conflict` validation |
 | Delete intersection | Delete rule → auto-regen cache |
@@ -311,7 +340,48 @@ Primary tabs map 1:1 to user-facing configuration domains:
 
 **Bulk operations (Phase 2):** copy all rules from visit A → visit B; apply assessment template to epoch.
 
-### 7.8 Tab: Conditional Protocol Logic (future — first-class from Phase 3)
+### 7.4 Tab: Study Epochs *(workflow step 4a — grouping)*
+
+**Purpose:** Define screening / treatment / follow-up periods that organize visits.
+
+| Workflow | Steps |
+|----------|-------|
+| Define epoch sequence | Create epochs → set previous/next → assign visit definitions |
+| Map to study elements | Cross-link element records to epoch ids |
+| Validate continuity | Ensure no orphan epochs; visits reference valid epoch |
+
+### 7.5 Tab: Study Activities *(workflow step 4b — clinical WHAT)*
+
+**Purpose:** Clinical **WHAT**—activities performed in the study (graph entities).
+
+| Workflow | Steps |
+|----------|-------|
+| Define activity | Activities list → create assessment entity in clinical design |
+| Link to SoA row | Prompt to create/update matching `soaAssessmentDefinitions` catalog entry |
+| performed-at relationships | Graph or inline relationship editor to visits (validated vs rules) |
+
+### 7.6 Tab: Study Elements *(workflow step 4c — design periods)*
+
+**Purpose:** Design periods / elements (e.g., Screening, Treatment, Follow-up) aligned with USDM StudyElement constructs.
+
+| Workflow | Steps |
+|----------|-------|
+| Map elements to epochs | Element editor ↔ epoch linkage |
+| Narrative binding | `sectionRef` on elements for governance |
+
+### 7.7 Tab: Study Arms *(workflow step 5 — branching prerequisite)*
+
+**Purpose:** Define treatment and control arms that constrain schedule rules and conditional pathways. Arms are not a visible matrix axis but are required before arm-specific rules and conditional logic (e.g. *switch to Study Arm 2 on treatment failure*).
+
+| Workflow | Steps | Validation | Narrative impact |
+|----------|-------|------------|----------------|
+| Add arm | Arms list → Create → fill id, name, type → Save | Unique id; graph integrity | Sections describing randomization / treatment arms |
+| Link arm to rules | Rule editor → armRestrictions multi-select | Rules reference valid arm ids | SoA footnotes, Section 6 arm descriptions |
+| Delete arm | Confirm → check rules/CPL references | Block if referenced | Flag affected narrative |
+
+**Inspector panels:** linked rules count, conditional pathways (future), section refs.
+
+### 7.8 Tab: Conditional Protocol Logic (future — workflow step 6)
 
 **Purpose:** Model **patient course variations** that change treatment, visits, assessments, arms, or protocol status.
 
@@ -606,40 +676,45 @@ Copilot assists **within governance guardrails**—propose, never silently commi
 
 ## 16. Recommended implementation phases
 
+**Stage 2e build sequence (product workflow):** Deliver tabs and editors in matrix-foundation order—**SoA Assessments → Visits → Schedule Rules → Epochs/Activities/Elements → Arms → Conditional Logic placeholder/authoring**—not clinical-design hierarchy order. See [STAGE_2_IMPLEMENTATION_PLAN.md](./STAGE_2_IMPLEMENTATION_PLAN.md) §12 for PR-level breakdown.
+
 ### Phase 0 — Foundation (complete: Stage 2d)
 
 - Generated SoA authoritative; auto-regen; parity; export freshness.
 - Read-only grid with cache badge.
 
-### Phase 1 — Minimal configuration UI (Stage 2e)
+### Phase 1 — Matrix foundation UI (Stage 2e)
 
-| Deliverable | Screens |
-|-------------|---------|
-| SoA Configuration shell + tab rail | `SOA-SHELL`, `SOA-OVERVIEW` |
-| Visit Definitions CRUD UI | `SOA-VISITS-LIST`, `SOA-VISITS-EDIT` |
-| Schedule Anchors CRUD UI | `SOA-ANCHORS-LIST`, `SOA-ANCHORS-EDIT` |
-| Assessment Schedule Rules CRUD | `SOA-RULES-LIST`, `SOA-RULES-EDIT` |
-| Grid click-through to rule editor | `SOA-GRID` |
-| Live validation in inspector | `SOA-VALIDATION` (basic) |
-| Conditional Logic tab placeholder | `SOA-CPL-OVERVIEW` (read-only) |
+| Order | Deliverable | Screens | Status |
+|-------|-------------|---------|--------|
+| 0 | SoA Configuration shell + tab rail + overview | `SOA-SHELL`, `SOA-OVERVIEW` | **Done** (`54668b8`) |
+| 1 | **SoA Assessment Definitions** read-only list + detail | `SOA-CATALOG-LIST` (read-only) | Next |
+| 1b | SoA Assessment Definitions CRUD | `SOA-CATALOG-LIST`, `SOA-CATALOG-EDIT` | Planned |
+| 2 | **Study Visit Definitions** read-only list + detail | `SOA-VISITS-LIST` (read-only) | **Done** (`7d6287e`; shipped before step 1—rail reorder pending) |
+| 2b | Visit Definitions + Schedule Anchors CRUD | `SOA-VISITS-*`, `SOA-ANCHORS-*` | Planned |
+| 3 | **Assessment Schedule Rules** read-only matrix/list | `SOA-RULES-LIST` (read-only) | Planned |
+| 3b | Assessment Schedule Rules CRUD | `SOA-RULES-LIST`, `SOA-RULES-EDIT` | Planned |
+| — | Grid click-through to rule editor | `SOA-GRID` | Planned |
+| — | Live validation in inspector | `SOA-VALIDATION` (basic) | Planned |
+| — | Conditional Logic tab placeholder | `SOA-CPL-OVERVIEW` (read-only) | **Done** (shell placeholder) |
 
-**Exit:** User adds/removes rule; grid updates via store regen; no direct cell editing.
+**Exit:** User defines assessment rows and visit columns, adds/removes rules, and sees the grid update via store regen—no direct cell editing.
 
-### Phase 2 — Catalog, arms, epochs, governance scaffolding (Stage 2f + 3a)
+### Phase 2 — Grouping, arms, governance scaffolding (Stage 2f + 3a)
 
-| Deliverable | Screens |
-|-------------|---------|
-| SoA Assessment Definitions editor | `SOA-CATALOG-*` |
-| Study Arms / Epochs / Activities lists | `SOA-ARMS-*`, `SOA-EPOCHS-*`, `SOA-ACTIVITIES-*` |
-| Narrative impact queue (flag-only) | `SOA-NARRATIVE-IMPACT` |
-| `validateScheduleConsistency` UI | Overview dashboard |
-| Audit trail on mutations | `SOA-AUDIT` (read from store) |
+| Order | Deliverable | Screens |
+|-------|-------------|---------|
+| 4 | Study Epochs / Activities / Elements lists (read-only → CRUD) | `SOA-EPOCHS-*`, `SOA-ACTIVITIES-*`, `SOA-ELEMENTS-*` |
+| 5 | Study Arms list (read-only → CRUD) | `SOA-ARMS-*` |
+| — | Narrative impact queue (flag-only) | `SOA-NARRATIVE-IMPACT` |
+| — | `validateScheduleConsistency` UI | Overview dashboard |
+| — | Audit trail on mutations | `SOA-AUDIT` (read from store) |
 
 ### Phase 3 — Conditional logic, deviations, comparison (Stage 3+)
 
 | Deliverable | Screens |
 |-------------|---------|
-| Conditional Protocol Logic tab (authoring) | `SOA-CPL-*` |
+| **Conditional Protocol Logic tab (authoring)** — workflow step 6 | `SOA-CPL-*` |
 | Unscheduled / missed visit policies | `SOA-UNSCHEDULED`, `SOA-MISSED-VISIT` |
 | Change control / version compare | `SOA-CHANGE-CONTROL` |
 | Amendment branch workflow | Shell version context |
@@ -685,7 +760,7 @@ Copilot assists **within governance guardrails**—propose, never silently commi
 The SoA Configuration UI is successful when:
 
 1. Authors never need to edit the generated grid directly to change the SoA.
-2. Every configuration area (arms through conditional logic) has a dedicated tab and editor.
+2. Every configuration area follows the **matrix foundation workflow** (assessments → visits → rules → grouping → arms → conditional logic) with a dedicated tab and editor.
 3. Validation and narrative impact are visible before publish—not discovered at export.
 4. Amendments can be compared structurally and narratively with audit traceability.
 5. The experience is recognizable to users of OpenStudyBuilder-style study design tools while respecting M11 narrative governance.
@@ -706,4 +781,4 @@ The SoA Configuration UI is successful when:
 
 ---
 
-*Document version: 1.0 — Stage 2d authoritative SoA checkpoint follow-on*
+*Document version: 1.1 — Stage 2e workflow reorder (Assessment × Visit foundation)*
