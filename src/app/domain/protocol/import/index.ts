@@ -96,7 +96,28 @@ export {
   getLlmProviderStatus,
   isRealLlmProvider,
   resolveLlmProviderConfig,
+  resolveLlmProviderConfigForProvider,
+  setConfiguredLlmProviderId,
 } from './llm/llmConfig';
+export {
+  clearAzureOpenAiStoredConfig,
+  clearOpenAiStoredConfig,
+  getProviderHealth,
+  hasSuccessfulProviderTest,
+  healthStatusLabel,
+  loadAzureOpenAiStoredConfig,
+  loadOpenAiStoredConfig,
+  maskApiKey,
+  saveAzureOpenAiStoredConfig,
+  saveOpenAiStoredConfig,
+} from './llm/llmProviderSettings';
+export type {
+  AzureOpenAiStoredConfig,
+  LlmHealthStatusKind,
+  LlmProviderHealthRecord,
+  OpenAiStoredConfig,
+} from './llm/llmProviderSettings';
+export { testLlmProviderConnection } from './llm/llmProviderHealthCheck';
 export type {
   LlmProviderCardInfo,
   LlmProviderCardStatus,

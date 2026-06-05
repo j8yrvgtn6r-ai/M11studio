@@ -16,8 +16,9 @@ export async function callOpenAiChat(
   }
 
   const isAzure = config.providerId === 'azure-openai';
+  const apiVersion = config.azureApiVersion ?? '2024-02-15-preview';
   const url = isAzure
-    ? `${config.baseUrl?.replace(/\/$/, '')}/openai/deployments/${config.azureDeployment}/chat/completions?api-version=2024-02-15-preview`
+    ? `${config.baseUrl?.replace(/\/$/, '')}/openai/deployments/${config.azureDeployment}/chat/completions?api-version=${apiVersion}`
     : `${config.baseUrl?.replace(/\/$/, '')}/chat/completions`;
 
   const response = await fetch(url, {
@@ -26,6 +27,8 @@ export async function callOpenAiChat(
       'Content-Type': 'application/json',
       Authorization: `Bearer ${config.apiKey}`,
       ...(isAzure ? { 'api-key': config.apiKey } : {}),
+      ...(config.organization ? { 'OpenAI-Organization': config.organization } : {}),
+      ...(config.project ? { 'OpenAI-Project': config.project } : {}),
     },
     body: JSON.stringify({
       model: isAzure ? undefined : config.model,

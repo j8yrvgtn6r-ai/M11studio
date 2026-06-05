@@ -26,6 +26,7 @@ import {
   DialogTitle,
 } from '../ui/dialog';
 import { Label } from '../ui/label';
+import { ImportProtocolProviderBanner } from './ImportProtocolProviderBanner';
 import { ProtocolImportProcessingSteps } from './ProtocolImportProcessingSteps';
 
 type ImportWizardStep = 'upload' | 'processing' | 'complete';
@@ -146,7 +147,7 @@ export function ImportProtocolDialog({
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="max-w-2xl" data-testid="import-protocol-dialog">
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto" data-testid="import-protocol-dialog">
         <DialogHeader>
           <DialogTitle>Import Protocol</DialogTitle>
           <DialogDescription>
@@ -157,6 +158,8 @@ export function ImportProtocolDialog({
 
         {wizardStep === 'upload' ? (
           <div className="space-y-4">
+            <ImportProtocolProviderBanner />
+
             <Alert variant="destructive" className="border-destructive/50 bg-destructive/5">
               <AlertTriangle className="h-4 w-4" />
               <AlertTitle>Overwrite warning</AlertTitle>

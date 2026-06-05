@@ -1,26 +1,24 @@
 /**
- * UI smoke: Settings AI Providers visibility + import review provenance.
+ * UI smoke: Settings AI Providers configuration UX + import provider awareness.
  * Run: M11_BASE_URL=http://localhost:5175/ npm run smoke:ai-providers
  */
 import { chromium } from 'playwright';
-import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
 
 const baseUrl = process.env.M11_BASE_URL ?? 'http://localhost:5175/';
-const __dirname = dirname(fileURLToPath(import.meta.url));
-const minimalDocx = join(__dirname, 'fixtures', 'minimal.docx');
 
 async function main() {
   const browser = await chromium.launch({ headless: true });
-  const context = await browser.newContext({ acceptDownloads: true });
+  const context = await browser.newContext();
   const page = await context.newPage();
   const pageErrors = [];
   page.on('pageerror', (error) => pageErrors.push(error.message));
 
   await page.addInitScript(() => {
+    localStorage.removeItem('m11-protocol-openai-config-v1');
+    localStorage.removeItem('m11-protocol-azure-openai-config-v1');
+    localStorage.removeItem('m11-protocol-llm-health-v1');
     localStorage.setItem('m11-studio-visited', 'true');
     localStorage.setItem('theme', 'dark');
-    localStorage.setItem('m11-template-reference-enabled', 'true');
     localStorage.setItem('m11-protocol-llm-provider', 'openai');
   });
 
@@ -33,60 +31,49 @@ async function main() {
   }
 
   await page.getByTestId('app-settings-button').click();
-  await page.getByRole('heading', { name: 'Settings', exact: true }).waitFor();
   await page.getByTestId('settings-nav-ai-providers').click();
   await page.getByTestId('ai-providers-settings-panel').waitFor();
+  await page.getByTestId('ai-provider-selection').waitFor();
 
-  const activeProvider = await page.getByTestId('ai-active-provider-label').textContent();
-  if (!activeProvider?.includes('Fixture')) {
-    throw new Error(`Expected Fixture active provider without API key, got: ${activeProvider}`);
+  await page.getByTestId('fixture-save-config').click();
+  await page.getByTestId('ai-active-provider-label').waitFor();
+  const fixtureActive = await page.getByTestId('ai-active-provider-label').textContent();
+  if (!fixtureActive?.includes('Fixture')) {
+    throw new Error(`Expected Fixture active after save, got: ${fixtureActive}`);
   }
 
-  const apiKeyConfigured = await page.getByTestId('ai-api-key-configured').textContent();
-  if (!apiKeyConfigured?.includes('No')) {
-    throw new Error(`Expected API key configured = No for fixture fallback, got: ${apiKeyConfigured}`);
+  await page.getByTestId('openai-api-key-input').fill('sk-fake-test-key-1234');
+  await page.getByTestId('openai-save-config').click();
+  await page.getByTestId('openai-masked-key').waitFor();
+  await page.getByTestId('openai-test-connection').click();
+  await page.getByTestId('openai-health-status').waitFor({ timeout: 30_000 });
+  const openAiHealth = await page.getByTestId('openai-health-status').textContent();
+  if (!openAiHealth || /Connected/i.test(openAiHealth)) {
+    throw new Error(`Expected OpenAI auth/config error for fake key, got: ${openAiHealth}`);
   }
 
-  await page.getByTestId('ai-provider-card-fixture').waitFor();
-  await page.getByTestId('provider-card-status-active').waitFor();
-  await page.getByTestId('llm-safety-notice').waitFor();
+  await page.getByTestId('openai-clear-config').click();
+  await page.getByTestId('fixture-save-config').click();
+  const fixtureAgain = await page.getByTestId('ai-active-provider-label').textContent();
+  if (!fixtureAgain?.includes('Fixture')) {
+    throw new Error(`Expected fixture fallback after clear, got: ${fixtureAgain}`);
+  }
 
   await page.getByRole('button', { name: 'Back to protocol' }).click();
-  await page.locator('#protocol-explorer').getByText('Protocol Explorer').waitFor();
-
   await page.getByTestId('app-import-protocol-button').click();
   await page.getByTestId('import-protocol-dialog').waitFor();
-  await page.getByTestId('import-protocol-file-input').setInputFiles(minimalDocx);
-  await page.getByTestId('import-overwrite-confirm').click();
-  await page.getByTestId('import-protocol-continue').click();
-  await page.getByTestId('import-protocol-open-review').waitFor({ timeout: 120_000 });
-  await page.getByTestId('import-protocol-open-review').click();
-  await page.getByTestId('protocol-import-review-workspace').waitFor();
-
-  await page.getByTestId('import-llm-provider-status').waitFor();
-  await page.getByTestId('import-fixture-provider-badge').waitFor();
-  await page.getByTestId('import-understanding-provider').waitFor();
-  await page.getByTestId('import-generation-provider').waitFor();
-
-  const firstReviewRow = page.locator('[data-testid^="import-review-row-"]').first();
-  await firstReviewRow.waitFor();
-  const sectionId =
-    (await firstReviewRow.getAttribute('data-testid'))?.replace('import-review-row-', '') ?? '2';
-  await page.getByTestId(`import-review-open-${sectionId}`).click();
-  await page.getByTestId('section-import-review-screen').waitFor();
-  await page.getByTestId('generation-metadata-panel').waitFor();
-  await page.getByTestId('generation-provider-badge').waitFor();
-  await page.getByTestId('generation-model-badge').waitFor();
-  await page.getByTestId('generation-metadata-toggle').click();
-  await page.getByTestId('generation-provenance-provider').waitFor();
-  await page.getByTestId('generation-provenance-model').waitFor();
-  await page.getByTestId('referenced-source-sections').waitFor();
+  await page.getByTestId('import-protocol-provider-banner').waitFor();
+  await page.getByTestId('import-dialog-active-provider').waitFor();
+  const importProvider = await page.getByTestId('import-dialog-active-provider').textContent();
+  if (!importProvider?.includes('Fixture')) {
+    throw new Error(`Expected Fixture in import dialog, got: ${importProvider}`);
+  }
 
   if (pageErrors.length > 0) {
     throw new Error(`Page errors: ${pageErrors.join('; ')}`);
   }
 
-  console.log('AI Providers smoke passed (Settings visibility + import provenance).');
+  console.log('AI Providers configuration smoke passed.');
   await browser.close();
 }
 

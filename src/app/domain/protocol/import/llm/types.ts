@@ -13,6 +13,9 @@ export interface LlmProviderConfig {
   baseUrl?: string;
   model?: string;
   azureDeployment?: string;
+  azureApiVersion?: string;
+  organization?: string;
+  project?: string;
 }
 
 export interface ProtocolUnderstandingInput {

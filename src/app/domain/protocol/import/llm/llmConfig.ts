@@ -1,3 +1,11 @@
+import {
+  DEFAULT_AZURE_API_VERSION,
+  DEFAULT_OPENAI_MODEL,
+  loadAzureOpenAiStoredConfig,
+  loadOpenAiStoredConfig,
+  getProviderHealth,
+  type LlmProviderHealthRecord,
+} from './llmProviderSettings';
 import type { LlmProviderConfig, LlmProviderId } from './types';
 
 const PROVIDER_STORAGE_KEY = 'm11-protocol-llm-provider';
@@ -11,6 +19,7 @@ const VALID_PROVIDER_IDS: LlmProviderId[] = [
 ];
 
 export type LlmProviderSourceKind =
+  | 'UI configuration'
   | 'localStorage override'
   | 'VITE_PROTOCOL_LLM_PROVIDER'
   | 'auto-detected'
@@ -26,6 +35,7 @@ export interface LlmProviderCardInfo {
   modelName?: string;
   description: string;
   apiKeyConfigured: boolean;
+  health?: LlmProviderHealthRecord | null;
 }
 
 export interface LlmProviderStatusSnapshot {
@@ -37,6 +47,8 @@ export interface LlmProviderStatusSnapshot {
   fellBackToFixture: boolean;
   apiKeyConfiguredForActive: boolean;
   browserSideApiKeyInUse: boolean;
+  credentialsFromUi: boolean;
+  providerTestedSuccessfully: boolean;
   cards: LlmProviderCardInfo[];
 }
 
@@ -45,12 +57,64 @@ function readEnv(key: string): string | undefined {
   return typeof value === 'string' && value.length > 0 ? value : undefined;
 }
 
+function openAiCredentials(): {
+  apiKey?: string;
+  model: string;
+  organization?: string;
+  project?: string;
+  fromUi: boolean;
+} {
+  const stored = loadOpenAiStoredConfig();
+  if (stored?.apiKey) {
+    return {
+      apiKey: stored.apiKey,
+      model: stored.model || DEFAULT_OPENAI_MODEL,
+      organization: stored.organization,
+      project: stored.project,
+      fromUi: true,
+    };
+  }
+  const envKey = readEnv('VITE_OPENAI_API_KEY');
+  return {
+    apiKey: envKey,
+    model: readEnv('VITE_OPENAI_MODEL') ?? DEFAULT_OPENAI_MODEL,
+    fromUi: false,
+  };
+}
+
+function azureCredentials(): {
+  apiKey?: string;
+  endpoint?: string;
+  deployment?: string;
+  apiVersion: string;
+  fromUi: boolean;
+} {
+  const stored = loadAzureOpenAiStoredConfig();
+  if (stored?.apiKey) {
+    return {
+      apiKey: stored.apiKey,
+      endpoint: stored.endpoint,
+      deployment: stored.deployment,
+      apiVersion: stored.apiVersion || DEFAULT_AZURE_API_VERSION,
+      fromUi: true,
+    };
+  }
+  return {
+    apiKey: readEnv('VITE_AZURE_OPENAI_API_KEY'),
+    endpoint: readEnv('VITE_AZURE_OPENAI_ENDPOINT'),
+    deployment: readEnv('VITE_AZURE_OPENAI_DEPLOYMENT'),
+    apiVersion: DEFAULT_AZURE_API_VERSION,
+    fromUi: false,
+  };
+}
+
 function hasLlmApiKey(providerId: LlmProviderId): boolean {
   if (providerId === 'azure-openai') {
-    return Boolean(readEnv('VITE_AZURE_OPENAI_API_KEY') && readEnv('VITE_AZURE_OPENAI_DEPLOYMENT'));
+    const creds = azureCredentials();
+    return Boolean(creds.apiKey && creds.endpoint && creds.deployment);
   }
   if (providerId === 'openai' || providerId === 'anthropic') {
-    return Boolean(readEnv('VITE_OPENAI_API_KEY'));
+    return Boolean(openAiCredentials().apiKey);
   }
   return true;
 }
@@ -58,16 +122,13 @@ function hasLlmApiKey(providerId: LlmProviderId): boolean {
 function resolveRequestedLlmProviderId(): LlmProviderId | null {
   if (typeof localStorage !== 'undefined') {
     const stored = localStorage.getItem(PROVIDER_STORAGE_KEY) as LlmProviderId | null;
-    if (
-      stored &&
-      ['openai', 'azure-openai', 'anthropic', 'local', 'fixture'].includes(stored)
-    ) {
+    if (stored && VALID_PROVIDER_IDS.includes(stored)) {
       return stored;
     }
   }
 
   const fromEnv = readEnv('VITE_PROTOCOL_LLM_PROVIDER') as LlmProviderId | undefined;
-  if (fromEnv && ['openai', 'azure-openai', 'anthropic', 'local', 'fixture'].includes(fromEnv)) {
+  if (fromEnv && VALID_PROVIDER_IDS.includes(fromEnv)) {
     return fromEnv;
   }
 
@@ -100,21 +161,45 @@ export function setConfiguredLlmProviderId(providerId: LlmProviderId): void {
   }
 }
 
+export function resolveLlmProviderConfigForProvider(
+  providerId: Extract<LlmProviderId, 'openai' | 'azure-openai' | 'fixture'>,
+): LlmProviderConfig {
+  if (providerId === 'fixture') {
+    return { providerId: 'fixture', model: 'fixture-m11-reconstruct-v1' };
+  }
+
+  if (providerId === 'azure-openai') {
+    const creds = azureCredentials();
+    return {
+      providerId: 'azure-openai',
+      apiKey: creds.apiKey,
+      baseUrl: creds.endpoint,
+      azureDeployment: creds.deployment,
+      azureApiVersion: creds.apiVersion,
+      model: creds.deployment,
+    };
+  }
+
+  const creds = openAiCredentials();
+  return {
+    providerId: 'openai',
+    apiKey: creds.apiKey,
+    baseUrl: readEnv('VITE_OPENAI_BASE_URL') ?? 'https://api.openai.com/v1',
+    model: creds.model,
+    organization: creds.organization,
+    project: creds.project,
+  };
+}
+
 export function resolveLlmProviderConfig(): LlmProviderConfig {
   const providerId = getConfiguredLlmProviderId();
-  const openAiKey = readEnv('VITE_OPENAI_API_KEY');
-  const azureKey = readEnv('VITE_AZURE_OPENAI_API_KEY');
-
-  return {
-    providerId,
-    apiKey: providerId === 'azure-openai' ? azureKey : openAiKey,
-    baseUrl:
-      providerId === 'azure-openai'
-        ? readEnv('VITE_AZURE_OPENAI_ENDPOINT')
-        : readEnv('VITE_OPENAI_BASE_URL') ?? 'https://api.openai.com/v1',
-    model: readEnv('VITE_OPENAI_MODEL') ?? 'gpt-4o-mini',
-    azureDeployment: readEnv('VITE_AZURE_OPENAI_DEPLOYMENT'),
-  };
+  if (providerId === 'azure-openai') {
+    return resolveLlmProviderConfigForProvider('azure-openai');
+  }
+  if (providerId === 'openai') {
+    return resolveLlmProviderConfigForProvider('openai');
+  }
+  return resolveLlmProviderConfigForProvider('fixture');
 }
 
 export function isRealLlmProvider(providerId: LlmProviderId): boolean {
@@ -140,7 +225,7 @@ function resolveProviderSource(): { source: LlmProviderSourceKind; requested: Ll
   if (typeof localStorage !== 'undefined') {
     const stored = localStorage.getItem(PROVIDER_STORAGE_KEY) as LlmProviderId | null;
     if (stored && VALID_PROVIDER_IDS.includes(stored)) {
-      return { source: 'localStorage override', requested: stored };
+      return { source: 'UI configuration', requested: stored };
     }
   }
 
@@ -172,6 +257,12 @@ function cardStatus(
   return available ? 'available' : 'unavailable';
 }
 
+function credentialsFromUiForActive(activeProviderId: LlmProviderId): boolean {
+  if (activeProviderId === 'openai') return openAiCredentials().fromUi;
+  if (activeProviderId === 'azure-openai') return azureCredentials().fromUi;
+  return false;
+}
+
 /** Read-only snapshot for Settings and import review provider visibility. */
 export function getLlmProviderStatus(): LlmProviderStatusSnapshot {
   const config = resolveLlmProviderConfig();
@@ -182,16 +273,17 @@ export function getLlmProviderStatus(): LlmProviderStatusSnapshot {
     requested !== null &&
     requested !== 'fixture' &&
     requested !== 'local';
-  const openAiKeyConfigured = Boolean(readEnv('VITE_OPENAI_API_KEY'));
-  const azureKeyConfigured = Boolean(
-    readEnv('VITE_AZURE_OPENAI_API_KEY') && readEnv('VITE_AZURE_OPENAI_DEPLOYMENT'),
-  );
+
+  const openAi = openAiCredentials();
+  const azure = azureCredentials();
+  const openAiKeyConfigured = Boolean(openAi.apiKey);
+  const azureKeyConfigured = Boolean(azure.apiKey && azure.endpoint && azure.deployment);
 
   const activeModel =
     activeProviderId === 'azure-openai'
       ? config.azureDeployment ?? config.model ?? 'not configured'
       : activeProviderId === 'openai'
-        ? config.model ?? 'gpt-4o-mini'
+        ? config.model ?? DEFAULT_OPENAI_MODEL
         : 'fixture-m11-reconstruct-v1';
 
   const apiKeyConfiguredForActive =
@@ -201,8 +293,21 @@ export function getLlmProviderStatus(): LlmProviderStatusSnapshot {
         ? openAiKeyConfigured
         : false;
 
+  const credentialsFromUi = credentialsFromUiForActive(activeProviderId);
   const browserSideApiKeyInUse =
     isRealLlmProvider(activeProviderId) && apiKeyConfiguredForActive;
+
+  const activeHealth =
+    activeProviderId === 'fixture'
+      ? getProviderHealth('fixture')
+      : isRealLlmProvider(activeProviderId)
+        ? getProviderHealth(activeProviderId)
+        : null;
+
+  const providerTestedSuccessfully =
+    activeProviderId === 'fixture' || activeProviderId === 'local'
+      ? true
+      : Boolean(activeHealth?.lastSuccessAt);
 
   const cards: LlmProviderCardInfo[] = [
     {
@@ -214,28 +319,31 @@ export function getLlmProviderStatus(): LlmProviderStatusSnapshot {
       description:
         'Deterministic development/smoke provider. No network calls; safe default when no API key is configured.',
       apiKeyConfigured: true,
+      health: getProviderHealth('fixture'),
     },
     {
       providerId: 'openai',
       displayName: 'OpenAI Provider',
       status: cardStatus('openai', activeProviderId, openAiKeyConfigured),
-      requiredEnvVars: ['VITE_OPENAI_API_KEY', 'VITE_OPENAI_MODEL (optional)'],
-      modelName: readEnv('VITE_OPENAI_MODEL') ?? 'gpt-4o-mini',
+      requiredEnvVars: ['VITE_OPENAI_API_KEY (optional if configured in UI)', 'VITE_OPENAI_MODEL (optional)'],
+      modelName: openAi.model,
       description: 'Live OpenAI chat completions for protocol understanding and M11 section reconstruction.',
       apiKeyConfigured: openAiKeyConfigured,
+      health: getProviderHealth('openai'),
     },
     {
       providerId: 'azure-openai',
       displayName: 'Azure OpenAI Provider',
       status: cardStatus('azure-openai', activeProviderId, azureKeyConfigured),
       requiredEnvVars: [
-        'VITE_AZURE_OPENAI_API_KEY',
+        'VITE_AZURE_OPENAI_API_KEY (optional if configured in UI)',
         'VITE_AZURE_OPENAI_ENDPOINT',
         'VITE_AZURE_OPENAI_DEPLOYMENT',
       ],
-      modelName: readEnv('VITE_AZURE_OPENAI_DEPLOYMENT') ?? undefined,
+      modelName: azure.deployment,
       description: 'Azure-hosted OpenAI deployment for protocol understanding and M11 reconstruction.',
       apiKeyConfigured: azureKeyConfigured,
+      health: getProviderHealth('azure-openai'),
     },
   ];
 
@@ -248,6 +356,8 @@ export function getLlmProviderStatus(): LlmProviderStatusSnapshot {
     fellBackToFixture,
     apiKeyConfiguredForActive,
     browserSideApiKeyInUse,
+    credentialsFromUi,
+    providerTestedSuccessfully,
     cards,
   };
 }

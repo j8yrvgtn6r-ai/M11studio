@@ -35,9 +35,12 @@ async function main() {
   await page.getByTestId('app-import-protocol-button').click();
   await page.getByTestId('import-protocol-dialog').waitFor();
 
+  await page.getByTestId('import-protocol-provider-banner').waitFor();
   await page.getByTestId('import-protocol-file-input').setInputFiles(minimalDocx);
   await page.getByTestId('import-overwrite-confirm').click();
-  await page.getByTestId('import-protocol-continue').click();
+  const continueButton = page.getByTestId('import-protocol-continue');
+  await continueButton.scrollIntoViewIfNeeded();
+  await continueButton.click();
 
   await page.getByTestId('protocol-import-processing-steps').waitFor();
   await page.getByTestId('import-protocol-open-review').waitFor({ timeout: 120_000 });

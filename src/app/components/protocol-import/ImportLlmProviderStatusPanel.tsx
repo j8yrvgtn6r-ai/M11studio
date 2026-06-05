@@ -103,6 +103,9 @@ export function ImportLlmProviderStatusPanel() {
       <p className="text-xs text-muted-foreground">
         Provider source: {configured.providerSource}
         {configured.fellBackToFixture ? ' (requested provider unavailable — fixture fallback)' : ''}
+        {isRealLlmProvider(configured.activeProviderId) && !configured.providerTestedSuccessfully
+          ? ' · Provider has not been tested successfully.'
+          : ''}
       </p>
     </div>
   );
