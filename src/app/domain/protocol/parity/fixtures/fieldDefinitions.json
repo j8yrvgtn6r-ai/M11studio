@@ -39,9 +39,13 @@
         "Early Phase 1",
         "Phase 1",
         "Phase 1/Phase 2",
+        "Phase 1/Phase 2/Phase 3",
+        "Phase 1/Phase 3",
         "Phase 2",
         "Phase 2/Phase 3",
+        "Phase 2/Phase 3/Phase 4",
         "Phase 3",
+        "Phase 3/Phase 4",
         "Phase 4"
       ]
     },
@@ -58,12 +62,12 @@
       "codeList": "C217046",
       "values": [
         {
-          "label": "Yes",
-          "code": "C49488"
-        },
-        {
           "label": "No",
           "code": "C49487"
+        },
+        {
+          "label": "Yes",
+          "code": "C49488"
         }
       ]
     },

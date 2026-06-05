@@ -262,6 +262,10 @@ export interface SectionNode {
   /** Optional display override when derived issue counts differ from legacy UI. */
   validationCount?: number;
   commentCount?: number;
+  /** True when section exists from ICH M11 template only (no prior authored protocol content). */
+  ichM11TemplateOnly?: boolean;
+  /** True for template Foreword / Section 0 — instructional metadata, not finalized protocol body. */
+  ichM11InstructionOnly?: boolean;
 }
 
 /** Authored M11 field element. */

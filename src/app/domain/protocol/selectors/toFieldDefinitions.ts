@@ -1,4 +1,5 @@
 import type { FieldDefinition } from '../../../types/protocol';
+import { resolveM11ControlledTerminologyForField } from '../ichM11/m11FieldTerminology';
 import type { ProtocolDocument, ProtocolElement } from '../types';
 
 function toFieldDefinition(element: ProtocolElement): FieldDefinition {
@@ -23,8 +24,9 @@ function toFieldDefinition(element: ProtocolElement): FieldDefinition {
     field.reusable = element.reusable;
   }
 
-  if (element.controlledTerminology !== undefined) {
-    field.controlledTerminology = element.controlledTerminology;
+  const terminology = resolveM11ControlledTerminologyForField(element.id, element.controlledTerminology);
+  if (terminology !== undefined) {
+    field.controlledTerminology = terminology;
   }
 
   if (element.validationRuleIds?.length) {

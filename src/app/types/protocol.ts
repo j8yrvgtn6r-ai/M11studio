@@ -16,6 +16,8 @@ export interface ProtocolSection {
   commentCount?: number;
   hasAmendment?: boolean;
   viewKind?: SectionViewKind;
+  ichM11TemplateOnly?: boolean;
+  ichM11InstructionOnly?: boolean;
 }
 
 export interface FieldDefinition {

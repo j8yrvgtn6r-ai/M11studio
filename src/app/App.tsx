@@ -33,6 +33,7 @@ import {
   AlertCircle,
   CheckCircle2,
   Network,
+  FileUp,
 } from 'lucide-react';
 import {
   getAuditEvents,
@@ -47,8 +48,15 @@ import {
 } from './domain/protocol';
 import type { ProtocolSection, FieldDefinition } from './types/protocol';
 import type { DependencyNode } from './types/dependencyGraph';
+import { SoAAssessmentAuthoringProvider } from './components/soa-configuration/SoAAssessmentAuthoringContext';
+import { SettingsWorkspace, type SettingsView } from './components/settings/SettingsWorkspace';
+import { SectionAuthoringCanvas } from './components/m11-template-reference/SectionAuthoringCanvas';
+import { ImportProtocolDialog } from './components/protocol-import/ImportProtocolDialog';
+import { ProtocolImportReviewWorkspace } from './components/protocol-import/ProtocolImportReviewWorkspace';
+import { updateSectionImportDraft } from './domain/protocol/import';
+import { useProtocolImport, useSectionImportDraft } from './domain/protocol/import/ProtocolImportContext';
 
-const protocolSections = getProtocolSections();
+const initialProtocolSections = getProtocolSections();
 const validationIssues = getValidationIssues();
 const auditEvents = getAuditEvents();
 const comments = getComments();
@@ -63,6 +71,16 @@ export default function App() {
   const [showDependencyGraph, setShowDependencyGraph] = useState(false);
   const [selectedDependencyNode, setSelectedDependencyNode] = useState<DependencyNode | null>(null);
   const [dependencyGraphRevision, setDependencyGraphRevision] = useState(0);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [settingsView, setSettingsView] = useState<SettingsView>('ich-m11');
+  const [protocolSections, setProtocolSections] = useState(initialProtocolSections);
+  const [templateReferenceEnabled, setTemplateReferenceEnabled] = useState(() => {
+    return localStorage.getItem('m11-template-reference-enabled') === 'true';
+  });
+  const [importDialogOpen, setImportDialogOpen] = useState(false);
+  const [importReviewOpen, setImportReviewOpen] = useState(false);
+  const { state: importState } = useProtocolImport();
+  const sectionImportDraft = useSectionImportDraft(selectedSectionId);
 
   console.log('M11 Studio loaded');
 
@@ -97,6 +115,7 @@ export default function App() {
 
   useEffect(() => {
     return subscribe(() => {
+      setProtocolSections(getProtocolSections());
       setFields(getFieldDefinitions());
       setDependencyGraphRevision((revision) => revision + 1);
       setSelectedDependencyNode((current) => {
@@ -134,6 +153,11 @@ export default function App() {
     setSelectedFieldId(null);
   };
 
+  const handleTemplateReferenceChange = (enabled: boolean) => {
+    setTemplateReferenceEnabled(enabled);
+    localStorage.setItem('m11-template-reference-enabled', enabled ? 'true' : 'false');
+  };
+
   const handleSoACellClick = (visitId: string, assessmentId: string) => {
     console.log('SoA cell clicked:', visitId, assessmentId);
     // In a real app, this would open the detail inspector with cell metadata
@@ -161,6 +185,7 @@ export default function App() {
   const warningCount = validationIssues.filter((i) => i.severity === 'warning').length;
 
   return (
+    <SoAAssessmentAuthoringProvider>
     <div className="h-screen w-screen flex flex-col bg-background" key="app-root">
       {/* Top Toolbar */}
       <div className="h-12 border-b border-border bg-card flex items-center px-4 gap-3 shrink-0">
@@ -209,6 +234,29 @@ export default function App() {
             Dependency Graph
           </Button>
 
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-8 text-xs"
+            data-testid="app-import-protocol-button"
+            onClick={() => setImportDialogOpen(true)}
+          >
+            <FileUp className="h-3.5 w-3.5 mr-1.5" />
+            Import Protocol
+          </Button>
+
+          {importState.lastImportCompletedAt ? (
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 text-xs"
+              data-testid="app-review-import-button"
+              onClick={() => setImportReviewOpen(true)}
+            >
+              Review Import
+            </Button>
+          ) : null}
+
           <Button variant="outline" size="sm" className="h-8 text-xs" onClick={downloadProtocolJson}>
             <Download className="h-3.5 w-3.5 mr-1.5" />
             Export
@@ -221,7 +269,15 @@ export default function App() {
 
           <ThemeToggle />
 
-          <Button variant="ghost" size="sm" className="h-8 w-8 px-0">
+          <Button
+            variant={settingsOpen ? 'secondary' : 'ghost'}
+            size="sm"
+            className="h-8 w-8 px-0"
+            aria-label="Settings"
+            title="Settings"
+            data-testid="app-settings-button"
+            onClick={() => setSettingsOpen(true)}
+          >
             <Settings className="h-4 w-4" />
           </Button>
         </div>
@@ -229,7 +285,18 @@ export default function App() {
 
       {/* Main IDE Layout */}
       <div className="flex-1 overflow-hidden">
-        {showDependencyGraph ? (
+        {importReviewOpen ? (
+          <ProtocolImportReviewWorkspace
+            templateReferenceEnabled={templateReferenceEnabled}
+            onBack={() => setImportReviewOpen(false)}
+          />
+        ) : settingsOpen ? (
+          <SettingsWorkspace
+            activeView={settingsView}
+            onViewChange={setSettingsView}
+            onClose={() => setSettingsOpen(false)}
+          />
+        ) : showDependencyGraph ? (
           <ResizablePanelGroup direction="horizontal">
             {/* Dependency Graph */}
             <ResizablePanel id="dependency-graph-main" order={1} defaultSize={70} minSize={50}>
@@ -270,6 +337,9 @@ export default function App() {
                 sections={protocolSections}
                 selectedSectionId={selectedSectionId}
                 onSelectSection={handleSectionSelect}
+                templateReferenceEnabled={templateReferenceEnabled}
+                onTemplateReferenceChange={handleTemplateReferenceChange}
+                sectionImportDrafts={importState.sectionDrafts}
               />
             </ResizablePanel>
 
@@ -277,15 +347,33 @@ export default function App() {
 
             {/* Center: Document Viewport */}
             <ResizablePanel id="document-viewport" order={2} defaultSize={50} minSize={30}>
-              {isScheduleOfActivities ? (
-                <ScheduleOfActivities onCellClick={handleSoACellClick} />
-              ) : (
-                <DocumentViewport
-                  section={selectedSection}
-                  fields={sectionFields}
-                  onFieldChange={handleFieldChange}
-                />
-              )}
+              <SectionAuthoringCanvas
+                templateReferenceOpen={templateReferenceEnabled}
+                sectionId={selectedSectionId}
+                sectionTitle={selectedSection?.title ?? null}
+              >
+                {isScheduleOfActivities ? (
+                  <ScheduleOfActivities onCellClick={handleSoACellClick} />
+                ) : (
+                  <DocumentViewport
+                    section={selectedSection}
+                    fields={sectionFields}
+                    onFieldChange={handleFieldChange}
+                    importDraft={sectionImportDraft}
+                    onImportDraftTextChange={(text) => {
+                      if (selectedSectionId) {
+                        updateSectionImportDraft(selectedSectionId, {
+                          generatedText: text,
+                          reviewStatus: 'pending-review',
+                          validationStatus: 'not-run',
+                          validationMessages: [],
+                        });
+                      }
+                    }}
+                    onOpenImportReview={() => setImportReviewOpen(true)}
+                  />
+                )}
+              </SectionAuthoringCanvas>
             </ResizablePanel>
 
             <ResizableHandle />
@@ -306,6 +394,7 @@ export default function App() {
                             validationIssues={validationIssues}
                             auditEvents={auditEvents}
                             comments={comments}
+                            isScheduleOfActivitiesView={isScheduleOfActivities}
                           />
                         </ResizablePanel>
 
@@ -373,6 +462,16 @@ export default function App() {
         </CommandList>
       </CommandDialog>
 
+      <ImportProtocolDialog
+        open={importDialogOpen}
+        onOpenChange={setImportDialogOpen}
+        onImportComplete={() => {
+          setImportReviewOpen(true);
+          setTemplateReferenceEnabled(true);
+          handleTemplateReferenceChange(true);
+        }}
+      />
+
       {/* Welcome Dialog */}
       <WelcomeDialog open={welcomeOpen} onOpenChange={setWelcomeOpen} />
 
@@ -386,5 +485,6 @@ export default function App() {
         validationIssues={totalValidationIssues}
       />
     </div>
+    </SoAAssessmentAuthoringProvider>
   );
 }

@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
 
-import type { ProtocolDocument, SoAAssessmentDefinition } from '../../domain/protocol/types';
 import {
   createSoAAssessmentDefinition,
   describeSoAAssessmentDefinitionMutationFailure,
@@ -12,6 +11,7 @@ import type {
   CreateSoAAssessmentDefinitionInput,
   UpdateSoAAssessmentDefinitionPatch,
 } from '../../domain/protocol';
+import type { ProtocolDocument, SoAAssessmentDefinition } from '../../domain/protocol/types';
 import { Alert, AlertDescription } from '../ui/alert';
 import { Button } from '../ui/button';
 import {
@@ -31,30 +31,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from '../ui/select';
-import { Textarea } from '../ui/textarea';
+import { getAssessmentCategoryOptions } from './assessmentCategoryOptions';
+import { generateNextAssessmentCatalogId } from './generateAssessmentCatalogId';
 
 export type SoAAssessmentDefinitionEditorMode = 'create' | 'edit';
-
-const NONE_VALUE = '__none__';
-
-interface SectionOption {
-  id: string;
-  label: string;
-}
-
-function flattenSectionOptions(sections: ProtocolDocument['sections'], depth = 0): SectionOption[] {
-  const options: SectionOption[] = [];
-
-  for (const section of sections ?? []) {
-    const prefix = depth > 0 ? `${'  '.repeat(depth)}` : '';
-    options.push({ id: section.id, label: `${prefix}${section.id} — ${section.title}` });
-    if (section.children?.length) {
-      options.push(...flattenSectionOptions(section.children, depth + 1));
-    }
-  }
-
-  return options;
-}
 
 interface SoAAssessmentDefinitionEditorDialogProps {
   open: boolean;
@@ -73,17 +53,11 @@ export function SoAAssessmentDefinitionEditorDialog({
   onOpenChange,
   onSuccess,
 }: SoAAssessmentDefinitionEditorDialogProps) {
-  const [id, setId] = useState('');
   const [label, setLabel] = useState('');
   const [category, setCategory] = useState('');
-  const [order, setOrder] = useState('');
-  const [linkedSectionId, setLinkedSectionId] = useState(NONE_VALUE);
-  const [clinicalDesignAssessmentId, setClinicalDesignAssessmentId] = useState(NONE_VALUE);
-  const [metadataText, setMetadataText] = useState('');
   const [saveError, setSaveError] = useState<string | null>(null);
 
-  const sectionOptions = useMemo(() => flattenSectionOptions(document.sections), [document.sections]);
-  const clinicalDesignAssessments = document.clinicalDesign.assessments ?? [];
+  const categoryOptions = useMemo(() => getAssessmentCategoryOptions(document), [document]);
   const defaultOrder = useMemo(() => {
     const definitions = document.soaAssessmentDefinitions ?? [];
     if (definitions.length === 0) {
@@ -100,72 +74,25 @@ export function SoAAssessmentDefinitionEditorDialog({
     setSaveError(null);
 
     if (mode === 'edit' && definition) {
-      setId(definition.id);
       setLabel(definition.label);
       setCategory(definition.category);
-      setOrder(String(definition.order));
-      setLinkedSectionId(definition.linkedSectionId ?? NONE_VALUE);
-      setClinicalDesignAssessmentId(definition.clinicalDesignAssessmentId ?? NONE_VALUE);
-      setMetadataText(
-        definition.metadata && Object.keys(definition.metadata).length > 0
-          ? JSON.stringify(definition.metadata, null, 2)
-          : '',
-      );
       return;
     }
 
-    setId('');
     setLabel('');
-    setCategory('');
-    setOrder(String(defaultOrder));
-    setLinkedSectionId(NONE_VALUE);
-    setClinicalDesignAssessmentId(NONE_VALUE);
-    setMetadataText('');
-  }, [open, mode, definition, defaultOrder]);
-
-  function parseMetadata(): Record<string, unknown> | undefined | 'invalid' {
-    const trimmed = metadataText.trim();
-    if (!trimmed) {
-      return undefined;
-    }
-
-    try {
-      const parsed = JSON.parse(trimmed) as unknown;
-      if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
-        return 'invalid';
-      }
-      return parsed as Record<string, unknown>;
-    } catch {
-      return 'invalid';
-    }
-  }
+    setCategory(categoryOptions[0] ?? 'Safety');
+  }, [open, mode, definition, categoryOptions]);
 
   function handleSave() {
     setSaveError(null);
 
-    const parsedMetadata = parseMetadata();
-    if (parsedMetadata === 'invalid') {
-      setSaveError('Metadata must be valid JSON object.');
-      return;
-    }
-
-    const parsedOrder = Number(order);
-    const linkedSection =
-      linkedSectionId === NONE_VALUE || linkedSectionId === '' ? undefined : linkedSectionId;
-    const clinicalDesignAssessment =
-      clinicalDesignAssessmentId === NONE_VALUE || clinicalDesignAssessmentId === ''
-        ? undefined
-        : clinicalDesignAssessmentId;
-
     if (mode === 'create') {
+      const generatedId = generateNextAssessmentCatalogId(document.soaAssessmentDefinitions ?? []);
       const input: CreateSoAAssessmentDefinitionInput = {
-        id: id.trim(),
+        id: generatedId,
         label: label.trim(),
         category: category.trim(),
-        order: parsedOrder,
-        linkedSectionId: linkedSection,
-        clinicalDesignAssessmentId: clinicalDesignAssessment,
-        metadata: parsedMetadata,
+        order: defaultOrder,
       };
 
       const failure = getCreateSoAAssessmentDefinitionFailure(document, input);
@@ -175,11 +102,11 @@ export function SoAAssessmentDefinitionEditorDialog({
       }
 
       if (!createSoAAssessmentDefinition(input)) {
-        setSaveError('Could not create SoA assessment definition.');
+        setSaveError('Could not create assessment.');
         return;
       }
 
-      onSuccess(input.id);
+      onSuccess(generatedId);
       onOpenChange(false);
       return;
     }
@@ -192,10 +119,6 @@ export function SoAAssessmentDefinitionEditorDialog({
     const patch: UpdateSoAAssessmentDefinitionPatch = {
       label: label.trim(),
       category: category.trim(),
-      order: parsedOrder,
-      linkedSectionId: linkedSection ?? '',
-      clinicalDesignAssessmentId: clinicalDesignAssessment ?? '',
-      metadata: parsedMetadata,
     };
 
     const failure = getUpdateSoAAssessmentDefinitionFailure(document, patch);
@@ -205,7 +128,7 @@ export function SoAAssessmentDefinitionEditorDialog({
     }
 
     if (!updateSoAAssessmentDefinition(definition.id, patch)) {
-      setSaveError('Could not update SoA assessment definition.');
+      setSaveError('Could not update assessment.');
       return;
     }
 
@@ -215,13 +138,13 @@ export function SoAAssessmentDefinitionEditorDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>{mode === 'create' ? 'Create assessment' : 'Edit assessment'}</DialogTitle>
           <DialogDescription>
             {mode === 'create'
-              ? 'Add a row to the SoA assessment catalog. Schedule cells remain generated from rules.'
-              : 'Update catalog metadata. Assessment id cannot be changed after creation.'}
+              ? 'Add an assessment to the catalog. Schedule cells remain generated from rules.'
+              : 'Update the assessment label and category.'}
           </DialogDescription>
         </DialogHeader>
 
@@ -233,90 +156,30 @@ export function SoAAssessmentDefinitionEditorDialog({
           ) : null}
 
           <div className="grid gap-2">
-            <Label htmlFor="soa-assessment-id">Id</Label>
-            <Input
-              id="soa-assessment-id"
-              value={id}
-              onChange={(event) => setId(event.target.value)}
-              disabled={mode === 'edit'}
-              placeholder="e.g. a13"
-              className="font-mono"
-            />
-          </div>
-
-          <div className="grid gap-2">
-            <Label htmlFor="soa-assessment-label">Label</Label>
+            <Label htmlFor="soa-assessment-label">Assessment name</Label>
             <Input
               id="soa-assessment-label"
               value={label}
               onChange={(event) => setLabel(event.target.value)}
-              placeholder="Assessment label"
+              placeholder="Assessment name"
+              autoFocus
             />
           </div>
 
           <div className="grid gap-2">
             <Label htmlFor="soa-assessment-category">Category</Label>
-            <Input
-              id="soa-assessment-category"
-              value={category}
-              onChange={(event) => setCategory(event.target.value)}
-              placeholder="e.g. Safety"
-            />
-          </div>
-
-          <div className="grid gap-2">
-            <Label htmlFor="soa-assessment-order">Order</Label>
-            <Input
-              id="soa-assessment-order"
-              type="number"
-              value={order}
-              onChange={(event) => setOrder(event.target.value)}
-            />
-          </div>
-
-          <div className="grid gap-2">
-            <Label htmlFor="soa-assessment-linked-section">Linked section (optional)</Label>
-            <Select value={linkedSectionId} onValueChange={setLinkedSectionId}>
-              <SelectTrigger id="soa-assessment-linked-section">
-                <SelectValue placeholder="None" />
+            <Select value={category} onValueChange={setCategory}>
+              <SelectTrigger id="soa-assessment-category">
+                <SelectValue placeholder="Select category" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value={NONE_VALUE}>None</SelectItem>
-                {sectionOptions.map((section) => (
-                  <SelectItem key={section.id} value={section.id}>
-                    {section.label}
+                {categoryOptions.map((option) => (
+                  <SelectItem key={option} value={option}>
+                    {option}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
-          </div>
-
-          <div className="grid gap-2">
-            <Label htmlFor="soa-assessment-clinical-design">Clinical design assessment (optional)</Label>
-            <Select value={clinicalDesignAssessmentId} onValueChange={setClinicalDesignAssessmentId}>
-              <SelectTrigger id="soa-assessment-clinical-design">
-                <SelectValue placeholder="None" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={NONE_VALUE}>None</SelectItem>
-                {clinicalDesignAssessments.map((assessment) => (
-                  <SelectItem key={assessment.id} value={assessment.id}>
-                    {assessment.id} — {assessment.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="grid gap-2">
-            <Label htmlFor="soa-assessment-metadata">Metadata (optional JSON)</Label>
-            <Textarea
-              id="soa-assessment-metadata"
-              value={metadataText}
-              onChange={(event) => setMetadataText(event.target.value)}
-              placeholder='{"key": "value"}'
-              className="font-mono text-xs min-h-[80px]"
-            />
           </div>
         </div>
 

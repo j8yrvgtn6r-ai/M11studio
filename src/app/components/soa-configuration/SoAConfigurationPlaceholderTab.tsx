@@ -42,8 +42,8 @@ export function SoAConfigurationPlaceholderTab({ tab }: SoAConfigurationPlacehol
           </>
         ) : (
           <p>
-            Configuration editors for {tab.label.toLowerCase()} will land in upcoming Stage 2e pull requests.
-            The generated SoA matrix below continues to reflect the authoritative schedule cache.
+            Configuration editors for {tab.label.toLowerCase()} will land in upcoming pull requests. Open the
+            Matrix tab to preview the authoritative generated schedule cache.
           </p>
         )}
       </CardContent>

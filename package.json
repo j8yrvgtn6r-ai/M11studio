@@ -14,7 +14,11 @@
     "validate:protocol": "npx vite-node scripts/validate-protocol.ts",
     "smoke:clinical-design": "npx vite-node scripts/smoke-clinical-design-mutations.ts",
     "smoke:schedule": "npx vite-node scripts/smoke-schedule.ts",
-    "compare:generated-schedule": "npx vite-node scripts/compare-generated-schedule.ts"
+    "compare:generated-schedule": "npx vite-node scripts/compare-generated-schedule.ts",
+    "rebuild:protocol-sections": "npx vite-node scripts/rebuild-protocol-sections-from-ich-m11.ts",
+    "smoke:ui-settings": "node scripts/smoke-ui-settings-playwright.mjs",
+    "smoke:protocol-import": "node scripts/smoke-protocol-import-playwright.mjs",
+    "ingest:ich-m11-terminology": "npx vite-node scripts/ingest-ich-m11-terminology.ts"
   },
   "dependencies": {
     "@emotion/react": "11.14.0",
@@ -80,6 +84,7 @@
   "devDependencies": {
     "@tailwindcss/vite": "4.1.12",
     "@vitejs/plugin-react": "4.7.0",
+    "playwright": "^1.60.0",
     "tailwindcss": "4.1.12",
     "vite": "6.3.5"
   },

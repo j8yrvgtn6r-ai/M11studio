@@ -1,14 +1,12 @@
 export type SoAConfigurationTabId =
-  | 'overview'
-  | 'soa-assessments'
-  | 'visits'
-  | 'schedule-rules'
   | 'epochs'
+  | 'arms'
+  | 'visits'
   | 'activities'
   | 'elements'
-  | 'arms'
+  | 'soa-assessments'
   | 'conditional-logic'
-  | 'change-control';
+  | 'matrix';
 
 export interface SoAConfigurationTabDefinition {
   id: SoAConfigurationTabId;
@@ -17,31 +15,22 @@ export interface SoAConfigurationTabDefinition {
   planned?: boolean;
 }
 
+/** Workflow-oriented horizontal tabs (execution hierarchy order). */
 export const SOA_CONFIGURATION_TABS: SoAConfigurationTabDefinition[] = [
-  {
-    id: 'overview',
-    label: 'Overview',
-    description: 'Study-level summary, validation health, and generated schedule status.',
-  },
-  {
-    id: 'soa-assessments',
-    label: 'SoA Assessments',
-    description: 'Edit SoA catalog rows: labels, categories, ordering, and narrative links.',
-  },
-  {
-    id: 'visits',
-    label: 'Visits',
-    description: 'Author visit definitions, anchors, windows, and display metadata.',
-  },
-  {
-    id: 'schedule-rules',
-    label: 'Schedule Rules',
-    description: 'Define assessment schedule rules that drive the generated SoA matrix.',
-  },
   {
     id: 'epochs',
     label: 'Epochs',
     description: 'Define study epochs and sequencing across the clinical design timeline.',
+  },
+  {
+    id: 'arms',
+    label: 'Arms',
+    description: 'Configure study arms, randomization references, and arm-scoped schedule rules.',
+  },
+  {
+    id: 'visits',
+    label: 'Visits',
+    description: 'Visit schedule catalog, anchors, and assessment × visit rules.',
   },
   {
     id: 'activities',
@@ -54,9 +43,9 @@ export const SOA_CONFIGURATION_TABS: SoAConfigurationTabDefinition[] = [
     description: 'Configure study design elements and epoch mapping.',
   },
   {
-    id: 'arms',
-    label: 'Arms',
-    description: 'Configure study arms, randomization references, and arm-scoped schedule rules.',
+    id: 'soa-assessments',
+    label: 'Assessments',
+    description: 'Author assessment catalog rows: labels, categories, and ordering.',
   },
   {
     id: 'conditional-logic',
@@ -65,8 +54,14 @@ export const SOA_CONFIGURATION_TABS: SoAConfigurationTabDefinition[] = [
     planned: true,
   },
   {
-    id: 'change-control',
-    label: 'Change Control',
-    description: 'Amendment diffs, version comparison, and export change packages.',
+    id: 'matrix',
+    label: 'Matrix',
+    description: 'Read-only projection of the generated Schedule of Activities.',
   },
 ];
+
+export const CHANGE_CONTROL_PLACEHOLDER = {
+  title: 'Change Control',
+  description:
+    'Amendment diffs, version comparison, and export change packages will live in global protocol workspace chrome (alongside Dependency Graph). This shell button is an interim entry point until promotion is complete.',
+};

@@ -48,7 +48,7 @@ export function SoAConfigurationOverviewTab() {
     { label: 'Epochs (from visits)', value: uniqueEpochCount },
     { label: 'Visit definitions', value: getVisitDefinitions().length },
     { label: 'Clinical activities', value: document.clinicalDesign.assessments.length },
-    { label: 'SoA assessments', value: getSoAAssessmentDefinitions().length },
+    { label: 'Assessments', value: getSoAAssessmentDefinitions().length },
     { label: 'Schedule rules', value: getAssessmentScheduleRules().length },
     { label: 'Generated visits', value: getVisits().length },
     { label: 'Generated assessments', value: getAssessments().length },

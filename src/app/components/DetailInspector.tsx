@@ -6,6 +6,7 @@ import { AlertCircle, Info, AlertTriangle, MessageSquare, Clock, Database, Link2
 import type { FieldDefinition, ValidationIssue, AuditEvent, Comment } from '../types/protocol';
 import { getSeverityColor } from '../utils/statusColors';
 import { format } from 'date-fns';
+import { SoAAssessmentMetadataPanel } from './soa-configuration/SoAAssessmentMetadataPanel';
 
 interface DetailInspectorProps {
   selectedField: FieldDefinition | null;
@@ -13,6 +14,7 @@ interface DetailInspectorProps {
   validationIssues: ValidationIssue[];
   auditEvents: AuditEvent[];
   comments: Comment[];
+  isScheduleOfActivitiesView?: boolean;
 }
 
 export function DetailInspector({
@@ -21,6 +23,7 @@ export function DetailInspector({
   validationIssues,
   auditEvents,
   comments,
+  isScheduleOfActivitiesView = false,
 }: DetailInspectorProps) {
   const sectionValidationIssues = validationIssues.filter((issue) => issue.sectionId === selectedSectionId);
   const sectionAuditEvents = auditEvents.filter(
@@ -63,7 +66,11 @@ export function DetailInspector({
 
         <ScrollArea className="flex-1">
           <TabsContent value="metadata" className="p-3 mt-0">
-            <MetadataTab field={selectedField} />
+            {isScheduleOfActivitiesView ? (
+              <SoAAssessmentMetadataPanel />
+            ) : (
+              <MetadataTab field={selectedField} />
+            )}
           </TabsContent>
 
           <TabsContent value="validation" className="p-3 mt-0">

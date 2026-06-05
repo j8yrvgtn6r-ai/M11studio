@@ -1,22 +1,49 @@
-import { ChevronRight, ChevronDown, FileText, AlertCircle, MessageSquare, FileEdit } from 'lucide-react';
+import { ChevronRight, ChevronDown, FileText, AlertCircle, MessageSquare, FileEdit, BookOpen } from 'lucide-react';
 import { useState } from 'react';
+import type { GeneratedSectionDraft } from '../domain/protocol/import';
 import type { ProtocolSection } from '../types/protocol';
 import { getStatusColor } from '../utils/statusColors';
 import { ScrollArea } from './ui/scroll-area';
 import { Badge } from './ui/badge';
+import { Label } from './ui/label';
+import { Switch } from './ui/switch';
 
 interface ProtocolExplorerProps {
   sections: ProtocolSection[];
   selectedSectionId: string | null;
   onSelectSection: (sectionId: string) => void;
+  templateReferenceEnabled: boolean;
+  onTemplateReferenceChange: (enabled: boolean) => void;
+  sectionImportDrafts?: Record<string, GeneratedSectionDraft>;
 }
 
-export function ProtocolExplorer({ sections, selectedSectionId, onSelectSection }: ProtocolExplorerProps) {
+export function ProtocolExplorer({
+  sections,
+  selectedSectionId,
+  onSelectSection,
+  templateReferenceEnabled,
+  onTemplateReferenceChange,
+  sectionImportDrafts = {},
+}: ProtocolExplorerProps) {
   return (
     <div className="flex flex-col h-full bg-sidebar border-r border-sidebar-border">
-      <div className="px-3 py-2 border-b border-sidebar-border">
-        <h2 className="font-semibold text-sm text-sidebar-foreground">Protocol Explorer</h2>
-        <p className="text-xs text-muted-foreground mt-0.5">PROTO-XYZ-301</p>
+      <div className="px-3 py-2 border-b border-sidebar-border space-y-2">
+        <div>
+          <h2 className="font-semibold text-sm text-sidebar-foreground">Protocol Explorer</h2>
+          <p className="text-xs text-muted-foreground mt-0.5">PROTO-XYZ-301</p>
+        </div>
+        <div className="flex items-center justify-between gap-2 rounded-md border border-sidebar-border bg-card/40 px-2 py-1.5">
+          <Label htmlFor="m11-template-reference-toggle" className="text-xs flex items-center gap-1.5 cursor-pointer">
+            <BookOpen className="h-3.5 w-3.5 shrink-0" />
+            Template Reference
+          </Label>
+          <Switch
+            id="m11-template-reference-toggle"
+            checked={templateReferenceEnabled}
+            onCheckedChange={onTemplateReferenceChange}
+            aria-label="Toggle M11 Template Reference"
+          />
+        </div>
       </div>
       <ScrollArea className="flex-1">
         <div className="p-2">
@@ -26,6 +53,7 @@ export function ProtocolExplorer({ sections, selectedSectionId, onSelectSection 
               section={section}
               selectedSectionId={selectedSectionId}
               onSelectSection={onSelectSection}
+              sectionImportDrafts={sectionImportDrafts}
             />
           ))}
         </div>
@@ -34,15 +62,34 @@ export function ProtocolExplorer({ sections, selectedSectionId, onSelectSection 
   );
 }
 
+function importDraftIndicatorClass(draft: GeneratedSectionDraft | undefined): string {
+  if (!draft) {
+    return '';
+  }
+  if (draft.validationStatus === 'failed') {
+    return 'bg-destructive';
+  }
+  if (draft.validationStatus === 'warnings' || draft.reviewStatus === 'changes-requested') {
+    return 'bg-amber-500';
+  }
+  if (draft.reviewStatus === 'approved') {
+    return 'bg-green-500';
+  }
+  return 'bg-sky-500';
+}
+
 function SectionTreeNode({
   section,
   selectedSectionId,
   onSelectSection,
+  sectionImportDrafts,
 }: {
   section: ProtocolSection;
   selectedSectionId: string | null;
   onSelectSection: (sectionId: string) => void;
+  sectionImportDrafts: Record<string, GeneratedSectionDraft>;
 }) {
+  const importDraft = sectionImportDrafts[section.id];
   const [expanded, setExpanded] = useState(true);
   const hasChildren = section.children && section.children.length > 0;
   const isSelected = selectedSectionId === section.id;
@@ -84,7 +131,9 @@ function SectionTreeNode({
 
         <FileText className="h-3.5 w-3.5 shrink-0 opacity-70" />
 
-        <span className="flex-1 truncate">{section.title}</span>
+        <span className={`flex-1 truncate ${section.ichM11InstructionOnly ? 'text-muted-foreground italic' : ''}`}>
+          {section.title}
+        </span>
 
         <div className="flex items-center gap-1 shrink-0">
           {section.hasAmendment && (
@@ -102,7 +151,15 @@ function SectionTreeNode({
               {section.validationCount}
             </Badge>
           )}
-          <div className={`w-2 h-2 rounded-full ${statusColor.dot}`} title={section.status} />
+          {importDraft ? (
+            <div
+              className={`w-2 h-2 rounded-full ${importDraftIndicatorClass(importDraft)}`}
+              title={`Import ${importDraft.reviewStatus} · ${importDraft.validationStatus}`}
+              data-testid={`import-section-indicator-${section.id}`}
+            />
+          ) : (
+            <div className={`w-2 h-2 rounded-full ${statusColor.dot}`} title={section.status} />
+          )}
         </div>
       </button>
 
@@ -114,6 +171,7 @@ function SectionTreeNode({
               section={child}
               selectedSectionId={selectedSectionId}
               onSelectSection={onSelectSection}
+              sectionImportDrafts={sectionImportDrafts}
             />
           ))}
         </div>

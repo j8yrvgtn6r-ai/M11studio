@@ -23,6 +23,14 @@ function toProtocolSection(section: SectionNode, document: ProtocolDocument): Pr
     mapped.viewKind = section.viewKind;
   }
 
+  if (section.ichM11TemplateOnly) {
+    mapped.ichM11TemplateOnly = true;
+  }
+
+  if (section.ichM11InstructionOnly) {
+    mapped.ichM11InstructionOnly = true;
+  }
+
   if (commentCount !== undefined) {
     mapped.commentCount = commentCount;
   }

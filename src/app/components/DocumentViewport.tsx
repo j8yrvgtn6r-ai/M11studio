@@ -4,17 +4,29 @@ import { Textarea } from './ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Label } from './ui/label';
 import { ScrollArea } from './ui/scroll-area';
-import { Sparkles, Link2, RefreshCw, CheckCircle2 } from 'lucide-react';
+import { Sparkles, Link2, RefreshCw, CheckCircle2, FileText } from 'lucide-react';
+import type { GeneratedSectionDraft } from '../domain/protocol/import';
 import type { ProtocolSection, FieldDefinition } from '../types/protocol';
 import { getStatusColor, getStatusLabel } from '../utils/statusColors';
+import { Button } from './ui/button';
 
 interface DocumentViewportProps {
   section: ProtocolSection | null;
   fields: FieldDefinition[];
   onFieldChange: (fieldId: string, value: any) => void;
+  importDraft?: GeneratedSectionDraft;
+  onImportDraftTextChange?: (text: string) => void;
+  onOpenImportReview?: () => void;
 }
 
-export function DocumentViewport({ section, fields, onFieldChange }: DocumentViewportProps) {
+export function DocumentViewport({
+  section,
+  fields,
+  onFieldChange,
+  importDraft,
+  onImportDraftTextChange,
+  onOpenImportReview,
+}: DocumentViewportProps) {
   if (!section) {
     return (
       <div className="flex items-center justify-center h-full bg-background text-muted-foreground">
@@ -40,7 +52,22 @@ export function DocumentViewport({ section, fields, onFieldChange }: DocumentVie
               {getStatusLabel(section.status)}
             </Badge>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap justify-end">
+            {importDraft ? (
+              <>
+                <Badge variant="outline" className="text-xs" data-testid="import-draft-review-badge">
+                  Import: {importDraft.reviewStatus}
+                </Badge>
+                <Badge variant="outline" className="text-xs" data-testid="import-draft-validation-badge">
+                  Validation: {importDraft.validationStatus}
+                </Badge>
+                {onOpenImportReview ? (
+                  <Button variant="outline" size="sm" className="h-7 text-xs" onClick={onOpenImportReview}>
+                    Open review
+                  </Button>
+                ) : null}
+              </>
+            ) : null}
             <Badge variant="secondary" className="text-xs">
               Conformance: {section.conformance}
             </Badge>
@@ -51,19 +78,54 @@ export function DocumentViewport({ section, fields, onFieldChange }: DocumentVie
       {/* Document Content */}
       <ScrollArea className="flex-1">
         <div className="p-6 max-w-5xl">
+          {importDraft && !section.ichM11InstructionOnly ? (
+            <div className="space-y-3 mb-8">
+              <Label htmlFor="viewport-import-draft">Generated M11 section (pending approval)</Label>
+              <Textarea
+                id="viewport-import-draft"
+                className="min-h-[240px] text-sm"
+                value={importDraft.generatedText}
+                data-testid="viewport-import-generated-text"
+                onChange={(event) => onImportDraftTextChange?.(event.target.value)}
+              />
+              {importDraft.validationMessages.length > 0 ? (
+                <ul className="text-xs text-muted-foreground list-disc pl-5 space-y-1">
+                  {importDraft.validationMessages.map((message) => (
+                    <li key={message}>{message}</li>
+                  ))}
+                </ul>
+              ) : null}
+            </div>
+          ) : null}
+
           {fields.length > 0 ? (
             <div className="space-y-6">
               {fields.map((field) => (
                 <FieldEditor key={field.id} field={field} onFieldChange={onFieldChange} />
               ))}
             </div>
-          ) : (
+          ) : section.ichM11InstructionOnly ? (
+            <div className="text-center py-12 max-w-lg mx-auto">
+              <FileText className="h-10 w-10 mx-auto mb-4 opacity-50 text-muted-foreground" />
+              <p className="text-muted-foreground">
+                This section contains template instructions from the ICH M11 Template and is not part of the
+                finalized protocol body.
+              </p>
+            </div>
+          ) : section.ichM11TemplateOnly && !importDraft ? (
+            <div className="text-center py-12 max-w-lg mx-auto">
+              <FileText className="h-10 w-10 mx-auto mb-4 opacity-50 text-muted-foreground" />
+              <p className="text-muted-foreground">
+                This section is defined by the ICH M11 Template but has not yet been authored.
+              </p>
+            </div>
+          ) : !importDraft ? (
             <div className="text-center py-12">
               <p className="text-muted-foreground">
                 No editable fields in this section. Select a different section to edit.
               </p>
             </div>
-          )}
+          ) : null}
         </div>
       </ScrollArea>
     </div>
@@ -173,25 +235,5 @@ function FieldEditor({ field, onFieldChange }: { field: FieldDefinition; onField
       </div>
       <div id={field.id}>{renderField()}</div>
     </div>
-  );
-}
-
-function FileText({ className }: { className?: string }) {
-  return (
-    <svg
-      className={className}
-      fill="none"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      strokeWidth="2"
-      viewBox="0 0 24 24"
-      stroke="currentColor"
-    >
-      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-      <polyline points="14 2 14 8 20 8" />
-      <line x1="16" y1="13" x2="8" y2="13" />
-      <line x1="16" y1="17" x2="8" y2="17" />
-      <polyline points="10 9 9 9 8 9" />
-    </svg>
   );
 }

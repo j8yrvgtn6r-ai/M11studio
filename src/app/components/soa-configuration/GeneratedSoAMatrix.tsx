@@ -47,7 +47,7 @@ export function GeneratedSoAMatrix({ onCellClick }: GeneratedSoAMatrixProps) {
     <div className="flex flex-col min-h-0 h-full">
       <div className="flex items-center justify-between gap-3 px-4 py-2 border-b border-border bg-muted/20 shrink-0">
         <div className="flex items-center gap-2 min-w-0">
-          <h3 className="text-sm font-semibold truncate">Generated SoA Matrix</h3>
+          <h3 className="text-sm font-semibold truncate">Matrix</h3>
           <Badge variant="secondary" className="text-[10px] shrink-0">
             Read-only
           </Badge>
