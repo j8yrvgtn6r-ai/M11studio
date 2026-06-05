@@ -5,10 +5,31 @@ export type ProtocolSourceArtifactStatus =
   | 'failed'
   | 'extraction-failed';
 
+/** @deprecated Use SectionReviewState */
 export type GeneratedSectionReviewStatus =
   | 'pending-review'
   | 'approved'
   | 'changes-requested';
+
+export type SectionReviewState =
+  | 'generated'
+  | 'pendingReview'
+  | 'inReview'
+  | 'changesRequested'
+  | 'approved'
+  | 'validationPending'
+  | 'validationPassed'
+  | 'validationFailed'
+  | 'superseded';
+
+export type SectionGenerationProvider = 'local-deterministic' | 'llm';
+
+export interface SectionStateHistoryEntry {
+  state: SectionReviewState;
+  changedAt: string;
+  changedBy: string;
+  note?: string;
+}
 
 export type GeneratedSectionGenerationStatus = 'generated';
 
@@ -102,10 +123,18 @@ export interface GeneratedSectionDraft {
   generatedText: string;
   sourceUploadId: string;
   sourceExtractionId: string;
+  knowledgeModelId: string;
   matchedSourceCandidateIds: string[];
   extractionStatus: ExtractionStatus;
   generationStatus: GeneratedSectionGenerationStatus;
-  reviewStatus: GeneratedSectionReviewStatus;
+  generationProvider: SectionGenerationProvider;
+  draftVersion: number;
+  state: SectionReviewState;
+  stateChangedAt: string;
+  stateChangedBy: string;
+  stateHistory: SectionStateHistoryEntry[];
+  /** @deprecated Derived from state — kept for migration */
+  reviewStatus?: GeneratedSectionReviewStatus;
   generatedAt: string;
   lastReviewedAt?: string;
   reviewer?: string;
@@ -113,11 +142,46 @@ export interface GeneratedSectionDraft {
   validationMessages: string[];
 }
 
+export type ProtocolCommitSource =
+  | 'manualEdit'
+  | 'importRewrite'
+  | 'sectionApproval'
+  | 'validationRun'
+  | 'export';
+
+export interface ProtocolCommit {
+  id: string;
+  protocolId: string;
+  parentCommitId?: string;
+  message: string;
+  createdAt: string;
+  createdBy: string;
+  snapshotHash: string;
+  source: ProtocolCommitSource;
+  changedSectionIds: string[];
+  validationSummary: string;
+  metadata: Record<string, unknown>;
+}
+
+export type ProtocolVersionLifecycleStatus = 'draft' | 'inReview' | 'approved' | 'archived';
+
+export interface ProtocolVersion {
+  id: string;
+  label: string;
+  lifecycleStatus: ProtocolVersionLifecycleStatus;
+  headCommitId: string;
+  createdAt: string;
+  createdBy: string;
+}
+
 export interface ProtocolImportReviewSummary {
   totalGenerated: number;
   pendingReview: number;
+  inReview: number;
   approved: number;
   changesRequested: number;
+  validationPassed: number;
+  validationFailed: number;
   validationWarnings: number;
   validationErrors: number;
 }
@@ -125,6 +189,8 @@ export interface ProtocolImportReviewSummary {
 export interface ProtocolImportState {
   artifact: ProtocolSourceArtifact | null;
   importedSourceSummary: ImportedProtocolSourceSummary | null;
+  protocolKnowledgeModelId: string | null;
+  protocolId: string;
   sectionDrafts: Record<string, GeneratedSectionDraft>;
   lastImportCompletedAt: string | null;
 }

@@ -1,310 +1,1009 @@
+import { getProtocolDocument } from '../store/protocolStore';
+
+import { ICH_M11_TERMINOLOGY_META } from '../ichM11/ichM11ControlledTerminology';
+
 import {
+
   loadImportedProtocolSource,
+
   loadProtocolSourceDocument,
+
   saveImportedProtocolSource,
+
 } from './protocolImportStorage';
+
 import { commitApprovedSectionToProtocol } from './protocolImportProcessor';
+
+import { normalizeSectionDraft } from './draftMigration';
+
+import type { ProtocolKnowledgeModel } from './protocolKnowledgeTypes';
+
+import {
+
+  createImportOverwriteCommit,
+
+  createImportProcessingCommit,
+
+  createSectionApprovalCommit,
+
+  getCurrentProtocolVersion,
+
+  getProtocolCommits,
+
+} from './protocolVersioning';
+
+import {
+
+  isSectionActionable,
+
+  isSectionApproved,
+
+  transitionSectionState,
+
+} from './sectionReviewStateMachine';
+
 import { validateGeneratedSectionDraft } from './sectionDraftValidation';
+
 import type {
+
   GeneratedSectionDraft,
+
   ImportedProtocolSource,
+
   ImportedProtocolSourceSummary,
+
   ProtocolImportReviewSummary,
+
   ProtocolImportState,
+
   ProtocolSourceArtifact,
+
 } from './types';
 
-const STORAGE_KEY = 'm11-protocol-import-v2';
+
+
+const STORAGE_KEY = 'm11-protocol-import-v3';
+
+
 
 const blobUrlCache = new Map<string, string>();
+
 const extractionCache = new Map<string, ImportedProtocolSource>();
+
+const knowledgeCache = new Map<string, ProtocolKnowledgeModel>();
+
 const listeners = new Set<() => void>();
 
+
+
+function defaultProtocolId(): string {
+
+  return getProtocolDocument().id ?? 'PROTO-XYZ-301';
+
+}
+
+
+
 let state: ProtocolImportState = {
+
   artifact: null,
+
   importedSourceSummary: null,
+
+  protocolKnowledgeModelId: null,
+
+  protocolId: defaultProtocolId(),
+
   sectionDrafts: {},
+
   lastImportCompletedAt: null,
+
 };
+
+
 
 let hydrated = false;
 
+
+
 function notify(): void {
+
   for (const listener of listeners) {
+
     listener();
+
   }
+
 }
+
+
 
 function toSummary(source: ImportedProtocolSource): ImportedProtocolSourceSummary {
+
   return {
+
     uploadId: source.uploadId,
+
     filename: source.filename,
+
     extractedAt: source.extractedAt,
+
     paragraphCount: source.paragraphs.length,
+
     headingCount: source.headings.length,
+
     sectionCandidateCount: source.sections.length,
+
     tableCount: source.tables.length,
+
     extractionWarnings: source.extractionWarnings,
+
     fullTextLength: source.fullText.length,
+
   };
+
 }
+
+
 
 function persistMetadata(): void {
+
   if (typeof localStorage === 'undefined') {
+
     return;
+
   }
+
   localStorage.setItem(
+
     STORAGE_KEY,
+
     JSON.stringify({
+
       artifact: state.artifact,
+
       importedSourceSummary: state.importedSourceSummary,
+
+      protocolKnowledgeModelId: state.protocolKnowledgeModelId,
+
+      protocolId: state.protocolId,
+
       sectionDrafts: state.sectionDrafts,
+
       lastImportCompletedAt: state.lastImportCompletedAt,
+
+      protocolKnowledgeModel: state.protocolKnowledgeModelId
+
+        ? knowledgeCache.get(state.protocolKnowledgeModelId) ?? null
+
+        : null,
+
     }),
+
   );
+
 }
+
+
 
 function loadPersistedMetadata(): void {
+
   if (typeof localStorage === 'undefined') {
+
     return;
+
   }
-  const raw = localStorage.getItem(STORAGE_KEY) ?? localStorage.getItem('m11-protocol-import-v1');
+
+  const raw =
+
+    localStorage.getItem(STORAGE_KEY) ??
+
+    localStorage.getItem('m11-protocol-import-v2') ??
+
+    localStorage.getItem('m11-protocol-import-v1');
+
   if (!raw) {
+
     return;
+
   }
+
   try {
-    const parsed = JSON.parse(raw) as ProtocolImportState;
-    const sectionDrafts = parsed.sectionDrafts ?? {};
-    const artifact = parsed.artifact ?? null;
-    state = {
-      artifact,
-      importedSourceSummary: parsed.importedSourceSummary ?? null,
-      sectionDrafts: Object.fromEntries(
-        Object.entries(sectionDrafts).map(([key, draft]) => [
-          key,
-          {
-            ...draft,
-            sourceExtractionId: draft.sourceExtractionId ?? artifact?.id ?? '',
-            matchedSourceCandidateIds: draft.matchedSourceCandidateIds ?? [],
-            extractionStatus: draft.extractionStatus ?? 'real-docx-parsed',
-          },
-        ]),
-      ),
-      lastImportCompletedAt: parsed.lastImportCompletedAt ?? null,
+
+    const parsed = JSON.parse(raw) as ProtocolImportState & {
+
+      protocolKnowledgeModel?: ProtocolKnowledgeModel | null;
+
+      sectionDrafts?: Record<string, GeneratedSectionDraft>;
+
     };
+
+    const sectionDrafts = parsed.sectionDrafts ?? {};
+
+    const artifact = parsed.artifact ?? null;
+
+
+
+    if (parsed.protocolKnowledgeModel) {
+
+      knowledgeCache.set(parsed.protocolKnowledgeModel.id, parsed.protocolKnowledgeModel);
+
+    }
+
+
+
+    state = {
+
+      artifact,
+
+      importedSourceSummary: parsed.importedSourceSummary ?? null,
+
+      protocolKnowledgeModelId: parsed.protocolKnowledgeModelId ?? parsed.protocolKnowledgeModel?.id ?? null,
+
+      protocolId: parsed.protocolId ?? defaultProtocolId(),
+
+      sectionDrafts: Object.fromEntries(
+
+        Object.entries(sectionDrafts).map(([key, draft]) => [key, normalizeSectionDraft(draft)]),
+
+      ),
+
+      lastImportCompletedAt: parsed.lastImportCompletedAt ?? null,
+
+    };
+
   } catch {
+
     localStorage.removeItem(STORAGE_KEY);
+
   }
+
 }
+
+
 
 export async function initProtocolImportStore(): Promise<void> {
+
   if (hydrated) {
+
     return;
+
   }
+
   loadPersistedMetadata();
 
+  state.protocolId = state.protocolId || defaultProtocolId();
+
+
+
   if (state.artifact?.id) {
+
     const stored = await loadProtocolSourceDocument(state.artifact.id);
+
     if (stored?.blob) {
+
       revokeBlobUrl(state.artifact.id);
+
       blobUrlCache.set(state.artifact.id, URL.createObjectURL(stored.blob));
+
     }
+
   }
+
+
 
   if (state.importedSourceSummary?.uploadId) {
+
     const extraction = await loadImportedProtocolSource(state.importedSourceSummary.uploadId);
+
     if (extraction) {
+
       extractionCache.set(extraction.uploadId, extraction);
+
     }
+
   }
+
+
 
   hydrated = true;
+
   notify();
+
 }
+
+
 
 export function subscribeProtocolImport(listener: () => void): () => void {
+
   listeners.add(listener);
+
   return () => listeners.delete(listener);
+
 }
+
+
 
 export function getProtocolImportState(): ProtocolImportState {
+
   return state;
+
 }
+
+
 
 export function getImportedProtocolSource(): ImportedProtocolSource | null {
+
   const uploadId = state.importedSourceSummary?.uploadId;
+
   if (!uploadId) {
+
     return null;
+
   }
+
   return extractionCache.get(uploadId) ?? null;
+
 }
+
+
+
+export function getProtocolKnowledgeModel(): ProtocolKnowledgeModel | null {
+
+  const id = state.protocolKnowledgeModelId;
+
+  if (!id) {
+
+    return null;
+
+  }
+
+  return knowledgeCache.get(id) ?? null;
+
+}
+
+
 
 export function getProtocolImportReviewSummary(): ProtocolImportReviewSummary {
+
   const drafts = Object.values(state.sectionDrafts);
+
   return {
+
     totalGenerated: drafts.length,
-    pendingReview: drafts.filter((draft) => draft.reviewStatus === 'pending-review').length,
-    approved: drafts.filter((draft) => draft.reviewStatus === 'approved').length,
-    changesRequested: drafts.filter((draft) => draft.reviewStatus === 'changes-requested').length,
+
+    pendingReview: drafts.filter((draft) => draft.state === 'pendingReview').length,
+
+    inReview: drafts.filter((draft) => draft.state === 'inReview').length,
+
+    approved: drafts.filter((draft) => isSectionApproved(draft.state)).length,
+
+    changesRequested: drafts.filter((draft) => draft.state === 'changesRequested').length,
+
+    validationPassed: drafts.filter((draft) => draft.state === 'validationPassed').length,
+
+    validationFailed: drafts.filter((draft) => draft.state === 'validationFailed').length,
+
     validationWarnings: drafts.filter((draft) => draft.validationStatus === 'warnings').length,
+
     validationErrors: drafts.filter((draft) => draft.validationStatus === 'failed').length,
+
   };
+
 }
+
+
 
 export function getSectionImportDraft(sectionId: string): GeneratedSectionDraft | undefined {
+
   return state.sectionDrafts[sectionId];
+
 }
+
+
 
 export function getProtocolSourceBlobUrl(artifactId: string): string | null {
+
   return blobUrlCache.get(artifactId) ?? null;
+
 }
+
+
+
+export function getProtocolVersioningForImport() {
+
+  const protocolId = state.protocolId;
+
+  return {
+
+    currentVersion: getCurrentProtocolVersion(protocolId),
+
+    commits: getProtocolCommits(protocolId),
+
+  };
+
+}
+
+
 
 function revokeBlobUrl(artifactId: string): void {
+
   const existing = blobUrlCache.get(artifactId);
+
   if (existing) {
+
     URL.revokeObjectURL(existing);
+
     blobUrlCache.delete(artifactId);
+
   }
+
 }
+
+
 
 export function setProtocolImportArtifact(artifact: ProtocolSourceArtifact, blob?: Blob): void {
+
   if (artifact.id !== state.artifact?.id) {
+
     revokeBlobUrl(state.artifact?.id ?? '');
+
   }
+
   state.artifact = artifact;
+
   if (blob) {
+
     revokeBlobUrl(artifact.id);
+
     blobUrlCache.set(artifact.id, URL.createObjectURL(blob));
+
   }
+
   persistMetadata();
+
   notify();
+
 }
+
+
 
 export function setProtocolImportExtractionFailed(
+
   artifact: ProtocolSourceArtifact,
+
   errorMessage: string,
+
 ): void {
+
   state.artifact = {
+
     ...artifact,
+
     status: 'extraction-failed',
+
     errorMessage,
+
   };
+
   state.importedSourceSummary = null;
+
+  state.protocolKnowledgeModelId = null;
+
   state.sectionDrafts = {};
+
   persistMetadata();
+
   notify();
+
 }
+
+
 
 export async function setProtocolImportResult(
+
   drafts: GeneratedSectionDraft[],
+
   artifact: ProtocolSourceArtifact,
+
   importedSource: ImportedProtocolSource,
+
+  protocolKnowledgeModel: ProtocolKnowledgeModel,
+
+  options?: { isOverwrite?: boolean },
+
 ): Promise<void> {
+
+  const hadPriorImport = Boolean(state.lastImportCompletedAt && Object.keys(state.sectionDrafts).length > 0);
+
+
+
   extractionCache.set(importedSource.uploadId, importedSource);
+
+  knowledgeCache.set(protocolKnowledgeModel.id, protocolKnowledgeModel);
+
   await saveImportedProtocolSource(importedSource);
 
-  state.sectionDrafts = Object.fromEntries(drafts.map((draft) => [draft.sectionId, draft]));
+
+
+  state.sectionDrafts = Object.fromEntries(
+
+    drafts.map((draft) => [draft.sectionId, normalizeSectionDraft(draft)]),
+
+  );
+
   state.artifact = artifact;
+
   state.importedSourceSummary = toSummary(importedSource);
+
+  state.protocolKnowledgeModelId = protocolKnowledgeModel.id;
+
   state.lastImportCompletedAt = new Date().toISOString();
+
+  state.protocolId = defaultProtocolId();
+
+
+
+  if (hadPriorImport || options?.isOverwrite) {
+
+    createImportOverwriteCommit(state.protocolId, artifact.filename);
+
+  }
+
+  createImportProcessingCommit(state.protocolId, artifact.filename);
+
+
+
   persistMetadata();
+
   notify();
+
 }
+
+
+
+export function openSectionForReview(sectionId: string, actor = 'Current user'): void {
+
+  const current = state.sectionDrafts[sectionId];
+
+  if (!current || current.state === 'inReview') {
+
+    return;
+
+  }
+
+  if (!['pendingReview', 'changesRequested', 'validationFailed'].includes(current.state)) {
+
+    return;
+
+  }
+
+  state.sectionDrafts[sectionId] = transitionSectionState(current, 'openReview', actor, 'Opened for review');
+
+  persistMetadata();
+
+  notify();
+
+}
+
+
 
 export function updateSectionImportDraft(
+
   sectionId: string,
+
   patch: Partial<GeneratedSectionDraft>,
+
 ): void {
+
   const current = state.sectionDrafts[sectionId];
+
   if (!current) {
+
     return;
+
   }
-  state.sectionDrafts[sectionId] = { ...current, ...patch };
+
+
+
+  let next: GeneratedSectionDraft = { ...current, ...patch };
+
+
+
+  if (patch.generatedText !== undefined && patch.generatedText !== current.generatedText) {
+
+    next = {
+
+      ...next,
+
+      state: 'pendingReview',
+
+      stateChangedAt: new Date().toISOString(),
+
+      stateChangedBy: 'Current user',
+
+      validationStatus: 'not-run',
+
+      validationMessages: [],
+
+      stateHistory: [
+
+        ...next.stateHistory,
+
+        {
+
+          state: 'pendingReview',
+
+          changedAt: new Date().toISOString(),
+
+          changedBy: 'Current user',
+
+          note: 'Draft text edited — requires re-review',
+
+        },
+
+      ],
+
+    };
+
+  }
+
+
+
+  state.sectionDrafts[sectionId] = next;
+
   persistMetadata();
+
   notify();
+
 }
+
+
 
 export function approveSectionImportDraft(sectionId: string, reviewer = 'Current user'): void {
+
   const draft = state.sectionDrafts[sectionId];
-  if (!draft) {
+
+  if (!draft || !isSectionActionable(draft.state)) {
+
     return;
+
   }
 
-  const validation = validateGeneratedSectionDraft({
-    ...draft,
-    reviewStatus: 'approved',
-  });
 
-  const approvedDraft: GeneratedSectionDraft = {
-    ...draft,
-    reviewStatus: 'approved',
+
+  let working = transitionSectionState(draft, 'approve', reviewer, 'Reviewer approved — running validation');
+
+  working = {
+
+    ...working,
+
+    validationStatus: 'not-run',
+
+    validationMessages: [],
+
     reviewer,
+
     lastReviewedAt: new Date().toISOString(),
-    validationStatus: validation.validationStatus,
-    validationMessages: validation.messages,
+
   };
 
-  state.sectionDrafts[sectionId] = approvedDraft;
-  commitApprovedSectionToProtocol(approvedDraft);
-  persistMetadata();
+  state.sectionDrafts[sectionId] = working;
+
   notify();
+
+
+
+  const validation = validateGeneratedSectionDraft(working);
+
+  const validationEvent = validation.validationStatus === 'failed' ? 'validationFailed' : 'validationSucceeded';
+
+
+
+  const finalized = {
+
+    ...transitionSectionState(working, validationEvent, reviewer, 'Validation completed after approval'),
+
+    validationStatus: validation.validationStatus,
+
+    validationMessages: validation.messages,
+
+    lastReviewedAt: new Date().toISOString(),
+
+    reviewer,
+
+  };
+
+
+
+  state.sectionDrafts[sectionId] = finalized;
+
+
+
+  if (finalized.state === 'validationPassed') {
+
+    commitApprovedSectionToProtocol(finalized);
+
+    createSectionApprovalCommit(
+
+      state.protocolId,
+
+      finalized,
+
+      validation.messages.join(' ') || 'Section approved after validation.',
+
+    );
+
+  }
+
+
+
+  persistMetadata();
+
+  notify();
+
 }
+
+
 
 export function requestChangesOnSectionImportDraft(sectionId: string, reviewer = 'Current user'): void {
+
   const draft = state.sectionDrafts[sectionId];
+
   if (!draft) {
+
     return;
+
   }
+
   state.sectionDrafts[sectionId] = {
-    ...draft,
-    reviewStatus: 'changes-requested',
+
+    ...transitionSectionState(draft, 'requestChanges', reviewer, 'Reviewer requested changes'),
+
     reviewer,
+
     lastReviewedAt: new Date().toISOString(),
+
     validationStatus: 'not-run',
+
     validationMessages: [],
+
   };
+
   persistMetadata();
+
   notify();
+
 }
+
+
+
+export function regenerateSectionImportDraft(
+
+  sectionId: string,
+
+  newDraft: GeneratedSectionDraft,
+
+  actor = 'Current user',
+
+): void {
+
+  const current = state.sectionDrafts[sectionId];
+
+  if (current) {
+
+    state.sectionDrafts[sectionId] = transitionSectionState(
+
+      { ...current, draftVersion: current.draftVersion },
+
+      'regenerate',
+
+      actor,
+
+      'Superseded by regeneration',
+
+    );
+
+    const superseded = state.sectionDrafts[sectionId];
+
+    if (superseded.state !== 'superseded') {
+
+      state.sectionDrafts[sectionId] = {
+
+        ...superseded,
+
+        state: 'superseded',
+
+        stateChangedAt: new Date().toISOString(),
+
+        stateHistory: [
+
+          ...superseded.stateHistory,
+
+          {
+
+            state: 'superseded',
+
+            changedAt: new Date().toISOString(),
+
+            changedBy: actor,
+
+            note: 'Replaced by newer draft version',
+
+          },
+
+        ],
+
+      };
+
+    }
+
+  }
+
+
+
+  const version = (current?.draftVersion ?? 0) + 1;
+
+  const fresh = normalizeSectionDraft({
+
+    ...newDraft,
+
+    sectionId,
+
+    draftVersion: version,
+
+    state: 'pendingReview',
+
+    stateChangedAt: new Date().toISOString(),
+
+    stateChangedBy: actor,
+
+    stateHistory: [
+
+      {
+
+        state: 'pendingReview',
+
+        changedAt: new Date().toISOString(),
+
+        changedBy: actor,
+
+        note: `Regenerated draft v${version}`,
+
+      },
+
+    ],
+
+    validationStatus: 'not-run',
+
+    validationMessages: [],
+
+  });
+
+
+
+  state.sectionDrafts[sectionId] = fresh;
+
+  persistMetadata();
+
+  notify();
+
+}
+
+
 
 export function downloadProtocolSourceArtifact(): void {
+
   const artifact = state.artifact;
+
   const url = artifact ? blobUrlCache.get(artifact.id) : null;
+
   if (!artifact || !url) {
+
     throw new Error('Original protocol document is not available.');
+
   }
+
   const anchor = document.createElement('a');
+
   anchor.href = url;
+
   anchor.download = artifact.filename;
+
   anchor.rel = 'noopener';
+
   document.body.appendChild(anchor);
+
   anchor.click();
+
   document.body.removeChild(anchor);
+
 }
+
+
 
 export function openProtocolSourceArtifact(): void {
+
   const artifact = state.artifact;
+
   const url = artifact ? blobUrlCache.get(artifact.id) : null;
+
   if (!artifact || !url) {
+
     throw new Error('Original protocol document is not available.');
+
   }
+
   window.open(url, '_blank', 'noopener,noreferrer');
+
 }
 
+
+
 /** @deprecated Use setProtocolImportResult */
+
 export function setProtocolImportDrafts(
+
   drafts: GeneratedSectionDraft[],
+
   artifact: ProtocolSourceArtifact,
+
 ): void {
+
   void setProtocolImportResult(drafts, artifact, {
+
     uploadId: artifact.id,
+
     filename: artifact.filename,
+
     extractedAt: new Date().toISOString(),
+
     fullText: '',
+
     paragraphs: [],
+
     headings: [],
+
     sections: [],
+
     tables: [],
+
     extractionWarnings: ['Legacy import metadata without extraction body.'],
+
+  }, {
+
+    id: `knowledge-${artifact.id}`,
+
+    sourceUploadId: artifact.id,
+
+    extractedAt: new Date().toISOString(),
+
+    knowledgeProvider: 'local-deterministic',
+
+    confidence: 0,
+
+    extractionNotes: ['Legacy migration stub'],
+
+    objectives: [],
+
+    endpoints: [],
+
+    estimands: [],
+
+    arms: [],
+
+    interventions: [],
+
+    safetyAssessments: [],
+
+    efficacyAssessments: [],
+
   });
+
 }
+
+
+
+export { ICH_M11_TERMINOLOGY_META };
+
+

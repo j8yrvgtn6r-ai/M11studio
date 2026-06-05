@@ -97,14 +97,20 @@ export function ImportProtocolDialog({
       });
       setProtocolImportArtifact(artifact, blob);
 
-      const { artifact: processedArtifact, importedSource, sectionDrafts } =
+      const { artifact: processedArtifact, importedSource, protocolKnowledgeModel, sectionDrafts } =
         await runProtocolImportProcessing(
           { ...artifact, status: 'processing' },
           blob,
           { onStepsUpdate: setProcessingSteps },
         );
 
-      await setProtocolImportResult(sectionDrafts, processedArtifact, importedSource);
+      await setProtocolImportResult(
+        sectionDrafts,
+        processedArtifact,
+        importedSource,
+        protocolKnowledgeModel,
+        { isOverwrite: true },
+      );
       setWizardStep('complete');
     } catch (error) {
       const message =

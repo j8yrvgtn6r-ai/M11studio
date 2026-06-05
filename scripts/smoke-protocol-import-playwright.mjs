@@ -1,5 +1,5 @@
 /**
- * UI smoke: Protocol import with real DOCX extraction (v2 PR 1).
+ * UI smoke: Protocol import v2 PR2 — knowledge layer, state machine, versioning, archive export.
  * Run: M11_BASE_URL=http://localhost:5175/ npm run smoke:protocol-import
  */
 import { chromium } from 'playwright';
@@ -48,54 +48,63 @@ async function main() {
     .locator('[data-testid="import-step-reading-docx"][data-state="complete"]')
     .waitFor({ timeout: 90_000 });
 
-  const readingDetail = page.getByTestId('import-step-detail-reading-docx');
-  await readingDetail.waitFor({ timeout: 15_000 });
-  const readingText = await readingDetail.textContent();
-  if (!readingText || !/paragraph/i.test(readingText)) {
-    throw new Error(`Expected paragraph count in reading-docx step, got: ${readingText}`);
-  }
-
   await page.getByTestId('import-protocol-open-review').waitFor({ timeout: 90_000 });
   await page.getByTestId('import-protocol-open-review').click();
   await page.getByTestId('protocol-import-review-workspace').waitFor();
+  await page.getByTestId('human-review-notice').waitFor();
+
+  await page.getByTestId('import-tab-protocol-knowledge').click();
+  await page.getByTestId('protocol-knowledge-panel').waitFor();
+  await page.getByTestId('protocol-knowledge-summary').waitFor();
+  const providerBadge = await page.getByTestId('knowledge-provider-badge').textContent();
+  if (!providerBadge || !/deterministic/i.test(providerBadge)) {
+    throw new Error(`Expected deterministic knowledge provider badge, got: ${providerBadge}`);
+  }
 
   await page.getByTestId('import-tab-source-extraction').click();
   await page.getByTestId('source-extraction-panel').waitFor();
-
   const paragraphCount = Number.parseInt(
     (await page.getByTestId('source-paragraph-count').textContent()) ?? '0',
     10,
   );
-  const sectionCount = Number.parseInt(
-    (await page.getByTestId('source-section-candidate-count').textContent()) ?? '0',
-    10,
-  );
-
   if (paragraphCount <= 0) {
-    throw new Error('Expected paragraph count > 0 after extraction');
-  }
-  if (sectionCount <= 0) {
-    throw new Error('Expected source section candidate count > 0 after extraction');
+    throw new Error('Expected paragraph count > 0');
   }
 
   await page.getByRole('tab', { name: 'Section review' }).click();
-
   const firstReviewRow = page.locator('[data-testid^="import-review-row-"]').first();
   await firstReviewRow.waitFor();
-  const sectionId = (await firstReviewRow.getAttribute('data-testid'))?.replace(
-    'import-review-row-',
-    '',
-  ) ?? '2';
+  await page.locator('[data-testid^="section-state-"]').first().waitFor();
+  const stateBadge = await page.locator('[data-testid^="section-state-"]').first().textContent();
+  if (!stateBadge || !/pending review/i.test(stateBadge)) {
+    throw new Error(`Expected formal pending review state, got: ${stateBadge}`);
+  }
+
+  const sectionId =
+    (await firstReviewRow.getAttribute('data-testid'))?.replace('import-review-row-', '') ?? '2';
 
   await page.getByTestId(`import-review-open-${sectionId}`).click();
   await page.getByTestId('section-import-review-screen').waitFor();
-  await page.getByTestId('m11-template-reference-panel').waitFor({ timeout: 15_000 });
-  await page.getByTestId('import-open-original-protocol').waitFor();
-
   await page.getByTestId('import-section-approve').click();
-  await page.getByText('Validation results').waitFor({ timeout: 15_000 });
+  await page.getByTestId('import-validation-results').waitFor({ timeout: 15_000 });
 
   await page.getByRole('button', { name: 'Back' }).click();
+  await page.getByTestId('import-tab-version-history').click();
+  await page.getByTestId('version-history-panel').waitFor();
+  await page.getByTestId('head-commit-id').waitFor();
+  const commitCount = await page.locator('[data-testid^="protocol-commit-"]').count();
+  if (commitCount < 2) {
+    throw new Error(`Expected at least 2 commits (import + approval), got ${commitCount}`);
+  }
+
+  const downloadPromise = page.waitForEvent('download', { timeout: 30_000 });
+  await page.getByTestId('export-archive-button').click();
+  const download = await downloadPromise;
+  const filename = download.suggestedFilename();
+  if (!filename.endsWith('.json')) {
+    throw new Error(`Expected JSON archive download, got: ${filename}`);
+  }
+
   await page.getByRole('button', { name: 'Back to protocol' }).click();
   await page.locator('#protocol-explorer').getByRole('button', { name: /1\.3 Schedule of Activities/ }).click();
   await page.getByText('SoA Configuration').waitFor({ timeout: 15_000 });
@@ -104,7 +113,7 @@ async function main() {
     throw new Error(`Page errors: ${pageErrors.join('; ')}`);
   }
 
-  console.log('Protocol import workflow smoke passed (real DOCX extraction).');
+  console.log('Protocol import workflow smoke passed (v2 PR2 knowledge + versioning).');
   await browser.close();
 }
 

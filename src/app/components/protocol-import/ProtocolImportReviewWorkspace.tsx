@@ -1,8 +1,11 @@
 import { useMemo, useState } from 'react';
-import { ArrowLeft, ClipboardCheck } from 'lucide-react';
+import { ArrowLeft, ClipboardCheck, Download } from 'lucide-react';
 
 import {
   approveSectionImportDraft,
+  downloadM11StudioArchive,
+  isSectionActionable,
+  openSectionForReview,
   requestChangesOnSectionImportDraft,
 } from '../../domain/protocol/import';
 import type { GeneratedSectionDraft } from '../../domain/protocol/import';
@@ -11,25 +14,18 @@ import { Badge } from '../ui/badge';
 import { Button } from '../ui/button';
 import { ScrollArea } from '../ui/scroll-area';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
+import { HumanReviewNotice } from './HumanReviewNotice';
 import { ImportProtocolSourceActions } from './ImportProtocolSourceActions';
+import { ProtocolKnowledgePanel } from './ProtocolKnowledgePanel';
 import { SectionImportReviewScreen } from './SectionImportReviewScreen';
+import { SectionStateBadge } from './sectionStateBadge';
 import { SourceExtractionPanel } from './SourceExtractionPanel';
+import { VersionHistoryPanel } from './VersionHistoryPanel';
 
 interface ProtocolImportReviewWorkspaceProps {
   onBack: () => void;
   initialSectionId?: string | null;
   templateReferenceEnabled: boolean;
-}
-
-function reviewStatusBadge(status: GeneratedSectionDraft['reviewStatus']) {
-  switch (status) {
-    case 'approved':
-      return <Badge variant="secondary">Approved</Badge>;
-    case 'changes-requested':
-      return <Badge variant="outline">Changes requested</Badge>;
-    default:
-      return <Badge variant="outline">Pending review</Badge>;
-  }
 }
 
 function validationBadge(status: GeneratedSectionDraft['validationStatus']) {
@@ -41,7 +37,7 @@ function validationBadge(status: GeneratedSectionDraft['validationStatus']) {
     case 'failed':
       return <Badge variant="destructive">Validation failed</Badge>;
     default:
-      return <Badge variant="outline">Not run</Badge>;
+      return <Badge variant="outline">Validation not run</Badge>;
   }
 }
 
@@ -52,7 +48,7 @@ export function ProtocolImportReviewWorkspace({
 }: ProtocolImportReviewWorkspaceProps) {
   const { state, summary } = useProtocolImport();
   const [activeSectionId, setActiveSectionId] = useState<string | null>(initialSectionId);
-  const [activeTab, setActiveTab] = useState<'sections' | 'extraction'>('sections');
+  const [activeTab, setActiveTab] = useState<'sections' | 'extraction' | 'knowledge' | 'versions'>('sections');
 
   const drafts = useMemo(
     () =>
@@ -61,6 +57,15 @@ export function ProtocolImportReviewWorkspace({
       ),
     [state.sectionDrafts],
   );
+
+  const handleOpenReview = (sectionId: string) => {
+    openSectionForReview(sectionId);
+    setActiveSectionId(sectionId);
+  };
+
+  const handleExportArchive = () => {
+    void downloadM11StudioArchive();
+  };
 
   if (activeSectionId && state.sectionDrafts[activeSectionId]) {
     return (
@@ -86,29 +91,51 @@ export function ProtocolImportReviewWorkspace({
               Review Imported Protocol
             </h1>
             <p className="text-sm text-muted-foreground">
-              {state.artifact?.filename ?? 'Uploaded protocol'} · {summary.totalGenerated} generated sections
+              {state.artifact?.filename ?? 'Uploaded protocol'} · {summary.totalGenerated} proposal sections
             </p>
           </div>
         </div>
-        <ImportProtocolSourceActions disabled={!state.artifact} />
+        <div className="flex flex-wrap gap-2">
+          <Button
+            size="sm"
+            variant="outline"
+            data-testid="export-archive-button"
+            onClick={handleExportArchive}
+          >
+            <Download className="h-3.5 w-3.5 mr-1" />
+            Export Archive
+          </Button>
+          <ImportProtocolSourceActions disabled={!state.artifact} />
+        </div>
       </header>
 
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 p-4 border-b border-border bg-muted/10 shrink-0">
+      <div className="px-4 pt-3 shrink-0">
+        <HumanReviewNotice compact />
+      </div>
+
+      <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 p-4 border-b border-border bg-muted/10 shrink-0">
         <SummaryTile label="Pending review" value={summary.pendingReview} />
-        <SummaryTile label="Approved" value={summary.approved} />
-        <SummaryTile label="Validation warnings" value={summary.validationWarnings} />
-        <SummaryTile label="Validation errors" value={summary.validationErrors} />
+        <SummaryTile label="In review" value={summary.inReview} />
+        <SummaryTile label="Validation passed" value={summary.validationPassed} />
+        <SummaryTile label="Changes requested" value={summary.changesRequested} />
+        <SummaryTile label="Validation failed" value={summary.validationFailed} />
       </div>
 
       <Tabs
         value={activeTab}
-        onValueChange={(value) => setActiveTab(value as 'sections' | 'extraction')}
+        onValueChange={(value) => setActiveTab(value as typeof activeTab)}
         className="flex flex-col flex-1 min-h-0"
       >
-        <TabsList className="mx-4 mt-3 w-fit shrink-0">
+        <TabsList className="mx-4 mt-3 w-fit shrink-0 flex-wrap h-auto">
           <TabsTrigger value="sections">Section review</TabsTrigger>
+          <TabsTrigger value="knowledge" data-testid="import-tab-protocol-knowledge">
+            Protocol knowledge
+          </TabsTrigger>
           <TabsTrigger value="extraction" data-testid="import-tab-source-extraction">
             Source extraction
+          </TabsTrigger>
+          <TabsTrigger value="versions" data-testid="import-tab-version-history">
+            Version history
           </TabsTrigger>
         </TabsList>
 
@@ -125,10 +152,13 @@ export function ProtocolImportReviewWorkspace({
                     <p className="font-medium text-sm truncate">{draft.title}</p>
                     <p className="text-xs text-muted-foreground line-clamp-2 mt-1">{draft.generatedText}</p>
                     <div className="flex flex-wrap gap-2 mt-2">
-                      {reviewStatusBadge(draft.reviewStatus)}
+                      <SectionStateBadge state={draft.state} />
                       {validationBadge(draft.validationStatus)}
                       <Badge variant="outline" className="text-[10px]">
-                        {draft.extractionStatus}
+                        {draft.generationProvider}
+                      </Badge>
+                      <Badge variant="outline" className="text-[10px] font-mono">
+                        v{draft.draftVersion}
                       </Badge>
                     </div>
                   </div>
@@ -137,11 +167,11 @@ export function ProtocolImportReviewWorkspace({
                       size="sm"
                       variant="outline"
                       data-testid={`import-review-open-${draft.sectionId}`}
-                      onClick={() => setActiveSectionId(draft.sectionId)}
+                      onClick={() => handleOpenReview(draft.sectionId)}
                     >
                       Review
                     </Button>
-                    {draft.reviewStatus === 'pending-review' ? (
+                    {isSectionActionable(draft.state) ? (
                       <>
                         <Button
                           size="sm"
@@ -166,8 +196,16 @@ export function ProtocolImportReviewWorkspace({
           </ScrollArea>
         </TabsContent>
 
+        <TabsContent value="knowledge" className="flex-1 min-h-0 mt-0">
+          <ProtocolKnowledgePanel />
+        </TabsContent>
+
         <TabsContent value="extraction" className="flex-1 min-h-0 mt-0">
           <SourceExtractionPanel />
+        </TabsContent>
+
+        <TabsContent value="versions" className="flex-1 min-h-0 mt-0">
+          <VersionHistoryPanel />
         </TabsContent>
       </Tabs>
     </div>

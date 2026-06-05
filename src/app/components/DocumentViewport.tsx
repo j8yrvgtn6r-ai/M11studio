@@ -56,7 +56,7 @@ export function DocumentViewport({
             {importDraft ? (
               <>
                 <Badge variant="outline" className="text-xs" data-testid="import-draft-review-badge">
-                  Import: {importDraft.reviewStatus}
+                  Import: {importDraft.state}
                 </Badge>
                 <Badge variant="outline" className="text-xs" data-testid="import-draft-validation-badge">
                   Validation: {importDraft.validationStatus}

@@ -364,9 +364,6 @@ export default function App() {
                       if (selectedSectionId) {
                         updateSectionImportDraft(selectedSectionId, {
                           generatedText: text,
-                          reviewStatus: 'pending-review',
-                          validationStatus: 'not-run',
-                          validationMessages: [],
                         });
                       }
                     }}

@@ -1,8 +1,12 @@
+import { useEffect } from 'react';
 import { ArrowLeft, CheckCircle2 } from 'lucide-react';
 
 import {
   approveSectionImportDraft,
   findRelevantSourceCandidates,
+  isSectionActionable,
+  isSectionApproved,
+  openSectionForReview,
   requestChangesOnSectionImportDraft,
   updateSectionImportDraft,
 } from '../../domain/protocol/import';
@@ -14,7 +18,9 @@ import { Button } from '../ui/button';
 import { Label } from '../ui/label';
 import { ScrollArea } from '../ui/scroll-area';
 import { Textarea } from '../ui/textarea';
+import { HumanReviewNotice } from './HumanReviewNotice';
 import { ImportProtocolSourceActions } from './ImportProtocolSourceActions';
+import { SectionStateBadge, sectionStateLabel } from './sectionStateBadge';
 
 interface SectionImportReviewScreenProps {
   sectionId: string;
@@ -29,6 +35,10 @@ export function SectionImportReviewScreen({
 }: SectionImportReviewScreenProps) {
   const draft = useSectionImportDraft(sectionId);
   const { importedSource } = useProtocolImport();
+
+  useEffect(() => {
+    openSectionForReview(sectionId);
+  }, [sectionId]);
 
   if (!draft) {
     return (
@@ -61,7 +71,7 @@ export function SectionImportReviewScreen({
           <div className="min-w-0">
             <h2 className="font-semibold truncate">{draft.title}</h2>
             <p className="text-xs text-muted-foreground">
-              Generated M11 section · {draft.reviewStatus} · {draft.extractionStatus}
+              Proposal draft · {sectionStateLabel(draft.state)} · {draft.generationProvider}
             </p>
           </div>
         </div>
@@ -69,7 +79,7 @@ export function SectionImportReviewScreen({
           <Button
             size="sm"
             data-testid="import-section-approve"
-            disabled={draft.reviewStatus === 'approved'}
+            disabled={!isSectionActionable(draft.state)}
             onClick={() => approveSectionImportDraft(sectionId)}
           >
             <CheckCircle2 className="h-3.5 w-3.5 mr-1" />
@@ -78,6 +88,7 @@ export function SectionImportReviewScreen({
           <Button
             size="sm"
             variant="secondary"
+            disabled={isSectionApproved(draft.state)}
             onClick={() => requestChangesOnSectionImportDraft(sectionId)}
           >
             Request Changes
@@ -92,6 +103,8 @@ export function SectionImportReviewScreen({
       >
         <ScrollArea className="flex-1">
           <div className="p-6 max-w-4xl space-y-4">
+            <HumanReviewNotice compact />
+
             <div className="space-y-2" data-testid="import-original-protocol-reference">
               <Label>Original protocol reference</Label>
               <ImportProtocolSourceActions />
@@ -120,19 +133,20 @@ export function SectionImportReviewScreen({
                 </div>
               ) : (
                 <p className="text-xs text-muted-foreground">
-                  No mapped source section candidates for this M11 section. Open Source extraction tab for the
-                  full candidate list.
+                  No mapped source section candidates for this M11 section. Open Source extraction for the full
+                  candidate list.
                 </p>
               )}
             </div>
 
             <div className="flex flex-wrap gap-2">
-              <Badge variant="outline">Review: {draft.reviewStatus}</Badge>
+              <SectionStateBadge state={draft.state} />
               <Badge variant="outline">Validation: {draft.validationStatus}</Badge>
+              <Badge variant="outline">Provider: {draft.generationProvider}</Badge>
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="import-generated-text">Generated M11 text</Label>
+              <Label htmlFor="import-generated-text">Generated M11 text (proposal — edit before approval)</Label>
               <Textarea
                 id="import-generated-text"
                 className="min-h-[280px] font-mono text-sm"
@@ -141,16 +155,13 @@ export function SectionImportReviewScreen({
                 onChange={(event) =>
                   updateSectionImportDraft(sectionId, {
                     generatedText: event.target.value,
-                    reviewStatus: 'pending-review',
-                    validationStatus: 'not-run',
-                    validationMessages: [],
                   })
                 }
               />
             </div>
 
             {draft.validationMessages.length > 0 ? (
-              <Alert>
+              <Alert data-testid="import-validation-results">
                 <AlertTitle>Validation results</AlertTitle>
                 <AlertDescription>
                   <ul className="list-disc pl-5 space-y-1 mt-2">
@@ -158,6 +169,9 @@ export function SectionImportReviewScreen({
                       <li key={message}>{message}</li>
                     ))}
                   </ul>
+                  <p className="text-xs text-muted-foreground mt-2">
+                    Validation supports review; it does not replace human approval.
+                  </p>
                 </AlertDescription>
               </Alert>
             ) : null}

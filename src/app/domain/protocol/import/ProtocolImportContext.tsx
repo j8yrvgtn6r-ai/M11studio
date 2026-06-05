@@ -11,15 +11,21 @@ import {
   getImportedProtocolSource,
   getProtocolImportReviewSummary,
   getProtocolImportState,
+  getProtocolKnowledgeModel,
+  getProtocolVersioningForImport,
   initProtocolImportStore,
   subscribeProtocolImport,
 } from './protocolImportStore';
 import type { ImportedProtocolSource, ProtocolImportReviewSummary, ProtocolImportState } from './types';
+import type { ProtocolKnowledgeModel } from './protocolKnowledgeTypes';
+import type { ProtocolCommit, ProtocolVersion } from './types';
 
 interface ProtocolImportContextValue {
   ready: boolean;
   state: ProtocolImportState;
   importedSource: ImportedProtocolSource | null;
+  protocolKnowledge: ProtocolKnowledgeModel | null;
+  versioning: { currentVersion: ProtocolVersion; commits: ProtocolCommit[] };
   summary: ProtocolImportReviewSummary;
   revision: number;
 }
@@ -48,6 +54,8 @@ export function ProtocolImportProvider({ children }: { children: ReactNode }) {
 
   const state = useMemo(() => getProtocolImportState(), [revision]);
   const importedSource = useMemo(() => getImportedProtocolSource(), [revision, state.importedSourceSummary]);
+  const protocolKnowledge = useMemo(() => getProtocolKnowledgeModel(), [revision, state.protocolKnowledgeModelId]);
+  const versioning = useMemo(() => getProtocolVersioningForImport(), [revision, state.protocolId]);
   const summary = useMemo(() => getProtocolImportReviewSummary(), [revision]);
 
   const value = useMemo(
@@ -55,10 +63,12 @@ export function ProtocolImportProvider({ children }: { children: ReactNode }) {
       ready,
       state,
       importedSource,
+      protocolKnowledge,
+      versioning,
       summary,
       revision,
     }),
-    [ready, state, importedSource, summary, revision],
+    [ready, state, importedSource, protocolKnowledge, versioning, summary, revision],
   );
 
   return <ProtocolImportContext.Provider value={value}>{children}</ProtocolImportContext.Provider>;

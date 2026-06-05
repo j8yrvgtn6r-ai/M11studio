@@ -69,10 +69,10 @@ function importDraftIndicatorClass(draft: GeneratedSectionDraft | undefined): st
   if (draft.validationStatus === 'failed') {
     return 'bg-destructive';
   }
-  if (draft.validationStatus === 'warnings' || draft.reviewStatus === 'changes-requested') {
+  if (draft.validationStatus === 'warnings' || draft.state === 'changesRequested') {
     return 'bg-amber-500';
   }
-  if (draft.reviewStatus === 'approved') {
+  if (draft.state === 'validationPassed' || draft.state === 'approved') {
     return 'bg-green-500';
   }
   return 'bg-sky-500';
@@ -154,7 +154,7 @@ function SectionTreeNode({
           {importDraft ? (
             <div
               className={`w-2 h-2 rounded-full ${importDraftIndicatorClass(importDraft)}`}
-              title={`Import ${importDraft.reviewStatus} · ${importDraft.validationStatus}`}
+              title={`Import ${importDraft.state} · ${importDraft.validationStatus}`}
               data-testid={`import-section-indicator-${section.id}`}
             />
           ) : (

@@ -2,77 +2,95 @@
 
 ## Concept
 
-Upload a previously authored protocol **DOCX**. The system extracts readable structure from the file, then **rewrites each ICH M11 Template section from scratch** (not a section-by-section prose retrofit). Generated text is **proposal-only** until a human approves each section.
+Upload a previously authored protocol **DOCX**. The system extracts structure, builds a **Protocol Knowledge Layer**, and generates **M11 section proposals** mapped to the ICH M11 Template. Generated text is **proposal-only** until a qualified reviewer approves each section.
 
-The uploaded DOCX remains a **reference artifact** after processing; it is not the editable protocol.
+The uploaded DOCX remains a **reference artifact**; it is not the editable protocol.
 
-## v2 PR 1 — Real DOCX extraction (current)
+## v2 PR 2 — Knowledge layer, state machine, versioning (current)
 
 | Capability | Status |
 |------------|--------|
-| DOCX text / paragraph / table extraction | **Real** (mammoth + OOXML via JSZip) |
-| Heading / section candidate detection | **Real** (Word styles, numbering, all-caps, whole-document fallback) |
-| M11 section mapping hints | **Heuristic** (`possibleM11SectionId`) |
-| LLM rewrite (`rewriteProtocolToM11Sections`) | **Mocked** — placeholder draft text |
+| DOCX extraction | **Real** (mammoth + JSZip) |
+| Protocol Knowledge Layer | **Local deterministic** (`buildProtocolKnowledgeModel`) |
+| M11 section drafts | **Local deterministic** (`rewriteProtocolToM11Sections`) — not AI-generated |
+| Section review state machine | **Formal** (`SectionReviewState` + `stateHistory`) |
+| Version / commit scaffold | **Local** (`ProtocolCommit`, `ProtocolVersion`) |
+| Archive export | **JSON download** (Export M11 Studio Archive) |
+| LLM providers | **Boundary only** — not configured |
+| Version diff UI | **Scaffold** — Compare Versions coming soon |
+| Cloud auth / team permissions | **Future** — see `VERSIONING_ARCHITECTURE.md` |
 | Narrative terminology harmonization | **Future** |
 
-### Parsing libraries
+### Protocol Knowledge Layer
 
-- **mammoth** — raw text, HTML, tables
-- **jszip** — read `word/document.xml` for paragraph styles and heading levels
+`ProtocolKnowledgeModel` summarizes the uploaded protocol globally before section generation:
 
-### Extraction model
+- Scalar fields: study title, sponsor, protocol ID, phase, indication, population, etc. (when pattern-matched in DOCX text)
+- Lists: objectives, endpoints, estimands, arms, interventions, safety/efficacy assessments
+- `knowledgeProvider`: `local-deterministic` (UI shows this explicitly; not LLM-generated)
 
-`ImportedProtocolSource` (full body in IndexedDB):
+Provider boundary: `buildProtocolKnowledgeModel(sourceExtraction)` — swap for LLM implementer later.
 
-- `fullText`, `paragraphs[]`, `headings[]`, `sections[]` (source section candidates), `tables[]`, `extractionWarnings[]`
+### M11 rewrite provider
 
-`SourceSectionCandidate`:
+```typescript
+rewriteProtocolToM11Sections({
+  sourceExtraction,
+  protocolKnowledgeModel,
+  m11TemplateSections,
+  m11TechnicalSpecification,
+  controlledTerminology,
+  artifact,
+  generationProvider: 'local-deterministic',
+})
+```
 
-- `headingText`, `headingLevel`, `startIndex` / `endIndex`, `text`, `confidence`, `detectedNumber`, `possibleM11SectionId`, `detectionMethod`
+Draft text is transparently assembled from knowledge + source candidates. `generationProvider` is shown in the UI.
 
-Summary metadata (no `fullText`) in `localStorage` key `m11-protocol-import-v2`.
+### Section review state machine
 
-### Heading detection
+States: `generated` → `pendingReview` → `inReview` → `validationPending` → `validationPassed` | `validationFailed`; also `changesRequested`, `superseded`.
 
-1. Word paragraph styles (`Heading 1`…`Title`) from OOXML  
-2. Numbered headings (`1`, `1.1`, `8.4.2`, …)  
-3. All-caps lines (short, major headings)  
-4. Fallback: single **whole-document** candidate + warning if none detected  
+- Import completes with drafts in `pendingReview`
+- Opening review → `inReview`
+- Approve → `validationPending` → validation → `validationPassed` or `validationFailed`
+- Request Changes → `changesRequested`
+- Regeneration supersedes prior draft version
 
-### Limitations
+Human-in-loop: approval triggers validation; validation does not replace approval.
 
-- Complex Word numbering (auto-number linked to `numbering.xml`) is not fully resolved  
-- Tables depend on mammoth HTML conversion quality  
-- M11 mapping is fuzzy token overlap, not semantic LLM alignment  
-- Very large DOCX files may approach IndexedDB quota limits  
+### Versioning
 
-## Upload workflow
+Local Git-inspired commits on import complete, import overwrite, and section approval. **Version History** tab lists commits. See `VERSIONING_ARCHITECTURE.md` for hosted roadmap.
 
-1. Toolbar → **Import Protocol**
-2. Overwrite warning + confirmation checkbox
-3. Upload `.docx` (PDF planned later)
-4. Processing shows real extraction stats on steps 2–3
-5. **Review workspace** → Section review + **Source extraction** tab
-
-## Persistence
+### Persistence
 
 | Data | Storage |
 |------|---------|
-| DOCX blob | IndexedDB `m11-studio-protocol-import` / `source-documents` |
-| Extracted source | IndexedDB / `extractions` |
-| Draft + summary metadata | `localStorage` `m11-protocol-import-v2` |
-| Approved narrative | Protocol `elements[]` via `import.{sectionId}.narrative` |
+| DOCX blob | IndexedDB `source-documents` |
+| Extracted source | IndexedDB `extractions` |
+| Import + knowledge + drafts | `localStorage` `m11-protocol-import-v3` |
+| Commits / version | `localStorage` `m11-protocol-versioning-v1` |
+| Approved narrative | `import.{sectionId}.narrative` elements |
 
-## Error handling
+### Review workspace tabs
 
-- **DOCX parse failure:** user-friendly error, no M11 drafts, DOCX artifact retained, retry from upload step  
-- **No headings:** full text still extracted; whole-document source candidate created  
+1. Section review  
+2. Protocol knowledge  
+3. Source extraction  
+4. Version history  
+
+**Export Archive** in review header downloads full workspace JSON.
+
+## v2 PR 1 — DOCX extraction (foundation)
+
+See git history / prior docs for mammoth, heading detection, and extraction model details.
 
 ## SoA
 
-Section **1.3** keeps `viewKind: schedule-of-activities`. No SoA extraction; schedule layers unchanged.
+Section **1.3** — `schedule-of-activities`. No SoA extraction from DOCX.
 
-## LLM boundary
+## Error handling
 
-Replace `rewriteProtocolToM11Sections()` when an LLM service is wired. It already receives the real `ImportedProtocolSource` object and matched source candidate ids per section.
+- DOCX parse failure: error shown, no drafts, artifact retained  
+- No headings: whole-document fallback candidate + warning  
