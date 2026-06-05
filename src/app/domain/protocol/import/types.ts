@@ -22,7 +22,35 @@ export type SectionReviewState =
   | 'validationFailed'
   | 'superseded';
 
-export type SectionGenerationProvider = 'local-deterministic' | 'llm';
+export type SectionGenerationProvider =
+  | 'openai'
+  | 'azure-openai'
+  | 'anthropic'
+  | 'fixture'
+  | 'local'
+  | 'local-deterministic'
+  | 'llm';
+
+export interface SectionGenerationProvenance {
+  generationProvider: SectionGenerationProvider;
+  generationModel: string;
+  generationTimestamp: string;
+  generationPromptVersion: string;
+  sourceUploadId: string;
+  knowledgeModelId: string;
+  sourceCandidateIds: string[];
+  confidence: number;
+  generationNotes: string[];
+  knowledgeElementsUsed: string[];
+  draftVersion: number;
+}
+
+export interface SectionValidationFinding {
+  code: string;
+  severity: 'error' | 'warning' | 'info';
+  message: string;
+  suggestedTerm?: string;
+}
 
 export interface SectionStateHistoryEntry {
   state: SectionReviewState;
@@ -128,6 +156,7 @@ export interface GeneratedSectionDraft {
   extractionStatus: ExtractionStatus;
   generationStatus: GeneratedSectionGenerationStatus;
   generationProvider: SectionGenerationProvider;
+  provenance: SectionGenerationProvenance;
   draftVersion: number;
   state: SectionReviewState;
   stateChangedAt: string;
@@ -140,11 +169,15 @@ export interface GeneratedSectionDraft {
   reviewer?: string;
   validationStatus: GeneratedSectionValidationStatus;
   validationMessages: string[];
+  validationFindings: SectionValidationFinding[];
 }
 
 export type ProtocolCommitSource =
   | 'manualEdit'
   | 'importRewrite'
+  | 'protocolUnderstanding'
+  | 'm11Generation'
+  | 'sectionRegeneration'
   | 'sectionApproval'
   | 'validationRun'
   | 'export';
@@ -201,7 +234,6 @@ export type ImportProcessingStepId =
   | 'identifying-sections'
   | 'understanding-context'
   | 'rewriting-m11'
-  | 'creating-review-tasks'
   | 'structure-checks'
   | 'preparing-workspace';
 

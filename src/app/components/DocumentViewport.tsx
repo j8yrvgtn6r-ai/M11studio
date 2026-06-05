@@ -88,9 +88,9 @@ export function DocumentViewport({
                 data-testid="viewport-import-generated-text"
                 onChange={(event) => onImportDraftTextChange?.(event.target.value)}
               />
-              {importDraft.validationMessages.length > 0 ? (
+              {(importDraft.validationMessages ?? []).length > 0 ? (
                 <ul className="text-xs text-muted-foreground list-disc pl-5 space-y-1">
-                  {importDraft.validationMessages.map((message) => (
+                  {(importDraft.validationMessages ?? []).map((message) => (
                     <li key={message}>{message}</li>
                   ))}
                 </ul>

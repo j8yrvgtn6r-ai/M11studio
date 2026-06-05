@@ -14,7 +14,7 @@ import {
 
 import { commitApprovedSectionToProtocol } from './protocolImportProcessor';
 
-import { normalizeSectionDraft } from './draftMigration';
+import { normalizeProtocolKnowledgeModel, normalizeSectionDraft } from './draftMigration';
 
 import type { ProtocolKnowledgeModel } from './protocolKnowledgeTypes';
 
@@ -24,7 +24,13 @@ import {
 
   createImportProcessingCommit,
 
+  createM11GenerationCommit,
+
+  createProtocolUnderstandingCommit,
+
   createSectionApprovalCommit,
+
+  createSectionRegeneratedCommit,
 
   getCurrentProtocolVersion,
 
@@ -222,11 +228,31 @@ function loadPersistedMetadata(): void {
 
     const artifact = parsed.artifact ?? null;
 
+    const normalizedDrafts: Record<string, GeneratedSectionDraft> = {};
 
+    for (const [key, draft] of Object.entries(sectionDrafts)) {
 
-    if (parsed.protocolKnowledgeModel) {
+      try {
 
-      knowledgeCache.set(parsed.protocolKnowledgeModel.id, parsed.protocolKnowledgeModel);
+        if (draft && typeof draft === 'object') {
+
+          normalizedDrafts[key] = normalizeSectionDraft(draft);
+
+        }
+
+      } catch {
+
+        // Skip malformed draft entries instead of failing app startup.
+
+      }
+
+    }
+
+    const normalizedKnowledge = normalizeProtocolKnowledgeModel(parsed.protocolKnowledgeModel);
+
+    if (normalizedKnowledge) {
+
+      knowledgeCache.set(normalizedKnowledge.id, normalizedKnowledge);
 
     }
 
@@ -238,15 +264,13 @@ function loadPersistedMetadata(): void {
 
       importedSourceSummary: parsed.importedSourceSummary ?? null,
 
-      protocolKnowledgeModelId: parsed.protocolKnowledgeModelId ?? parsed.protocolKnowledgeModel?.id ?? null,
+      protocolKnowledgeModelId:
+
+        parsed.protocolKnowledgeModelId ?? normalizedKnowledge?.id ?? null,
 
       protocolId: parsed.protocolId ?? defaultProtocolId(),
 
-      sectionDrafts: Object.fromEntries(
-
-        Object.entries(sectionDrafts).map(([key, draft]) => [key, normalizeSectionDraft(draft)]),
-
-      ),
+      sectionDrafts: normalizedDrafts,
 
       lastImportCompletedAt: parsed.lastImportCompletedAt ?? null,
 
@@ -255,6 +279,10 @@ function loadPersistedMetadata(): void {
   } catch {
 
     localStorage.removeItem(STORAGE_KEY);
+
+    localStorage.removeItem('m11-protocol-import-v2');
+
+    localStorage.removeItem('m11-protocol-import-v1');
 
   }
 
@@ -552,7 +580,25 @@ export async function setProtocolImportResult(
 
   createImportProcessingCommit(state.protocolId, artifact.filename);
 
+  createProtocolUnderstandingCommit(state.protocolId, {
+    knowledgeModelId: protocolKnowledgeModel.id,
+    knowledgeProvider: protocolKnowledgeModel.knowledgeProvider,
+    understandingModel: protocolKnowledgeModel.understandingModel,
+    understandingPromptVersion: protocolKnowledgeModel.understandingPromptVersion,
+    confidence: protocolKnowledgeModel.confidence,
+    studyTitle: protocolKnowledgeModel.studyTitle,
+  });
 
+  createM11GenerationCommit(
+    state.protocolId,
+    drafts.map((draft) => draft.sectionId),
+    {
+      generationProvider: drafts[0]?.provenance.generationProvider,
+      generationModel: drafts[0]?.provenance.generationModel,
+      generationPromptVersion: drafts[0]?.provenance.generationPromptVersion,
+      sectionCount: drafts.length,
+    },
+  );
 
   persistMetadata();
 
@@ -777,6 +823,80 @@ export function requestChangesOnSectionImportDraft(sectionId: string, reviewer =
 }
 
 
+
+export async function regenerateSectionImportDraftAsync(
+  sectionId: string,
+  actor = 'Current user',
+): Promise<void> {
+  const current = state.sectionDrafts[sectionId];
+  const source = getImportedProtocolSource();
+  const knowledge = getProtocolKnowledgeModel();
+  const artifact = state.artifact;
+
+  if (!current || !source || !knowledge || !artifact) {
+    throw new Error('Cannot regenerate section — import context is incomplete.');
+  }
+
+  const { runM11SectionRegeneration } = await import('./llm/m11GenerationProvider');
+  const { applyPostGenerationValidation } = await import('./postGenerationValidation');
+  const { ICH_M11_TEMPLATE_SECTION_SPECS } = await import('../ichM11/ichM11Template');
+  const { ICH_M11_TECHNICAL_SPEC_SECTION_SPECS } = await import('../ichM11/ichM11TechnicalSpecification');
+  const { getM11CodelistCount, getM11TermCount } = await import('../ichM11/ichM11ControlledTerminology');
+
+  let newDraft = await runM11SectionRegeneration(
+    {
+      sourceExtraction: source,
+      protocolKnowledgeModel: knowledge,
+      m11TemplateSections: ICH_M11_TEMPLATE_SECTION_SPECS,
+      m11TechnicalSpecification: ICH_M11_TECHNICAL_SPEC_SECTION_SPECS,
+      controlledTerminology: {
+        codelistCount: getM11CodelistCount(),
+        termCount: getM11TermCount(),
+      },
+      artifact,
+      sectionIds: [sectionId],
+    },
+    sectionId,
+    current,
+  );
+
+  newDraft = applyPostGenerationValidation(newDraft);
+  newDraft = normalizeSectionDraft({
+    ...newDraft,
+    state: 'pendingReview',
+    stateChangedAt: new Date().toISOString(),
+    stateChangedBy: actor,
+    stateHistory: [
+      ...(current?.stateHistory ?? []),
+      {
+        state: 'superseded',
+        changedAt: new Date().toISOString(),
+        changedBy: actor,
+        note: `Superseded v${current?.draftVersion ?? 1}`,
+      },
+      {
+        state: 'pendingReview',
+        changedAt: new Date().toISOString(),
+        changedBy: actor,
+        note: `Regenerated v${newDraft.draftVersion}`,
+      },
+    ],
+    validationStatus: 'not-run',
+    validationMessages: [],
+  });
+
+  state.sectionDrafts[sectionId] = newDraft;
+
+  createSectionRegeneratedCommit(state.protocolId, sectionId, {
+    draftVersion: newDraft.draftVersion,
+    generationProvider: newDraft.provenance.generationProvider,
+    generationModel: newDraft.provenance.generationModel,
+    supersededVersion: current?.draftVersion,
+  });
+
+  persistMetadata();
+  notify();
+}
 
 export function regenerateSectionImportDraft(
 

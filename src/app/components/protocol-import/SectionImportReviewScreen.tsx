@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { ArrowLeft, CheckCircle2 } from 'lucide-react';
 
 import {
@@ -7,6 +7,7 @@ import {
   isSectionActionable,
   isSectionApproved,
   openSectionForReview,
+  regenerateSectionImportDraftAsync,
   requestChangesOnSectionImportDraft,
   updateSectionImportDraft,
 } from '../../domain/protocol/import';
@@ -18,6 +19,7 @@ import { Button } from '../ui/button';
 import { Label } from '../ui/label';
 import { ScrollArea } from '../ui/scroll-area';
 import { Textarea } from '../ui/textarea';
+import { GenerationMetadataPanel } from './GenerationMetadataPanel';
 import { HumanReviewNotice } from './HumanReviewNotice';
 import { ImportProtocolSourceActions } from './ImportProtocolSourceActions';
 import { SectionStateBadge, sectionStateLabel } from './sectionStateBadge';
@@ -35,6 +37,7 @@ export function SectionImportReviewScreen({
 }: SectionImportReviewScreenProps) {
   const draft = useSectionImportDraft(sectionId);
   const { importedSource } = useProtocolImport();
+  const [regenerating, setRegenerating] = useState(false);
 
   useEffect(() => {
     openSectionForReview(sectionId);
@@ -93,6 +96,18 @@ export function SectionImportReviewScreen({
           >
             Request Changes
           </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            data-testid="import-section-regenerate"
+            disabled={regenerating}
+            onClick={() => {
+              setRegenerating(true);
+              void regenerateSectionImportDraftAsync(sectionId).finally(() => setRegenerating(false));
+            }}
+          >
+            {regenerating ? 'Regenerating…' : 'Regenerate Section'}
+          </Button>
         </div>
       </header>
 
@@ -139,10 +154,11 @@ export function SectionImportReviewScreen({
               )}
             </div>
 
+            <GenerationMetadataPanel draft={draft} />
+
             <div className="flex flex-wrap gap-2">
               <SectionStateBadge state={draft.state} />
               <Badge variant="outline">Validation: {draft.validationStatus}</Badge>
-              <Badge variant="outline">Provider: {draft.generationProvider}</Badge>
             </div>
 
             <div className="space-y-2">
@@ -160,12 +176,12 @@ export function SectionImportReviewScreen({
               />
             </div>
 
-            {draft.validationMessages.length > 0 ? (
+            {(draft.validationMessages ?? []).length > 0 ? (
               <Alert data-testid="import-validation-results">
                 <AlertTitle>Validation results</AlertTitle>
                 <AlertDescription>
                   <ul className="list-disc pl-5 space-y-1 mt-2">
-                    {draft.validationMessages.map((message) => (
+                    {(draft.validationMessages ?? []).map((message) => (
                       <li key={message}>{message}</li>
                     ))}
                   </ul>

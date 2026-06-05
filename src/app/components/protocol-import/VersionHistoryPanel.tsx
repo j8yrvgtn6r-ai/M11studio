@@ -54,7 +54,7 @@ export function VersionHistoryPanel() {
               <p className="text-xs text-muted-foreground mt-1">
                 {new Date(commit.createdAt).toLocaleString()} · {commit.createdBy}
               </p>
-              {commit.changedSectionIds.length > 0 ? (
+              {(commit.changedSectionIds ?? []).length > 0 ? (
                 <p className="text-xs mt-1">
                   Sections: {commit.changedSectionIds.join(', ')}
                 </p>

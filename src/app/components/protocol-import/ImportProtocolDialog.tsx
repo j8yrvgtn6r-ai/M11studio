@@ -12,6 +12,8 @@ import {
   storeUploadedDocxArtifact,
 } from '../../domain/protocol/import';
 import type { ImportProcessingStep, ProtocolSourceArtifact } from '../../domain/protocol/import';
+import type { ProtocolKnowledgeModel } from '../../domain/protocol/import/protocolKnowledgeTypes';
+import { ProtocolUnderstandingSummary } from './ProtocolUnderstandingSummary';
 import { Alert, AlertDescription, AlertTitle } from '../ui/alert';
 import { Button } from '../ui/button';
 import { Checkbox } from '../ui/checkbox';
@@ -48,6 +50,7 @@ export function ImportProtocolDialog({
     createInitialProcessingSteps,
   );
   const [isDragging, setIsDragging] = useState(false);
+  const [completedKnowledge, setCompletedKnowledge] = useState<ProtocolKnowledgeModel | null>(null);
 
   const resetWizard = useCallback(() => {
     setWizardStep('upload');
@@ -56,6 +59,7 @@ export function ImportProtocolDialog({
     setUploadError(null);
     setProcessingSteps(createInitialProcessingSteps());
     setIsDragging(false);
+    setCompletedKnowledge(null);
   }, []);
 
   const handleOpenChange = (nextOpen: boolean) => {
@@ -111,6 +115,7 @@ export function ImportProtocolDialog({
         protocolKnowledgeModel,
         { isOverwrite: true },
       );
+      setCompletedKnowledge(protocolKnowledgeModel);
       setWizardStep('complete');
     } catch (error) {
       const message =
@@ -145,9 +150,8 @@ export function ImportProtocolDialog({
         <DialogHeader>
           <DialogTitle>Import Protocol</DialogTitle>
           <DialogDescription>
-            This workflow rewrites your uploaded protocol into the ICH M11 structure. The uploaded document is
-            retained as a reference artifact. DOCX structure is extracted before placeholder M11 drafts are
-            created for human review and approval.
+            This workflow understands your uploaded protocol as a complete study design document, then
+            reconstructs ICH M11 section proposals. Generated content is never auto-approved.
           </DialogDescription>
         </DialogHeader>
 
@@ -226,11 +230,15 @@ export function ImportProtocolDialog({
         ) : null}
 
         {wizardStep === 'complete' ? (
-          <div className="rounded-lg border border-border bg-muted/20 p-4 text-sm space-y-2">
-            <p className="font-medium">Import processing complete</p>
-            <p className="text-muted-foreground">
-              DOCX structure was extracted and M11 section drafts are ready for human review.
-            </p>
+          <div className="space-y-3">
+            <div className="rounded-lg border border-border bg-muted/20 p-4 text-sm space-y-2">
+              <p className="font-medium">Review package ready</p>
+              <p className="text-muted-foreground">
+                Protocol understanding and M11 draft generation completed. Human review is required before any
+                section becomes approved protocol content.
+              </p>
+            </div>
+            {completedKnowledge ? <ProtocolUnderstandingSummary knowledge={completedKnowledge} /> : null}
           </div>
         ) : null}
 

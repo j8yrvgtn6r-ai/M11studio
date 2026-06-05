@@ -20,8 +20,10 @@ export type {
   ProtocolVersion,
   ProtocolVersionLifecycleStatus,
   SectionGenerationProvider,
+  SectionGenerationProvenance,
   SectionReviewState,
   SectionStateHistoryEntry,
+  SectionValidationFinding,
   SourceSectionCandidate,
 } from './types';
 
@@ -41,6 +43,7 @@ export {
   openSectionForReview,
   openProtocolSourceArtifact,
   regenerateSectionImportDraft,
+  regenerateSectionImportDraftAsync,
   requestChangesOnSectionImportDraft,
   setProtocolImportArtifact,
   setProtocolImportDrafts,
@@ -86,4 +89,9 @@ export {
   isSectionApproved,
   type SectionReviewEvent,
 } from './sectionReviewStateMachine';
-export { normalizeSectionDraft } from './draftMigration';
+export { normalizeProtocolKnowledgeModel, normalizeSectionDraft } from './draftMigration';
+export { applyPostGenerationValidation, applyPostGenerationValidationBatch } from './postGenerationValidation';
+export { getConfiguredLlmProviderId, isRealLlmProvider, resolveLlmProviderConfig } from './llm/llmConfig';
+export { runProtocolUnderstanding, resolveProtocolUnderstandingProvider } from './llm/protocolUnderstandingProvider';
+export { runM11SectionGeneration, runM11SectionRegeneration, resolveM11GenerationProvider } from './llm/m11GenerationProvider';
+export { GENERATION_PROMPT_VERSION, UNDERSTANDING_PROMPT_VERSION, type LlmProviderId } from './llm/types';

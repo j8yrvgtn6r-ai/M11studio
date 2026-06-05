@@ -1,5 +1,9 @@
 import type { ImportedProtocolSource } from './types';
 import type { ProtocolKnowledgeModel } from './protocolKnowledgeTypes';
+import { runProtocolUnderstanding } from './llm/protocolUnderstandingProvider';
+import { ICH_M11_TEMPLATE_SECTION_SPECS } from '../ichM11/ichM11Template';
+import { ICH_M11_TECHNICAL_SPEC_SECTION_SPECS } from '../ichM11/ichM11TechnicalSpecification';
+import { UNDERSTANDING_PROMPT_VERSION } from './llm/types';
 
 const LABEL_PATTERNS: Array<{ field: keyof ProtocolKnowledgeModel; patterns: RegExp[] }> = [
   { field: 'studyTitle', patterns: [/^(?:study\s+)?title\s*[:]\s*(.+)$/im, /^protocol\s+title\s*[:]\s*(.+)$/im] },
@@ -9,8 +13,8 @@ const LABEL_PATTERNS: Array<{ field: keyof ProtocolKnowledgeModel; patterns: Reg
   { field: 'version', patterns: [/protocol\s+version\s*[:]\s*(.+)$/im, /version\s*[:]\s*([\d.]+)/i] },
   { field: 'phase', patterns: [/phase\s*[:]\s*(.+)$/im, /\bphase\s+(I{1,3}|IV|1|2|3|4)\b/i] },
   { field: 'indication', patterns: [/indication\s*[:]\s*(.+)$/im] },
-  { field: 'population', patterns: [/population\s*[:]\s*(.+)$/im, /study\s+population\s*[:]\s*(.+)$/im] },
-  { field: 'eligibilitySummary', patterns: [/eligibility\s*[:]\s*(.+)$/im] },
+  { field: 'targetPopulation', patterns: [/population\s*[:]\s*(.+)$/im, /study\s+population\s*[:]\s*(.+)$/im] },
+  { field: 'inclusionCriteriaSummary', patterns: [/inclusion\s*[:]\s*(.+)$/im] },
   { field: 'statisticalSummary', patterns: [/statistical\s+(?:considerations|analysis|methods)\s*[:]\s*(.+)$/im] },
 ];
 
@@ -52,85 +56,80 @@ function inferStudyTitle(source: ImportedProtocolSource): string | undefined {
   if (labeled) {
     return labeled;
   }
-  const firstHeading = source.headings[0]?.text ?? source.sections[0]?.headingText;
-  return firstHeading?.trim().slice(0, 300);
+  return source.headings[0]?.text ?? source.sections[0]?.headingText;
 }
 
-/** Deterministic knowledge extraction from DOCX source — not LLM-generated. */
+/** Legacy deterministic helper — used by fixture provider fallback paths only. */
 export function buildLocalDeterministicKnowledgeModel(
   sourceExtraction: ImportedProtocolSource,
 ): ProtocolKnowledgeModel {
   const text = sourceExtraction.fullText;
   const notes: string[] = [
-    'Knowledge assembled locally from DOCX text using pattern and section heuristics.',
-    'This is not an LLM semantic rewrite. Configure an LLM provider later for richer extraction.',
+    'Legacy deterministic knowledge helper.',
   ];
 
-  if (sourceExtraction.extractionWarnings.length > 0) {
-    notes.push(...sourceExtraction.extractionWarnings.map((warning) => `Source: ${warning}`));
-  }
+  const primaryObjectives = linesFromSections(sourceExtraction, SECTION_KEYWORDS.objectives);
 
   const model: ProtocolKnowledgeModel = {
     id: `knowledge-${sourceExtraction.uploadId}`,
     sourceUploadId: sourceExtraction.uploadId,
     extractedAt: new Date().toISOString(),
-    knowledgeProvider: 'local-deterministic',
+    knowledgeProvider: 'local',
+    understandingModel: 'local-deterministic-v1',
+    understandingPromptVersion: UNDERSTANDING_PROMPT_VERSION,
     confidence: sourceExtraction.sections.length > 1 ? 0.55 : 0.35,
     extractionNotes: notes,
+    sourceReferences: sourceExtraction.sections.slice(0, 4).map((section) => ({
+      sourceSectionId: section.id,
+      label: section.headingText,
+      excerpt: section.text.slice(0, 200),
+    })),
     studyTitle: inferStudyTitle(sourceExtraction),
-    objectives: linesFromSections(sourceExtraction, SECTION_KEYWORDS.objectives),
+    primaryObjectives,
+    secondaryObjectives: [],
+    exploratoryObjectives: [],
+    objectives: primaryObjectives,
     endpoints: linesFromSections(sourceExtraction, SECTION_KEYWORDS.endpoints),
     estimands: linesFromSections(sourceExtraction, SECTION_KEYWORDS.estimands),
     arms: linesFromSections(sourceExtraction, SECTION_KEYWORDS.arms),
+    armDefinitions: [],
     interventions: linesFromSections(sourceExtraction, SECTION_KEYWORDS.interventions),
+    visits: [],
+    assessments: [],
+    safetyMonitoring: [],
     safetyAssessments: linesFromSections(sourceExtraction, SECTION_KEYWORDS.safetyAssessments),
     efficacyAssessments: linesFromSections(sourceExtraction, SECTION_KEYWORDS.efficacyAssessments),
   };
 
   for (const { field, patterns } of LABEL_PATTERNS) {
-    if (field === 'studyTitle') {
-      continue;
-    }
+    if (field === 'studyTitle') continue;
     const value = firstMatch(text, patterns);
-    if (value && typeof model[field] === 'undefined') {
+    if (value && (model as Record<string, unknown>)[field] === undefined) {
       (model as Record<string, unknown>)[field] = value;
     }
-  }
-
-  if (!model.protocolIdentifier) {
-    const idMatch = /\b([A-Z]{2,}-\d{3,}[A-Z0-9-]*)\b/.exec(text);
-    if (idMatch) {
-      model.protocolIdentifier = idMatch[1];
-    }
-  }
-
-  if (!model.phase && /\bphase\s+(I{1,3}|IV)\b/i.test(text)) {
-    model.phase = text.match(/\bphase\s+(I{1,3}|IV)\b/i)?.[0];
-  }
-
-  const populatedScalars = [
-    model.studyTitle,
-    model.sponsor,
-    model.protocolIdentifier,
-    model.phase,
-    model.indication,
-  ].filter(Boolean).length;
-  const populatedLists =
-    model.objectives.length +
-    model.endpoints.length +
-    model.arms.length +
-    model.interventions.length;
-
-  if (populatedScalars + populatedLists >= 4) {
-    model.confidence = Math.min(0.75, model.confidence + 0.15);
   }
 
   return model;
 }
 
-/** Provider boundary — swap implementation when LLM is configured. */
+/** Provider boundary — delegates to configured ProtocolUnderstandingProvider. */
 export async function buildProtocolKnowledgeModel(
   sourceExtraction: ImportedProtocolSource,
+  artifact?: { id: string; filename: string },
 ): Promise<ProtocolKnowledgeModel> {
-  return buildLocalDeterministicKnowledgeModel(sourceExtraction);
+  return runProtocolUnderstanding({
+    sourceExtraction,
+    m11TemplateSections: ICH_M11_TEMPLATE_SECTION_SPECS,
+    m11TechnicalSpecification: ICH_M11_TECHNICAL_SPEC_SECTION_SPECS,
+    artifact: {
+      id: artifact?.id ?? sourceExtraction.uploadId,
+      filename: artifact?.filename ?? sourceExtraction.filename,
+      uploadedAt: sourceExtraction.extractedAt,
+      fileSize: 0,
+      fileType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      sourceType: 'user-uploaded-protocol',
+      status: 'processed',
+      storagePath: '',
+    },
+  });
 }

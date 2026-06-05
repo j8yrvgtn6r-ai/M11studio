@@ -41,8 +41,20 @@ function loadVersioningState(protocolId: string): ProtocolVersioningState {
     if (parsed.protocolId !== protocolId) {
       return createEmptyVersioningState(protocolId);
     }
-    return parsed;
+    if (!parsed.currentVersion?.id || !Array.isArray(parsed.commits)) {
+      return createEmptyVersioningState(protocolId);
+    }
+    return {
+      protocolId: parsed.protocolId,
+      currentVersion: parsed.currentVersion,
+      commits: parsed.commits.map((commit) => ({
+        ...commit,
+        changedSectionIds: commit.changedSectionIds ?? [],
+        metadata: commit.metadata ?? {},
+      })),
+    };
   } catch {
+    localStorage.removeItem(VERSIONING_STORAGE_KEY);
     return createEmptyVersioningState(protocolId);
   }
 }
@@ -136,8 +148,52 @@ export function createImportProcessingCommit(protocolId: string, uploadFilename:
     createdBy: 'local-user',
     source: 'importRewrite',
     changedSectionIds: [],
-    validationSummary: 'Import extraction and draft generation completed; human review required.',
+    validationSummary: 'Import extraction completed; human review required.',
     metadata: { uploadFilename },
+  });
+}
+
+export function createProtocolUnderstandingCommit(
+  protocolId: string,
+  metadata: Record<string, unknown>,
+): ProtocolCommit {
+  return appendCommit(protocolId, {
+    message: 'Protocol understanding completed',
+    createdBy: 'local-user',
+    source: 'protocolUnderstanding',
+    changedSectionIds: [],
+    validationSummary: 'Global protocol knowledge model built from uploaded study document.',
+    metadata,
+  });
+}
+
+export function createM11GenerationCommit(
+  protocolId: string,
+  sectionIds: string[],
+  metadata: Record<string, unknown>,
+): ProtocolCommit {
+  return appendCommit(protocolId, {
+    message: `M11 generation completed (${sectionIds.length} sections)`,
+    createdBy: 'local-user',
+    source: 'm11Generation',
+    changedSectionIds: sectionIds,
+    validationSummary: 'M11 section proposals generated; awaiting human review.',
+    metadata,
+  });
+}
+
+export function createSectionRegeneratedCommit(
+  protocolId: string,
+  sectionId: string,
+  metadata: Record<string, unknown>,
+): ProtocolCommit {
+  return appendCommit(protocolId, {
+    message: `Regenerated section ${sectionId}`,
+    createdBy: 'local-user',
+    source: 'sectionRegeneration',
+    changedSectionIds: [sectionId],
+    validationSummary: 'Prior draft superseded by regenerated proposal.',
+    metadata,
   });
 }
 

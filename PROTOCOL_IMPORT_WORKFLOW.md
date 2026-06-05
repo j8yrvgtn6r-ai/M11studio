@@ -6,7 +6,33 @@ Upload a previously authored protocol **DOCX**. The system extracts structure, b
 
 The uploaded DOCX remains a **reference artifact**; it is not the editable protocol.
 
-## v2 PR 2 — Knowledge layer, state machine, versioning (current)
+## v2 PR 3 — LLM protocol understanding + M11 generation (current)
+
+| Capability | Status |
+|------------|--------|
+| Protocol understanding | **LLM provider boundary** (OpenAI/Azure) + **fixture** for smoke/dev |
+| M11 section generation | **Reconstruction** from `ProtocolKnowledgeModel` (not section mapping) |
+| Generation provenance | **Stored per draft** (provider, model, prompt version, knowledge elements) |
+| Post-generation validation | **Non-blocking** structural + terminology suggestions |
+| Regenerate section | **Async** — supersedes prior version in history |
+| Version commits | Understanding, M11 generation, regeneration, approval |
+
+### LLM configuration
+
+| Variable | Purpose |
+|----------|---------|
+| `VITE_PROTOCOL_LLM_PROVIDER` | `openai` \| `azure-openai` \| `fixture` (default: fixture without API key) |
+| `VITE_OPENAI_API_KEY` | OpenAI API key |
+| `VITE_OPENAI_MODEL` | Model id (default `gpt-4o-mini`) |
+| `localStorage m11-protocol-llm-provider` | Runtime override |
+
+### Architecture
+
+```
+Uploaded DOCX → Extraction → Protocol Understanding (LLM) → ProtocolKnowledgeModel → M11 Generation (LLM) → Review
+```
+
+## v2 PR 2 — Knowledge layer, state machine, versioning
 
 | Capability | Status |
 |------------|--------|
