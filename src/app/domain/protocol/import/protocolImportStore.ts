@@ -1,20 +1,28 @@
-import { loadProtocolSourceDocument } from './protocolImportStorage';
+import {
+  loadImportedProtocolSource,
+  loadProtocolSourceDocument,
+  saveImportedProtocolSource,
+} from './protocolImportStorage';
 import { commitApprovedSectionToProtocol } from './protocolImportProcessor';
 import { validateGeneratedSectionDraft } from './sectionDraftValidation';
 import type {
   GeneratedSectionDraft,
+  ImportedProtocolSource,
+  ImportedProtocolSourceSummary,
   ProtocolImportReviewSummary,
   ProtocolImportState,
   ProtocolSourceArtifact,
 } from './types';
 
-const STORAGE_KEY = 'm11-protocol-import-v1';
+const STORAGE_KEY = 'm11-protocol-import-v2';
 
 const blobUrlCache = new Map<string, string>();
+const extractionCache = new Map<string, ImportedProtocolSource>();
 const listeners = new Set<() => void>();
 
 let state: ProtocolImportState = {
   artifact: null,
+  importedSourceSummary: null,
   sectionDrafts: {},
   lastImportCompletedAt: null,
 };
@@ -27,6 +35,20 @@ function notify(): void {
   }
 }
 
+function toSummary(source: ImportedProtocolSource): ImportedProtocolSourceSummary {
+  return {
+    uploadId: source.uploadId,
+    filename: source.filename,
+    extractedAt: source.extractedAt,
+    paragraphCount: source.paragraphs.length,
+    headingCount: source.headings.length,
+    sectionCandidateCount: source.sections.length,
+    tableCount: source.tables.length,
+    extractionWarnings: source.extractionWarnings,
+    fullTextLength: source.fullText.length,
+  };
+}
+
 function persistMetadata(): void {
   if (typeof localStorage === 'undefined') {
     return;
@@ -35,6 +57,7 @@ function persistMetadata(): void {
     STORAGE_KEY,
     JSON.stringify({
       artifact: state.artifact,
+      importedSourceSummary: state.importedSourceSummary,
       sectionDrafts: state.sectionDrafts,
       lastImportCompletedAt: state.lastImportCompletedAt,
     }),
@@ -45,15 +68,28 @@ function loadPersistedMetadata(): void {
   if (typeof localStorage === 'undefined') {
     return;
   }
-  const raw = localStorage.getItem(STORAGE_KEY);
+  const raw = localStorage.getItem(STORAGE_KEY) ?? localStorage.getItem('m11-protocol-import-v1');
   if (!raw) {
     return;
   }
   try {
     const parsed = JSON.parse(raw) as ProtocolImportState;
+    const sectionDrafts = parsed.sectionDrafts ?? {};
+    const artifact = parsed.artifact ?? null;
     state = {
-      artifact: parsed.artifact ?? null,
-      sectionDrafts: parsed.sectionDrafts ?? {},
+      artifact,
+      importedSourceSummary: parsed.importedSourceSummary ?? null,
+      sectionDrafts: Object.fromEntries(
+        Object.entries(sectionDrafts).map(([key, draft]) => [
+          key,
+          {
+            ...draft,
+            sourceExtractionId: draft.sourceExtractionId ?? artifact?.id ?? '',
+            matchedSourceCandidateIds: draft.matchedSourceCandidateIds ?? [],
+            extractionStatus: draft.extractionStatus ?? 'real-docx-parsed',
+          },
+        ]),
+      ),
       lastImportCompletedAt: parsed.lastImportCompletedAt ?? null,
     };
   } catch {
@@ -66,6 +102,7 @@ export async function initProtocolImportStore(): Promise<void> {
     return;
   }
   loadPersistedMetadata();
+
   if (state.artifact?.id) {
     const stored = await loadProtocolSourceDocument(state.artifact.id);
     if (stored?.blob) {
@@ -73,6 +110,14 @@ export async function initProtocolImportStore(): Promise<void> {
       blobUrlCache.set(state.artifact.id, URL.createObjectURL(stored.blob));
     }
   }
+
+  if (state.importedSourceSummary?.uploadId) {
+    const extraction = await loadImportedProtocolSource(state.importedSourceSummary.uploadId);
+    if (extraction) {
+      extractionCache.set(extraction.uploadId, extraction);
+    }
+  }
+
   hydrated = true;
   notify();
 }
@@ -84,6 +129,14 @@ export function subscribeProtocolImport(listener: () => void): () => void {
 
 export function getProtocolImportState(): ProtocolImportState {
   return state;
+}
+
+export function getImportedProtocolSource(): ImportedProtocolSource | null {
+  const uploadId = state.importedSourceSummary?.uploadId;
+  if (!uploadId) {
+    return null;
+  }
+  return extractionCache.get(uploadId) ?? null;
 }
 
 export function getProtocolImportReviewSummary(): ProtocolImportReviewSummary {
@@ -127,12 +180,32 @@ export function setProtocolImportArtifact(artifact: ProtocolSourceArtifact, blob
   notify();
 }
 
-export function setProtocolImportDrafts(
+export function setProtocolImportExtractionFailed(
+  artifact: ProtocolSourceArtifact,
+  errorMessage: string,
+): void {
+  state.artifact = {
+    ...artifact,
+    status: 'extraction-failed',
+    errorMessage,
+  };
+  state.importedSourceSummary = null;
+  state.sectionDrafts = {};
+  persistMetadata();
+  notify();
+}
+
+export async function setProtocolImportResult(
   drafts: GeneratedSectionDraft[],
   artifact: ProtocolSourceArtifact,
-): void {
+  importedSource: ImportedProtocolSource,
+): Promise<void> {
+  extractionCache.set(importedSource.uploadId, importedSource);
+  await saveImportedProtocolSource(importedSource);
+
   state.sectionDrafts = Object.fromEntries(drafts.map((draft) => [draft.sectionId, draft]));
   state.artifact = artifact;
+  state.importedSourceSummary = toSummary(importedSource);
   state.lastImportCompletedAt = new Date().toISOString();
   persistMetadata();
   notify();
@@ -216,4 +289,22 @@ export function openProtocolSourceArtifact(): void {
     throw new Error('Original protocol document is not available.');
   }
   window.open(url, '_blank', 'noopener,noreferrer');
+}
+
+/** @deprecated Use setProtocolImportResult */
+export function setProtocolImportDrafts(
+  drafts: GeneratedSectionDraft[],
+  artifact: ProtocolSourceArtifact,
+): void {
+  void setProtocolImportResult(drafts, artifact, {
+    uploadId: artifact.id,
+    filename: artifact.filename,
+    extractedAt: new Date().toISOString(),
+    fullText: '',
+    paragraphs: [],
+    headings: [],
+    sections: [],
+    tables: [],
+    extractionWarnings: ['Legacy import metadata without extraction body.'],
+  });
 }

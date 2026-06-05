@@ -3,13 +3,15 @@ import { AlertTriangle, FileUp, Upload } from 'lucide-react';
 
 import {
   createInitialProcessingSteps,
+  DocxExtractionError,
   isDocxFile,
   runProtocolImportProcessing,
   setProtocolImportArtifact,
-  setProtocolImportDrafts,
+  setProtocolImportExtractionFailed,
+  setProtocolImportResult,
   storeUploadedDocxArtifact,
 } from '../../domain/protocol/import';
-import type { ImportProcessingStep } from '../../domain/protocol/import';
+import type { ImportProcessingStep, ProtocolSourceArtifact } from '../../domain/protocol/import';
 import { Alert, AlertDescription, AlertTitle } from '../ui/alert';
 import { Button } from '../ui/button';
 import { Checkbox } from '../ui/checkbox';
@@ -87,23 +89,40 @@ export function ImportProtocolDialog({
     setWizardStep('processing');
     setUploadError(null);
 
+    let artifact: ProtocolSourceArtifact | null = null;
     try {
-      const artifact = await storeUploadedDocxArtifact(selectedFile);
+      artifact = await storeUploadedDocxArtifact(selectedFile);
       const blob = new Blob([await selectedFile.arrayBuffer()], {
         type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
       });
       setProtocolImportArtifact(artifact, blob);
 
-      const { artifact: processedArtifact, sectionDrafts } = await runProtocolImportProcessing(
-        { ...artifact, status: 'processing' },
-        { onStepsUpdate: setProcessingSteps },
-      );
+      const { artifact: processedArtifact, importedSource, sectionDrafts } =
+        await runProtocolImportProcessing(
+          { ...artifact, status: 'processing' },
+          blob,
+          { onStepsUpdate: setProcessingSteps },
+        );
 
-      setProtocolImportDrafts(sectionDrafts, processedArtifact);
+      await setProtocolImportResult(sectionDrafts, processedArtifact, importedSource);
       setWizardStep('complete');
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Import processing failed.';
-      setUploadError(message);
+      const message =
+        error instanceof DocxExtractionError
+          ? error.message
+          : error instanceof Error
+            ? error.message
+            : 'Import processing failed.';
+
+      if (artifact) {
+        setProtocolImportExtractionFailed(artifact, message);
+      }
+
+      setUploadError(
+        error instanceof DocxExtractionError
+          ? `${message} The uploaded DOCX is saved — fix the file and try again.`
+          : message,
+      );
       setWizardStep('upload');
     }
   };
@@ -121,8 +140,8 @@ export function ImportProtocolDialog({
           <DialogTitle>Import Protocol</DialogTitle>
           <DialogDescription>
             This workflow rewrites your uploaded protocol into the ICH M11 structure. The uploaded document is
-            retained as a reference artifact. Generated sections require human review and approval before they
-            become approved protocol content.
+            retained as a reference artifact. DOCX structure is extracted before placeholder M11 drafts are
+            created for human review and approval.
           </DialogDescription>
         </DialogHeader>
 
@@ -192,7 +211,7 @@ export function ImportProtocolDialog({
               </Label>
             </div>
 
-            {uploadError ? <p className="text-sm text-destructive">{uploadError}</p> : null}
+            {uploadError ? <p className="text-sm text-destructive" data-testid="import-upload-error">{uploadError}</p> : null}
           </div>
         ) : null}
 
@@ -204,7 +223,7 @@ export function ImportProtocolDialog({
           <div className="rounded-lg border border-border bg-muted/20 p-4 text-sm space-y-2">
             <p className="font-medium">Import processing complete</p>
             <p className="text-muted-foreground">
-              M11 section drafts are ready for human review. Open the review workspace to approve each section.
+              DOCX structure was extracted and M11 section drafts are ready for human review.
             </p>
           </div>
         ) : null}

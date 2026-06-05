@@ -10,8 +10,10 @@ import { useProtocolImport } from '../../domain/protocol/import/ProtocolImportCo
 import { Badge } from '../ui/badge';
 import { Button } from '../ui/button';
 import { ScrollArea } from '../ui/scroll-area';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
 import { ImportProtocolSourceActions } from './ImportProtocolSourceActions';
 import { SectionImportReviewScreen } from './SectionImportReviewScreen';
+import { SourceExtractionPanel } from './SourceExtractionPanel';
 
 interface ProtocolImportReviewWorkspaceProps {
   onBack: () => void;
@@ -50,6 +52,7 @@ export function ProtocolImportReviewWorkspace({
 }: ProtocolImportReviewWorkspaceProps) {
   const { state, summary } = useProtocolImport();
   const [activeSectionId, setActiveSectionId] = useState<string | null>(initialSectionId);
+  const [activeTab, setActiveTab] = useState<'sections' | 'extraction'>('sections');
 
   const drafts = useMemo(
     () =>
@@ -97,54 +100,76 @@ export function ProtocolImportReviewWorkspace({
         <SummaryTile label="Validation errors" value={summary.validationErrors} />
       </div>
 
-      <ScrollArea className="flex-1">
-        <div className="p-4 space-y-2 max-w-4xl">
-          {drafts.map((draft) => (
-            <div
-              key={draft.sectionId}
-              className="rounded-lg border border-border bg-card p-3 flex flex-col sm:flex-row sm:items-center gap-3"
-              data-testid={`import-review-row-${draft.sectionId}`}
-            >
-              <div className="flex-1 min-w-0">
-                <p className="font-medium text-sm truncate">{draft.title}</p>
-                <p className="text-xs text-muted-foreground line-clamp-2 mt-1">{draft.generatedText}</p>
-                <div className="flex flex-wrap gap-2 mt-2">
-                  {reviewStatusBadge(draft.reviewStatus)}
-                  {validationBadge(draft.validationStatus)}
-                </div>
-              </div>
-              <div className="flex flex-wrap gap-2 shrink-0">
-                <Button
-                  size="sm"
-                  variant="outline"
-                  data-testid={`import-review-open-${draft.sectionId}`}
-                  onClick={() => setActiveSectionId(draft.sectionId)}
+      <Tabs
+        value={activeTab}
+        onValueChange={(value) => setActiveTab(value as 'sections' | 'extraction')}
+        className="flex flex-col flex-1 min-h-0"
+      >
+        <TabsList className="mx-4 mt-3 w-fit shrink-0">
+          <TabsTrigger value="sections">Section review</TabsTrigger>
+          <TabsTrigger value="extraction" data-testid="import-tab-source-extraction">
+            Source extraction
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="sections" className="flex-1 min-h-0 mt-0">
+          <ScrollArea className="h-full">
+            <div className="p-4 space-y-2 max-w-4xl">
+              {drafts.map((draft) => (
+                <div
+                  key={draft.sectionId}
+                  className="rounded-lg border border-border bg-card p-3 flex flex-col sm:flex-row sm:items-center gap-3"
+                  data-testid={`import-review-row-${draft.sectionId}`}
                 >
-                  Review
-                </Button>
-                {draft.reviewStatus === 'pending-review' ? (
-                  <>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium text-sm truncate">{draft.title}</p>
+                    <p className="text-xs text-muted-foreground line-clamp-2 mt-1">{draft.generatedText}</p>
+                    <div className="flex flex-wrap gap-2 mt-2">
+                      {reviewStatusBadge(draft.reviewStatus)}
+                      {validationBadge(draft.validationStatus)}
+                      <Badge variant="outline" className="text-[10px]">
+                        {draft.extractionStatus}
+                      </Badge>
+                    </div>
+                  </div>
+                  <div className="flex flex-wrap gap-2 shrink-0">
                     <Button
                       size="sm"
-                      data-testid={`import-approve-${draft.sectionId}`}
-                      onClick={() => approveSectionImportDraft(draft.sectionId)}
+                      variant="outline"
+                      data-testid={`import-review-open-${draft.sectionId}`}
+                      onClick={() => setActiveSectionId(draft.sectionId)}
                     >
-                      Approve
+                      Review
                     </Button>
-                    <Button
-                      size="sm"
-                      variant="secondary"
-                      onClick={() => requestChangesOnSectionImportDraft(draft.sectionId)}
-                    >
-                      Request Changes
-                    </Button>
-                  </>
-                ) : null}
-              </div>
+                    {draft.reviewStatus === 'pending-review' ? (
+                      <>
+                        <Button
+                          size="sm"
+                          data-testid={`import-approve-${draft.sectionId}`}
+                          onClick={() => approveSectionImportDraft(draft.sectionId)}
+                        >
+                          Approve
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          onClick={() => requestChangesOnSectionImportDraft(draft.sectionId)}
+                        >
+                          Request Changes
+                        </Button>
+                      </>
+                    ) : null}
+                  </div>
+                </div>
+              ))}
             </div>
-          ))}
-        </div>
-      </ScrollArea>
+          </ScrollArea>
+        </TabsContent>
+
+        <TabsContent value="extraction" className="flex-1 min-h-0 mt-0">
+          <SourceExtractionPanel />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

@@ -1,6 +1,9 @@
+import type { ImportedProtocolSource } from './types';
+
 const DB_NAME = 'm11-studio-protocol-import';
-const DB_VERSION = 1;
-const STORE_NAME = 'source-documents';
+const DB_VERSION = 2;
+const DOC_STORE = 'source-documents';
+const EXTRACTION_STORE = 'extractions';
 
 export function isProtocolImportStorageAvailable(): boolean {
   return typeof indexedDB !== 'undefined';
@@ -13,8 +16,11 @@ function openDatabase(): Promise<IDBDatabase> {
     request.onsuccess = () => resolve(request.result);
     request.onupgradeneeded = () => {
       const database = request.result;
-      if (!database.objectStoreNames.contains(STORE_NAME)) {
-        database.createObjectStore(STORE_NAME, { keyPath: 'id' });
+      if (!database.objectStoreNames.contains(DOC_STORE)) {
+        database.createObjectStore(DOC_STORE, { keyPath: 'id' });
+      }
+      if (!database.objectStoreNames.contains(EXTRACTION_STORE)) {
+        database.createObjectStore(EXTRACTION_STORE, { keyPath: 'uploadId' });
       }
     };
   });
@@ -39,8 +45,8 @@ export async function saveProtocolSourceDocument(
 
   const database = await openDatabase();
   return new Promise((resolve, reject) => {
-    const transaction = database.transaction(STORE_NAME, 'readwrite');
-    const store = transaction.objectStore(STORE_NAME);
+    const transaction = database.transaction(DOC_STORE, 'readwrite');
+    const store = transaction.objectStore(DOC_STORE);
     const request = store.put(record);
     request.onerror = () => reject(request.error ?? new Error('Failed to save protocol source document'));
     request.onsuccess = () => resolve();
@@ -61,8 +67,8 @@ export async function loadProtocolSourceDocument(
 
   const database = await openDatabase();
   return new Promise((resolve, reject) => {
-    const transaction = database.transaction(STORE_NAME, 'readonly');
-    const store = transaction.objectStore(STORE_NAME);
+    const transaction = database.transaction(DOC_STORE, 'readonly');
+    const store = transaction.objectStore(DOC_STORE);
     const request = store.get(id);
     request.onerror = () => reject(request.error ?? new Error('Failed to load protocol source document'));
     request.onsuccess = () => {
@@ -72,6 +78,52 @@ export async function loadProtocolSourceDocument(
     transaction.onerror = () => {
       database.close();
       reject(transaction.error ?? new Error('IndexedDB read failed'));
+    };
+  });
+}
+
+export async function saveImportedProtocolSource(
+  source: ImportedProtocolSource,
+): Promise<void> {
+  if (!isProtocolImportStorageAvailable()) {
+    throw new Error('IndexedDB is not available.');
+  }
+
+  const database = await openDatabase();
+  return new Promise((resolve, reject) => {
+    const transaction = database.transaction(EXTRACTION_STORE, 'readwrite');
+    const store = transaction.objectStore(EXTRACTION_STORE);
+    const request = store.put(source);
+    request.onerror = () => reject(request.error ?? new Error('Failed to save extraction'));
+    request.onsuccess = () => resolve();
+    transaction.oncomplete = () => database.close();
+    transaction.onerror = () => {
+      database.close();
+      reject(transaction.error ?? new Error('IndexedDB extraction write failed'));
+    };
+  });
+}
+
+export async function loadImportedProtocolSource(
+  uploadId: string,
+): Promise<ImportedProtocolSource | null> {
+  if (!isProtocolImportStorageAvailable()) {
+    return null;
+  }
+
+  const database = await openDatabase();
+  return new Promise((resolve, reject) => {
+    const transaction = database.transaction(EXTRACTION_STORE, 'readonly');
+    const store = transaction.objectStore(EXTRACTION_STORE);
+    const request = store.get(uploadId);
+    request.onerror = () => reject(request.error ?? new Error('Failed to load extraction'));
+    request.onsuccess = () => {
+      resolve((request.result as ImportedProtocolSource | undefined) ?? null);
+    };
+    transaction.oncomplete = () => database.close();
+    transaction.onerror = () => {
+      database.close();
+      reject(transaction.error ?? new Error('IndexedDB extraction read failed'));
     };
   });
 }

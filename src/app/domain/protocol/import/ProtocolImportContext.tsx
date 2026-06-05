@@ -1,6 +1,5 @@
 import {
   createContext,
-  useCallback,
   useContext,
   useEffect,
   useMemo,
@@ -9,16 +8,18 @@ import {
 } from 'react';
 
 import {
+  getImportedProtocolSource,
   getProtocolImportReviewSummary,
   getProtocolImportState,
   initProtocolImportStore,
   subscribeProtocolImport,
 } from './protocolImportStore';
-import type { ProtocolImportReviewSummary, ProtocolImportState } from './types';
+import type { ImportedProtocolSource, ProtocolImportReviewSummary, ProtocolImportState } from './types';
 
 interface ProtocolImportContextValue {
   ready: boolean;
   state: ProtocolImportState;
+  importedSource: ImportedProtocolSource | null;
   summary: ProtocolImportReviewSummary;
   revision: number;
 }
@@ -46,16 +47,18 @@ export function ProtocolImportProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const state = useMemo(() => getProtocolImportState(), [revision]);
+  const importedSource = useMemo(() => getImportedProtocolSource(), [revision, state.importedSourceSummary]);
   const summary = useMemo(() => getProtocolImportReviewSummary(), [revision]);
 
   const value = useMemo(
     () => ({
       ready,
       state,
+      importedSource,
       summary,
       revision,
     }),
-    [ready, state, summary, revision],
+    [ready, state, importedSource, summary, revision],
   );
 
   return <ProtocolImportContext.Provider value={value}>{children}</ProtocolImportContext.Provider>;

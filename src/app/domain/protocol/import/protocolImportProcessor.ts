@@ -1,9 +1,12 @@
 import { applyApprovedSectionDraft, clearDraftProtocolContentForImport } from './applyImportToProtocol';
-import { saveProtocolSourceDocument } from './protocolImportStorage';
+import { DocxExtractionError, extractDocxProtocolSource } from './docxProtocolExtractor';
+import { loadProtocolSourceDocument, saveProtocolSourceDocument } from './protocolImportStorage';
 import { rewriteProtocolToM11Sections } from './rewriteProtocolToM11Sections';
 import type {
+  DocxExtractionProgress,
   ImportProcessingStep,
   ImportProcessingStepId,
+  ImportedProtocolSource,
   ProtocolSourceArtifact,
 } from './types';
 import { mutateProtocolDocument } from '../store/protocolStore';
@@ -29,6 +32,10 @@ export function createInitialProcessingSteps(): ImportProcessingStep[] {
 
 function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function stepIndex(id: ImportProcessingStepId): number {
+  return IMPORT_PROCESSING_STEP_DEFS.findIndex((step) => step.id === id);
 }
 
 export function isDocxFile(file: File): boolean {
@@ -79,34 +86,95 @@ export interface ProcessImportCallbacks {
   onStepsUpdate: (steps: ImportProcessingStep[]) => void;
 }
 
+function formatExtractionDetail(progress: DocxExtractionProgress): string {
+  const parts: string[] = [];
+  if (progress.paragraphCount !== undefined) {
+    parts.push(`${progress.paragraphCount} paragraphs`);
+  }
+  if (progress.headingCount !== undefined) {
+    parts.push(`${progress.headingCount} headings`);
+  }
+  if (progress.sectionCandidateCount !== undefined) {
+    parts.push(`${progress.sectionCandidateCount} source sections`);
+  }
+  if (progress.warnings?.length) {
+    parts.push(`${progress.warnings.length} warning(s)`);
+  }
+  return parts.join(' · ');
+}
+
 export async function runProtocolImportProcessing(
   artifact: ProtocolSourceArtifact,
+  docxBlob: Blob,
   callbacks: ProcessImportCallbacks,
 ): Promise<{
   artifact: ProtocolSourceArtifact;
+  importedSource: ImportedProtocolSource;
   sectionDrafts: ReturnType<typeof rewriteProtocolToM11Sections>;
 }> {
   const steps = createInitialProcessingSteps();
-  const setStepState = (index: number, state: ImportProcessingStep['state']) => {
-    steps[index] = { ...steps[index], state };
-    if (state === 'active') {
-      for (let i = 0; i < index; i += 1) {
-        if (steps[i].state === 'active') {
-          steps[i] = { ...steps[i], state: 'complete' };
-        }
+
+  const updateStep = (id: ImportProcessingStepId, patch: Partial<ImportProcessingStep>) => {
+    const index = stepIndex(id);
+    if (index < 0) {
+      return;
+    }
+    steps[index] = { ...steps[index], ...patch };
+    for (let i = 0; i < index; i += 1) {
+      if (steps[i].state === 'active') {
+        steps[i] = { ...steps[i], state: 'complete' };
       }
     }
     callbacks.onStepsUpdate([...steps]);
   };
 
   try {
-    for (let index = 0; index < steps.length; index += 1) {
-      setStepState(index, 'active');
-      await delay(index === 4 ? 900 : 550);
-      setStepState(index, 'complete');
+    updateStep('uploading', { state: 'active', detail: artifact.filename });
+    await delay(300);
+    updateStep('uploading', { state: 'complete' });
+
+    updateStep('reading-docx', { state: 'active', detail: 'Extracting paragraphs and tables…' });
+    const importedSource = await extractDocxProtocolSource(docxBlob, artifact.id, artifact.filename);
+    updateStep('reading-docx', {
+      state: 'complete',
+      detail: formatExtractionDetail({
+        paragraphCount: importedSource.paragraphs.length,
+        headingCount: importedSource.headings.length,
+      }),
+    });
+
+    updateStep('identifying-sections', { state: 'active' });
+    await delay(200);
+    updateStep('identifying-sections', {
+      state: 'complete',
+      detail: formatExtractionDetail({
+        sectionCandidateCount: importedSource.sections.length,
+        warnings: importedSource.extractionWarnings,
+      }),
+    });
+
+    const postExtractionSteps: ImportProcessingStepId[] = [
+      'understanding-context',
+      'rewriting-m11',
+      'creating-review-tasks',
+      'structure-checks',
+      'preparing-workspace',
+    ];
+
+    for (const stepId of postExtractionSteps) {
+      updateStep(stepId, { state: 'active' });
+      await delay(stepId === 'rewriting-m11' ? 700 : 400);
+      if (stepId === 'rewriting-m11') {
+        updateStep(stepId, {
+          state: 'complete',
+          detail: 'Placeholder M11 drafts generated (LLM rewrite pending)',
+        });
+      } else {
+        updateStep(stepId, { state: 'complete' });
+      }
     }
 
-    const drafts = rewriteProtocolToM11Sections({ ...artifact, status: 'processed' });
+    const drafts = rewriteProtocolToM11Sections(importedSource, artifact);
 
     mutateProtocolDocument((document) => {
       clearDraftProtocolContentForImport(document);
@@ -117,18 +185,33 @@ export async function runProtocolImportProcessing(
       status: 'processed',
     };
 
-    return { artifact: processedArtifact, sectionDrafts: drafts };
+    return { artifact: processedArtifact, importedSource, sectionDrafts: drafts };
   } catch (error) {
-    const failedIndex = steps.findIndex((step) => step.state === 'active');
-    if (failedIndex >= 0) {
-      steps[failedIndex] = { ...steps[failedIndex], state: 'failed' };
+    const activeIndex = steps.findIndex((step) => step.state === 'active');
+    if (activeIndex >= 0) {
+      steps[activeIndex] = {
+        ...steps[activeIndex],
+        state: 'failed',
+        detail: error instanceof Error ? error.message : 'Processing failed',
+      };
       callbacks.onStepsUpdate([...steps]);
     }
-    throw error;
+
+    if (error instanceof DocxExtractionError) {
+      throw error;
+    }
+    throw error instanceof Error ? error : new Error('Import processing failed.');
   }
 }
 
-export function commitApprovedSectionToProtocol(draft: Parameters<typeof applyApprovedSectionDraft>[1]): void {
+export async function loadDocxBlobForArtifact(artifactId: string): Promise<Blob | null> {
+  const stored = await loadProtocolSourceDocument(artifactId);
+  return stored?.blob ?? null;
+}
+
+export function commitApprovedSectionToProtocol(
+  draft: Parameters<typeof applyApprovedSectionDraft>[1],
+): void {
   mutateProtocolDocument((document) => {
     applyApprovedSectionDraft(document, draft);
   });

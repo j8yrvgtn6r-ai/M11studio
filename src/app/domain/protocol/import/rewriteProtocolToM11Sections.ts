@@ -1,10 +1,15 @@
 /**
- * LLM rewrite boundary — v1 returns placeholder drafts; swap implementation for real LLM later.
+ * LLM rewrite boundary — v2 feeds real extracted source; text remains placeholder until LLM is wired.
  */
 
+import { findRelevantSourceCandidates } from './m11SourceSectionMapping';
 import { ICH_M11_TEMPLATE_SECTION_SPECS } from '../ichM11/ichM11Template';
 import type { IchM11SectionSpec } from '../ichM11/types';
-import type { GeneratedSectionDraft, ProtocolSourceArtifact } from './types';
+import type {
+  GeneratedSectionDraft,
+  ImportedProtocolSource,
+  ProtocolSourceArtifact,
+} from './types';
 
 const PLACEHOLDER_BODY =
   'Draft generated from uploaded protocol pending LLM integration. This section was rewritten into the ICH M11 Template structure and requires human review before it becomes approved protocol content.';
@@ -22,16 +27,46 @@ function shouldGenerateDraftForSpec(spec: IchM11SectionSpec): boolean {
   return true;
 }
 
-function buildDraftText(spec: IchM11SectionSpec, artifact: ProtocolSourceArtifact): string {
+function excerpt(text: string, maxLength = 280): string {
+  const normalized = text.replace(/\s+/g, ' ').trim();
+  if (normalized.length <= maxLength) {
+    return normalized;
+  }
+  return `${normalized.slice(0, maxLength)}…`;
+}
+
+function buildDraftText(
+  spec: IchM11SectionSpec,
+  artifact: ProtocolSourceArtifact,
+  importedSource: ImportedProtocolSource,
+  matchedIds: string[],
+): string {
   if (spec.metadata?.viewKind === 'schedule-of-activities') {
     return SOA_PLACEHOLDER;
   }
-  return `${PLACEHOLDER_BODY}\n\nSource: ${artifact.filename}\nM11 section: ${spec.title}`;
+
+  const matched = importedSource.sections.filter((section) => matchedIds.includes(section.id));
+  const sourcePreview =
+    matched.length > 0
+      ? matched.map((section) => `• ${section.headingText}: ${excerpt(section.text, 200)}`).join('\n')
+      : '• No mapped source section — full document context available in Source Extraction panel.';
+
+  return [
+    PLACEHOLDER_BODY,
+    '',
+    `Source file: ${artifact.filename}`,
+    `M11 section: ${spec.title}`,
+    `Extraction: ${importedSource.sections.length} source section candidate(s), ${importedSource.paragraphs.length} paragraph(s)`,
+    '',
+    'Matched source excerpt(s):',
+    sourcePreview,
+  ].join('\n');
 }
 
 /** Generates M11 section draft proposals (never auto-approved). */
 export function rewriteProtocolToM11Sections(
-  sourceDocument: ProtocolSourceArtifact,
+  importedSource: ImportedProtocolSource,
+  artifact: ProtocolSourceArtifact,
   templateSpecs: IchM11SectionSpec[] = ICH_M11_TEMPLATE_SECTION_SPECS,
 ): GeneratedSectionDraft[] {
   const generatedAt = new Date().toISOString();
@@ -42,11 +77,17 @@ export function rewriteProtocolToM11Sections(
       continue;
     }
 
+    const matched = findRelevantSourceCandidates(spec.id, spec.title, importedSource.sections);
+    const matchedIds = matched.map((section) => section.id);
+
     drafts.push({
       sectionId: spec.id,
       title: spec.title,
-      generatedText: buildDraftText(spec, sourceDocument),
-      sourceUploadId: sourceDocument.id,
+      generatedText: buildDraftText(spec, artifact, importedSource, matchedIds),
+      sourceUploadId: artifact.id,
+      sourceExtractionId: importedSource.uploadId,
+      matchedSourceCandidateIds: matchedIds,
+      extractionStatus: 'real-docx-parsed',
       generationStatus: 'generated',
       reviewStatus: 'pending-review',
       generatedAt,
