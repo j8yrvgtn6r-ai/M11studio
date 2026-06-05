@@ -1,11 +1,12 @@
-import { BookOpen, ListTree, Settings } from 'lucide-react';
+import { BookOpen, Bot, ListTree, Settings } from 'lucide-react';
 
 import { Button } from '../ui/button';
 import { ScrollArea } from '../ui/scroll-area';
+import { AiProvidersSettingsPanel } from './AiProvidersSettingsPanel';
 import { IchM11ControlledTerminologyPanel } from './IchM11ControlledTerminologyPanel';
 import { IchM11SettingsPanel } from './IchM11SettingsPanel';
 
-export type SettingsView = 'ich-m11' | 'ich-m11-terminology';
+export type SettingsView = 'ich-m11' | 'ich-m11-terminology' | 'ai-providers';
 
 interface SettingsWorkspaceProps {
   activeView: SettingsView;
@@ -44,12 +45,22 @@ export function SettingsWorkspace({ activeView, onViewChange, onClose }: Setting
             <ListTree className="h-4 w-4" />
             Controlled Terminology
           </Button>
+          <Button
+            variant={activeView === 'ai-providers' ? 'secondary' : 'ghost'}
+            className="w-full justify-start gap-2 text-sm"
+            data-testid="settings-nav-ai-providers"
+            onClick={() => onViewChange('ai-providers')}
+          >
+            <Bot className="h-4 w-4" />
+            AI Providers
+          </Button>
         </nav>
 
         <ScrollArea className="flex-1">
           <div className="p-6">
             {activeView === 'ich-m11' ? <IchM11SettingsPanel /> : null}
             {activeView === 'ich-m11-terminology' ? <IchM11ControlledTerminologyPanel /> : null}
+            {activeView === 'ai-providers' ? <AiProvidersSettingsPanel /> : null}
           </div>
         </ScrollArea>
       </div>

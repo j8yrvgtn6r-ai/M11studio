@@ -19,6 +19,7 @@
     "smoke:ui-settings": "node scripts/smoke-ui-settings-playwright.mjs",
     "smoke:protocol-import": "node scripts/smoke-protocol-import-playwright.mjs",
     "smoke:app-startup": "node scripts/smoke-app-startup-playwright.mjs",
+    "smoke:ai-providers": "node scripts/smoke-ai-providers-playwright.mjs",
     "ingest:ich-m11-terminology": "npx vite-node scripts/ingest-ich-m11-terminology.ts"
   },
   "dependencies": {

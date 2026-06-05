@@ -21,6 +21,7 @@ import { ScrollArea } from '../ui/scroll-area';
 import { Textarea } from '../ui/textarea';
 import { GenerationMetadataPanel } from './GenerationMetadataPanel';
 import { HumanReviewNotice } from './HumanReviewNotice';
+import { LlmSafetyNotice } from './LlmSafetyNotice';
 import { ImportProtocolSourceActions } from './ImportProtocolSourceActions';
 import { SectionStateBadge, sectionStateLabel } from './sectionStateBadge';
 
@@ -154,6 +155,7 @@ export function SectionImportReviewScreen({
               )}
             </div>
 
+            <LlmSafetyNotice compact />
             <GenerationMetadataPanel draft={draft} />
 
             <div className="flex flex-wrap gap-2">

@@ -91,7 +91,18 @@ export {
 } from './sectionReviewStateMachine';
 export { normalizeProtocolKnowledgeModel, normalizeSectionDraft } from './draftMigration';
 export { applyPostGenerationValidation, applyPostGenerationValidationBatch } from './postGenerationValidation';
-export { getConfiguredLlmProviderId, isRealLlmProvider, resolveLlmProviderConfig } from './llm/llmConfig';
+export {
+  getConfiguredLlmProviderId,
+  getLlmProviderStatus,
+  isRealLlmProvider,
+  resolveLlmProviderConfig,
+} from './llm/llmConfig';
+export type {
+  LlmProviderCardInfo,
+  LlmProviderCardStatus,
+  LlmProviderSourceKind,
+  LlmProviderStatusSnapshot,
+} from './llm/llmConfig';
 export { runProtocolUnderstanding, resolveProtocolUnderstandingProvider } from './llm/protocolUnderstandingProvider';
 export { runM11SectionGeneration, runM11SectionRegeneration, resolveM11GenerationProvider } from './llm/m11GenerationProvider';
 export { GENERATION_PROMPT_VERSION, UNDERSTANDING_PROMPT_VERSION, type LlmProviderId } from './llm/types';

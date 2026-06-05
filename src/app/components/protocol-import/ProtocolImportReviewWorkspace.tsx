@@ -15,6 +15,7 @@ import { Button } from '../ui/button';
 import { ScrollArea } from '../ui/scroll-area';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
 import { HumanReviewNotice } from './HumanReviewNotice';
+import { ImportLlmProviderStatusPanel } from './ImportLlmProviderStatusPanel';
 import { ImportProtocolSourceActions } from './ImportProtocolSourceActions';
 import { ProtocolKnowledgePanel } from './ProtocolKnowledgePanel';
 import { SectionImportReviewScreen } from './SectionImportReviewScreen';
@@ -109,7 +110,8 @@ export function ProtocolImportReviewWorkspace({
         </div>
       </header>
 
-      <div className="px-4 pt-3 shrink-0">
+      <div className="px-4 pt-3 shrink-0 space-y-3">
+        <ImportLlmProviderStatusPanel />
         <HumanReviewNotice compact />
       </div>
 
