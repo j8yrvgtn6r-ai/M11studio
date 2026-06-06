@@ -28,6 +28,13 @@ async function assertStartup(page, label, options = {}) {
     throw new Error(`${label}: Foreword / template instruction nodes must not appear in Protocol Explorer`);
   }
 
+  await page.getByTestId('header-autosave-status').waitFor({ timeout: 15_000 });
+  await page.getByTestId('header-validation-summary').waitFor({ timeout: 15_000 });
+  const footerValidationIssues = page.getByText(/\d+ validation issues/i);
+  if ((await footerValidationIssues.count()) > 0) {
+    throw new Error(`${label}: footer should not show static mock validation issue counts`);
+  }
+
   if (!options.openReviewImport) {
     await assertWorkspacePaneScrolling(page);
   }

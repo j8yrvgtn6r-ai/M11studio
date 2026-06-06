@@ -93,7 +93,24 @@ export interface ProtocolBuildConsoleState {
 
 const MAX_EVENTS = 1500;
 
+/** Import milestones kept visible even when the rolling event buffer truncates during generation. */
+const PINNED_BUILD_MILESTONES = [
+  'Building Canonical Document',
+  'Classifying document blocks',
+  'Constructing canonical sections',
+  'Canonical document complete',
+  'Building Core Study Model',
+  'Core Study Model complete',
+  'sections mapped',
+  'Mapping content into M11 hierarchy',
+  'First draft available',
+  'Deep Study Model enrichment started',
+  'Priority generation complete',
+  'Hybrid import workspace ready',
+] as const;
+
 let eventCounter = 0;
+let pinnedBuildEvents: ProtocolBuildEvent[] = [];
 let pauseRequested = false;
 let resumePromise: Promise<void> | null = null;
 let resumeResolve: (() => void) | null = null;
@@ -124,6 +141,30 @@ function notify(): void {
 function nextEventId(): string {
   eventCounter += 1;
   return `build-event-${eventCounter}`;
+}
+
+function isPinnedBuildMilestone(message: string): boolean {
+  return PINNED_BUILD_MILESTONES.some((milestone) => message.includes(milestone));
+}
+
+function mergePinnedBuildEvents(recent: ProtocolBuildEvent[]): ProtocolBuildEvent[] {
+  const recentIds = new Set(recent.map((event) => event.id));
+  const pinned = pinnedBuildEvents.filter((event) => !recentIds.has(event.id));
+  return [...pinned, ...recent];
+}
+
+function rememberPinnedBuildEvent(entry: ProtocolBuildEvent): void {
+  if (!isPinnedBuildMilestone(entry.message)) {
+    return;
+  }
+  pinnedBuildEvents = [
+    ...pinnedBuildEvents.filter((event) => event.message !== entry.message),
+    entry,
+  ];
+}
+
+function clearPinnedBuildEvents(): void {
+  pinnedBuildEvents = [];
 }
 
 export function subscribeProtocolBuildConsole(listener: () => void): () => void {
@@ -177,12 +218,22 @@ export function resolveSectionGenerationState(
   buildActive: boolean,
 ): SectionGenerationState {
   const live = liveStates[sectionId];
+  const fromDraft = importDraft ? resolveWorkflowGenerationState(importDraft) : undefined;
+
+  if (live === 'queued' || live === 'generating' || live === 'validationRunning') {
+    return live;
+  }
+
   if (buildActive) {
+    if (fromDraft && fromDraft !== 'notGenerated') {
+      return fromDraft;
+    }
     if (live) {
       return live;
     }
-    return 'notGenerated';
+    return fromDraft ?? 'notGenerated';
   }
+
   if (!importDraft) {
     return live ?? 'notGenerated';
   }
@@ -192,7 +243,7 @@ export function resolveSectionGenerationState(
   if (live && (live === 'queued' || live === 'generating')) {
     return live;
   }
-  return resolveWorkflowGenerationState(importDraft);
+  return fromDraft ?? live ?? 'notGenerated';
 }
 
 export function appendProtocolBuildEvent(
@@ -211,15 +262,17 @@ export function appendProtocolBuildEvent(
     metadata: event.metadata,
   };
 
+  rememberPinnedBuildEvent(entry);
   state = {
     ...state,
-    events: [...state.events, entry].slice(-MAX_EVENTS),
+    events: mergePinnedBuildEvents([...state.events, entry].slice(-MAX_EVENTS)),
   };
   notify();
   return entry;
 }
 
 export function clearProtocolBuildEvents(): void {
+  clearPinnedBuildEvents();
   state = { ...state, events: [] };
   notify();
 }
@@ -233,6 +286,7 @@ export function startProtocolBuildSession(options?: {
   resumeResolve = null;
   prioritySectionQueue = [];
   injectedSectionQueue = [];
+  clearPinnedBuildEvents();
   state = {
     status: 'running',
     events: [],

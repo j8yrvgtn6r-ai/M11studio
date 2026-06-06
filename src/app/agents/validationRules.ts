@@ -290,7 +290,9 @@ function buildStructuralFindings(
   studyModel?: StudyModel | null,
 ): { findings: SectionValidationFinding[]; structuralSuggestions: StructuralSuggestion[] } {
   const validation = validateGeneratedSectionDraft(draft);
-  const findings: SectionValidationFinding[] = validation.messages.map((message) => ({
+  const findings: SectionValidationFinding[] = validation.messages
+    .filter((message) => !isLegacyTerminologyPendingMessage(message))
+    .map((message) => ({
     code: 'm11_validation',
     severity:
       validation.validationStatus === 'failed'
@@ -340,12 +342,279 @@ function buildStructuralFindings(
   return { findings, structuralSuggestions };
 }
 
+export type TrackChangeSegmentKind = 'unchanged' | 'deletion' | 'addition' | 'terminology';
+
+export interface TrackChangeSegment {
+  kind: TrackChangeSegmentKind;
+  text: string;
+  replacementText?: string;
+  change?: ValidationChange;
+  segmentId: string;
+}
+
+export interface SideBySidePanelSegment {
+  kind: TrackChangeSegmentKind | 'empty';
+  text: string;
+  change?: ValidationChange;
+  segmentId: string;
+}
+
+export interface ValidationChangeSummary {
+  total: number;
+  byType: Record<string, number>;
+  label: string;
+}
+
+export type ControlledTerminologyStatusLabel = 'Applied' | 'No conflicts' | 'Source unavailable';
+
+const LEGACY_TERMINOLOGY_PENDING =
+  'Controlled terminology validation available for structured fields; narrative validation pending.';
+
+export function isLegacyTerminologyPendingMessage(message: string): boolean {
+  return message.includes('narrative validation pending');
+}
+
+export function resolveControlledTerminologyStatus(
+  changes: ValidationChange[] = [],
+  controlledTerminologyEnabled = true,
+): ControlledTerminologyStatusLabel {
+  if (!controlledTerminologyEnabled) {
+    return 'Source unavailable';
+  }
+  if (changes.some((change) => change.type === 'terminology')) {
+    return 'Applied';
+  }
+  return 'No conflicts';
+}
+
+export function resolveControlledTerminologyMessage(
+  changes: ValidationChange[] = [],
+  controlledTerminologyEnabled = true,
+): string {
+  const status = resolveControlledTerminologyStatus(changes, controlledTerminologyEnabled);
+  switch (status) {
+    case 'Applied':
+      return 'Controlled terminology checks applied where matching terms were found.';
+    case 'No conflicts':
+      return 'No controlled terminology conflicts detected.';
+    default:
+      return 'Controlled terminology source unavailable.';
+  }
+}
+
+export function resolveM11StructureStatus(findings: SectionValidationFinding[] = []): 'Checked' | 'Findings found' {
+  const structuralFindings = findings.filter(
+    (finding) =>
+      finding.code !== 'controlled_terminology' &&
+      finding.code !== 'technical_spec_context' &&
+      !isLegacyTerminologyPendingMessage(finding.message),
+  );
+  return structuralFindings.some((finding) => finding.severity === 'error' || finding.severity === 'warning')
+    ? 'Findings found'
+    : 'Checked';
+}
+
+export function buildValidationReviewCompactSummary(
+  changes: ValidationChange[] = [],
+  findings: SectionValidationFinding[] = [],
+): string {
+  const relevantFindings = findings.filter(
+    (finding) =>
+      finding.code !== 'controlled_terminology' &&
+      !isLegacyTerminologyPendingMessage(finding.message),
+  );
+  const changeCount = changes.length;
+  const warningCount = relevantFindings.filter((finding) => finding.severity === 'warning').length;
+  const errorCount = relevantFindings.filter((finding) => finding.severity === 'error').length;
+  const parts: string[] = [];
+  if (changeCount > 0) {
+    parts.push(`${changeCount} proposed change${changeCount === 1 ? '' : 's'}`);
+  }
+  if (warningCount > 0) {
+    parts.push(`${warningCount} warning${warningCount === 1 ? '' : 's'}`);
+  }
+  if (errorCount > 0) {
+    parts.push(`${errorCount} error${errorCount === 1 ? '' : 's'}`);
+  }
+  return parts.length > 0 ? parts.join(' · ') : 'No proposed changes';
+}
+
+export function formatValidationProviderLabel(
+  provider?: string,
+  model?: string,
+): string {
+  if (!provider || provider === 'local-deterministic') {
+    return 'local-deterministic';
+  }
+  if (provider === 'openai') {
+    return model ? `OpenAI/${model}` : 'OpenAI';
+  }
+  if (provider === 'azure-openai') {
+    return model ? `Azure OpenAI/${model}` : 'Azure OpenAI';
+  }
+  return model ? `${provider}/${model}` : provider;
+}
+
+export function formatValidationChangeType(type: ValidationChangeType, severity?: ValidationChangeSeverity): string {
+  if (severity === 'required') {
+    return 'required';
+  }
+  switch (type) {
+    case 'terminology':
+      return 'terminology';
+    case 'structural':
+      return 'structure';
+    case 'formatting':
+      return 'formatting';
+    case 'replacement':
+      return 'grammar';
+    case 'addition':
+    case 'deletion':
+      return type;
+    default:
+      return type;
+  }
+}
+
+export function summarizeValidationChanges(changes: ValidationChange[] = []): ValidationChangeSummary {
+  const byType: Record<string, number> = {};
+  for (const change of changes) {
+    const key = formatValidationChangeType(change.type, change.severity);
+    byType[key] = (byType[key] ?? 0) + 1;
+  }
+  const parts = Object.entries(byType).map(([type, count]) => `${count} ${type}`);
+  const total = changes.length;
+  const label =
+    total === 0
+      ? 'No proposed changes'
+      : `${total} proposed change${total === 1 ? '' : 's'}${parts.length > 0 ? `: ${parts.join(', ')}` : ''}`;
+  return { total, byType, label };
+}
+
+export function formatValidationChangeTooltip(change?: ValidationChange): string {
+  if (!change) {
+    return 'Text changed during validation.';
+  }
+  const typeLabel = formatValidationChangeType(change.type, change.severity);
+  const lines = [`Change type: ${typeLabel}`, `Reason: ${change.reason || 'Validation adjustment'}`];
+  if (change.originalText) {
+    lines.push(`Original: ${change.originalText}`);
+  }
+  if (change.replacementText) {
+    lines.push(`Replacement: ${change.replacementText}`);
+  }
+  if (change.terminologyCode) {
+    lines.push(`Controlled terminology: ${change.terminologyCode}`);
+  }
+  if (change.severity) {
+    lines.push(`Severity: ${change.severity}`);
+  }
+  return lines.join('\n');
+}
+
+function findChangeForSegment(
+  segment: { kind: TrackChangeSegmentKind; text: string; replacementText?: string },
+  changes: ValidationChange[],
+  usedChangeIds: Set<string>,
+): ValidationChange | undefined {
+  const trimmed = segment.text.trim();
+  if (!trimmed || segment.kind === 'unchanged') {
+    return undefined;
+  }
+
+  const directMatch = changes.find((change) => {
+    if (usedChangeIds.has(change.id)) {
+      return false;
+    }
+    if (segment.kind === 'deletion' || (segment.kind === 'terminology' && change.originalText)) {
+      return change.originalText?.trim() === trimmed || change.originalText?.includes(trimmed);
+    }
+    if (segment.kind === 'addition' || segment.kind === 'terminology') {
+      return change.replacementText?.trim() === trimmed || change.replacementText?.includes(trimmed);
+    }
+    return false;
+  });
+  if (directMatch) {
+    usedChangeIds.add(directMatch.id);
+    return directMatch;
+  }
+
+  const fuzzyMatch = changes.find((change) => {
+    if (usedChangeIds.has(change.id)) {
+      return false;
+    }
+    return (
+      (change.originalText && trimmed.includes(change.originalText.trim())) ||
+      (change.replacementText && trimmed.includes(change.replacementText.trim()))
+    );
+  });
+  if (fuzzyMatch) {
+    usedChangeIds.add(fuzzyMatch.id);
+    return fuzzyMatch;
+  }
+
+  return undefined;
+}
+
+export function enrichTrackChangeSegments(
+  originalText: string,
+  validatedText: string,
+  changes: ValidationChange[] = [],
+): TrackChangeSegment[] {
+  const base = buildTrackChangeSegments(originalText, validatedText, changes);
+  const usedChangeIds = new Set<string>();
+  return base.map((segment, index) => ({
+    ...segment,
+    segmentId: `segment-${index}`,
+    change: findChangeForSegment(segment, changes, usedChangeIds),
+  }));
+}
+
+export function buildSideBySidePanels(
+  originalText: string,
+  validatedText: string,
+  changes: ValidationChange[] = [],
+): { left: SideBySidePanelSegment[]; right: SideBySidePanelSegment[]; summary: ValidationChangeSummary } {
+  const segments = enrichTrackChangeSegments(originalText, validatedText, changes);
+  const left: SideBySidePanelSegment[] = [];
+  const right: SideBySidePanelSegment[] = [];
+
+  for (const segment of segments) {
+    if (segment.kind === 'unchanged') {
+      left.push({ kind: 'unchanged', text: segment.text, segmentId: `${segment.segmentId}-left` });
+      right.push({ kind: 'unchanged', text: segment.text, segmentId: `${segment.segmentId}-right` });
+      continue;
+    }
+
+    if (segment.kind === 'deletion' || (segment.kind === 'terminology' && segment.change?.originalText)) {
+      left.push({
+        kind: segment.kind,
+        text: segment.text,
+        change: segment.change,
+        segmentId: `${segment.segmentId}-left`,
+      });
+      right.push({ kind: 'empty', text: '', segmentId: `${segment.segmentId}-right-spacer` });
+      continue;
+    }
+
+    right.push({
+      kind: segment.kind,
+      text: segment.text,
+      change: segment.change,
+      segmentId: `${segment.segmentId}-right`,
+    });
+    left.push({ kind: 'empty', text: '', segmentId: `${segment.segmentId}-left-spacer` });
+  }
+
+  return { left, right, summary: summarizeValidationChanges(changes) };
+}
+
 export function buildTrackChangeSegments(
   originalText: string,
   validatedText: string,
   changes: ValidationChange[] = [],
 ): Array<{
-  kind: 'unchanged' | 'deletion' | 'addition' | 'terminology';
+  kind: TrackChangeSegmentKind;
   text: string;
   replacementText?: string;
 }> {
@@ -535,6 +804,13 @@ export function evaluateValidation(input: ValidationAgentInput): ValidationAgent
   };
 
   const { findings, structuralSuggestions } = buildStructuralFindings(provisionalDraft, spec, input.studyModel);
+
+  const terminologyEnabled = input.controlledTerminology !== false;
+  findings.push({
+    code: 'controlled_terminology',
+    severity: 'info',
+    message: resolveControlledTerminologyMessage(allChanges, terminologyEnabled),
+  });
 
   if (techContext.some((entry) => entry.id === input.sectionId)) {
     findings.push({

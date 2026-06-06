@@ -42,6 +42,7 @@ import {
   stageProtocolImportUnderstanding,
   stageProtocolImportExtraction,
   stageProtocolImportMappings,
+  stageProtocolImportDiagnostics,
   markProtocolImportUnderstandingPhase,
   mergeProtocolKnowledgeEnrichment,
   upsertLiveSectionImportDraft,
@@ -75,6 +76,10 @@ import {
   listQuickReconstructionSectionIds,
 } from './quickReconstructionSections';
 import { createImportedSectionDraft, markDraftAsGenerated } from './importedSectionBuilder';
+import {
+  buildSectionImportDiagnosticsSnapshot,
+  emitOrphanImportDiagnosticEvents,
+} from './sectionImportDiagnostics';
 import { runStructuralMappingAgent } from '../../../agents/structuralMappingAgentRunner';
 import { runGenerationAgentSchedule } from '../../../agents/generationAgentRunner';
 import { rebuildStudyModel, setStudyModelPhase } from '../../study-model/studyModelStore';
@@ -263,7 +268,15 @@ export async function runProtocolImportProcessing(
     updateStep('uploading', { state: 'complete' });
 
     updateStep('reading-docx', { state: 'active', detail: 'Extracting DOCX…' });
-    const importedSource = await extractDocxProtocolSource(docxBlob, artifact.id, artifact.filename);
+    const importedSource = await extractDocxProtocolSource(docxBlob, artifact.id, artifact.filename, {
+      onCanonicalProgress: (event) => {
+        appendProtocolBuildEvent({
+          type: event.phase === 'complete' ? 'success' : 'progress',
+          message: event.message,
+          metadata: event.metadata,
+        });
+      },
+    });
     appendProtocolBuildEvent({
       type: 'success',
       message: `Extracted ${importedSource.paragraphs.length} paragraphs and ${importedSource.headings.length} headings`,
@@ -282,7 +295,7 @@ export async function runProtocolImportProcessing(
 
     updateStep('identifying-sections', { state: 'active' });
     appendProtocolBuildEvent({ type: 'progress', message: 'Detecting protocol structure...' });
-    const { result: structuralMapping } = await runStructuralMappingAgent(importedSource, { trigger: 'import' });
+    const { result: structuralMapping, output: structuralMappingOutput } = await runStructuralMappingAgent(importedSource, { trigger: 'import' });
     appendProtocolBuildEvent({ type: 'progress', message: 'Mapping content into M11 hierarchy...' });
     appendProtocolBuildEvent({
       type: 'success',
@@ -294,7 +307,7 @@ export async function runProtocolImportProcessing(
       createImportedSectionDraft(mapping, artifact, importedSource),
     );
     await stageProtocolImportExtraction({ ...artifact, status: 'processing' }, importedSource);
-    await stageProtocolImportMappings(structuralMapping.mappings);
+    await stageProtocolImportMappings(structuralMapping.mappings, structuralMappingOutput.suspiciousMappings);
     appendProtocolBuildEvent({ type: 'success', message: 'Import extraction staged for generation context' });
 
     for (const draft of importedDrafts) {
@@ -535,6 +548,29 @@ export async function runProtocolImportProcessing(
 
     mutateProtocolDocument((document) => {
       clearDraftProtocolContentForImport(document);
+    });
+
+    const buildConsoleState = getProtocolBuildConsoleState();
+    const importDiagnosticsSnapshot = buildSectionImportDiagnosticsSnapshot({
+      mappings: structuralMapping.mappings,
+      suspiciousMappings: structuralMappingOutput.suspiciousMappings,
+      needsGenerationSectionIds: structuralMapping.needsGenerationSectionIds,
+      generationSchedule,
+      importedSource,
+      protocolKnowledgeModel,
+      importContextPhase: 'ready',
+      sectionDrafts: Object.fromEntries(drafts.map((draft) => [draft.sectionId, draft])),
+      sectionSkipReasons: buildConsoleState.sectionSkipReasons,
+      sectionGenerationStates: buildConsoleState.sectionStates,
+      generatedSectionIds: generatedDrafts.map((draft) => draft.sectionId),
+      queuedSectionIds: [
+        ...generationSchedule.prioritizedSections,
+        ...generationSchedule.backgroundSections,
+      ],
+    });
+    await stageProtocolImportDiagnostics(importDiagnosticsSnapshot);
+    emitOrphanImportDiagnosticEvents(importDiagnosticsSnapshot, (event) => {
+      appendProtocolBuildEvent(event);
     });
 
     mergeSectionGenerationStatesFromDrafts(drafts, { allM11SectionIds, prioritySectionIds });

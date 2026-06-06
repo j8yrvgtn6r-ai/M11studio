@@ -243,6 +243,14 @@ export function toStructuralMappingResult(output: StructuralMappingAgentOutput):
   };
 }
 
+function resolveMappingCandidates(sourceExtraction: ImportedProtocolSource | null | undefined): SourceSectionCandidate[] {
+  if (!sourceExtraction) {
+    return [];
+  }
+  // Source sections are built from CanonicalDocument.sections during detectSourceSections().
+  return mapSourceCandidatesToM11(sourceExtraction.sections);
+}
+
 export function evaluateStructuralMapping(
   input: StructuralMappingAgentInput,
   options?: StructuralMappingRuleOptions,
@@ -252,7 +260,7 @@ export function evaluateStructuralMapping(
   }
 
   const specs = (input.m11TemplateSections ?? ICH_M11_TEMPLATE_SECTION_SPECS).filter(isAuthorableM11Spec);
-  const candidates = mapSourceCandidatesToM11(input.sourceExtraction.sections);
+  const candidates = resolveMappingCandidates(input.sourceExtraction);
   const mappedSections: AgentMappedSection[] = [];
   const suspiciousMappings: SuspiciousMappingRecord[] = [];
   const usedCandidateIds = new Set<string>();

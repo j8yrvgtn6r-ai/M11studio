@@ -31,6 +31,11 @@ export type {
   SourceSectionCandidate,
   StructuralMappingResult,
   ConsistencyImpactRecord,
+  SectionImportDiagnostics,
+  SectionMappingStatus,
+  SectionMappingReason,
+  SectionGenerationEligibility,
+  SuspiciousMappingRecord,
 } from './types';
 
 export type { ProtocolKnowledgeModel, ProtocolKnowledgeProvider, ProtocolKnowledgeProviderId } from './protocolKnowledgeTypes';
@@ -57,10 +62,16 @@ export {
   regenerateSectionImportDraftAsync,
   rejectSectionValidation,
   runSectionValidation,
+  runLlmSectionValidation,
+  revertToDeterministicValidationProposal,
+  clearLlmValidationInProgress,
   stageProtocolImportExtraction,
   stageProtocolImportCoreUnderstanding,
   stageProtocolImportUnderstanding,
   stageProtocolImportMappings,
+  stageProtocolImportDiagnostics,
+  getSectionImportDiagnostics,
+  getAllSectionImportDiagnostics,
   markProtocolImportUnderstandingPhase,
   mergeProtocolKnowledgeEnrichment,
   syncSectionImportDrafts,
@@ -71,6 +82,12 @@ export {
   setProtocolImportExtractionFailed,
   setProtocolImportResult,
   subscribeProtocolImport,
+  subscribeProtocolImportPersist,
+  getLastPersistedAt,
+  collectImportValidationFindings,
+  applyValidationNoChangesRequired,
+  isValidationTextUnchanged,
+  normalizeValidationText,
   updateSectionImportDraft,
   applyConsistencyAgentResults,
   clearSectionOutOfSyncState,
@@ -163,6 +180,7 @@ export {
 export { applyPostGenerationValidation, applyPostGenerationValidationBatch } from './postGenerationValidation';
 export {
   getConfiguredLlmProviderId,
+  getLlmValidationAvailability,
   getLlmProviderStatus,
   isRealLlmProvider,
   resolveLlmProviderConfig,
@@ -206,5 +224,17 @@ export {
   listSectionsEligibleForGeneration,
   QUICK_RECONSTRUCTION_SECTION_IDS,
 } from './quickReconstructionSections';
-export { listM11GenerationTargetSectionIds, flattenProtocolSectionIds } from './importVisualizationUtils';
+export {
+  buildSectionImportDiagnosticsForSection,
+  buildSectionImportDiagnosticsSnapshot,
+  classifyMappingReasonFromText,
+  emitOrphanImportDiagnosticEvents,
+  formatImportDiagnosticsTooltip,
+  generationEligibilityLabel,
+  isOrphanSectionGenerationState,
+  mappingReasonLabel,
+  mappingStatusLabel,
+  resolveSectionImportDiagnostics,
+} from './sectionImportDiagnostics';
+export type { BuildSectionImportDiagnosticsInput } from './sectionImportDiagnostics';
 export { runStagedProtocolUnderstanding, runDeepKnowledgeEnrichment } from './llm/understandingSlices';

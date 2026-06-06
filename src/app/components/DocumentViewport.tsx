@@ -328,7 +328,9 @@ export function DocumentViewport({
 
       <ScrollArea className="flex-1 min-h-0" data-testid="document-viewport-scroll">
 
-        <div className="p-6 max-w-5xl">
+        <div
+          className={`p-6 max-w-5xl ${importDraft && isValidationProposedSection ? 'flex flex-col min-h-[calc(100vh-14rem)]' : ''}`}
+        >
 
           {showNotGeneratedState ? (
             <Alert data-testid="viewport-section-not-generated">
@@ -427,7 +429,11 @@ export function DocumentViewport({
 
           {importDraft && isValidationProposedSection ? (
 
+            <div className="flex flex-1 min-h-0 flex flex-col">
+
             <SectionValidationReviewPanel
+
+              sectionId={section.id}
 
               draft={importDraft}
 
@@ -436,6 +442,8 @@ export function DocumentViewport({
               onReject={() => rejectSectionValidation(section.id)}
 
             />
+
+            </div>
 
           ) : null}
 
@@ -486,20 +494,6 @@ export function DocumentViewport({
                 onChange={(event) => onImportDraftTextChange?.(event.target.value)}
 
               />
-
-              {(importDraft.validationMessages ?? []).length > 0 ? (
-
-                <ul className="text-xs text-muted-foreground list-disc pl-5 space-y-1" data-testid="import-validation-results">
-
-                  {(importDraft.validationMessages ?? []).map((message) => (
-
-                    <li key={message}>{message}</li>
-
-                  ))}
-
-                </ul>
-
-              ) : null}
 
             </div>
 

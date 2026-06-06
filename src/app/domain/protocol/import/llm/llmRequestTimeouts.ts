@@ -3,6 +3,7 @@ export const LLM_TIMEOUT_MS = {
   protocolUnderstanding: 120_000,
   sectionGeneration: 120_000,
   sectionRegeneration: 120_000,
+  sectionValidation: 120_000,
 } as const;
 
 export type LlmRequestOperation = keyof typeof LLM_TIMEOUT_MS;
@@ -12,6 +13,7 @@ const OPERATION_LABELS: Record<LlmRequestOperation, string> = {
   protocolUnderstanding: 'protocol understanding',
   sectionGeneration: 'M11 section generation',
   sectionRegeneration: 'M11 section regeneration',
+  sectionValidation: 'LLM validation',
 };
 
 export class LlmRequestTimeoutError extends Error {

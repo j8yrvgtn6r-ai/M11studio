@@ -80,8 +80,19 @@ export interface ValidationAttemptRecord {
   attemptedAt: string;
   validatedTargetText: string;
   changeCount: number;
-  outcome: 'proposed' | 'accepted' | 'rejected' | 'failed';
+  outcome: 'proposed' | 'accepted' | 'rejected' | 'failed' | 'no_changes_required';
   reason?: string;
+  provider?: SectionGenerationProvider | 'local-deterministic';
+}
+
+export interface ValidationProposalSnapshot {
+  validatedTargetText?: string;
+  validationChanges?: ValidationChange[];
+  validationFindings?: SectionValidationFinding[];
+  validationMessages?: string[];
+  validationProvider?: SectionGenerationProvider | 'local-deterministic';
+  validationModel?: string;
+  lastValidatedAt?: string;
 }
 
 export interface SectionStateHistoryEntry {
@@ -160,6 +171,8 @@ export interface SourceSectionCandidate {
   importedTextLength?: number;
   sourcePreview?: string;
   isSuspiciousBody?: boolean;
+  /** Link to Canonical Document Model section when built via CDM. */
+  canonicalSectionId?: string;
 }
 
 export interface ImportedProtocolSource {
@@ -172,6 +185,8 @@ export interface ImportedProtocolSource {
   sections: SourceSectionCandidate[];
   tables: ExtractedTable[];
   extractionWarnings: string[];
+  /** Canonical Document Model identifier (`canonical-{uploadId}`). */
+  canonicalDocumentId?: string;
 }
 
 /** Persisted without large fullText — load body from IndexedDB. */
@@ -238,6 +253,60 @@ export interface StructuralMappingResult {
   needsGenerationSectionIds: string[];
 }
 
+export interface SuspiciousMappingRecord {
+  sourceSectionId: string;
+  sourceHeading: string;
+  mappedM11SectionId: string;
+  mappedM11Title: string;
+  mappingMethod: MappingMethod;
+  mappingScore: number;
+  reason: string;
+  warnings: string[];
+}
+
+export type SectionMappingStatus = 'mapped' | 'suspicious' | 'rejected' | 'noMatch';
+
+export type SectionMappingReason =
+  | 'headingOnly'
+  | 'bodyTooShort'
+  | 'appendixMismatch'
+  | 'tocFragment'
+  | 'lowConfidence'
+  | 'duplicateMapping'
+  | 'noCandidate'
+  | 'other';
+
+export type SectionGenerationEligibility =
+  | 'eligible'
+  | 'waitingForCoreModel'
+  | 'waitingForKnowledgeLayer'
+  | 'noSourceContext'
+  | 'skippedByGenerationAgent'
+  | 'alreadyGenerated'
+  | 'other';
+
+export interface SectionImportDiagnostics {
+  sectionId: string;
+  sectionTitle: string;
+  capturedAt: string;
+  generationState?: string;
+  foundInSource: boolean;
+  sourceHeadingMatch?: string;
+  mappingStatus: SectionMappingStatus;
+  mappingReason: SectionMappingReason;
+  mappingDetail?: string;
+  mappingScore?: number;
+  generationAttempted: boolean;
+  generationEligibility: SectionGenerationEligibility;
+  generationSkipReason?: string;
+  diagnosticSummary: string;
+  canonicalSectionId?: string;
+  canonicalHeadingLevel?: number;
+  canonicalBlockCount?: number;
+  mappingSimilarityScore?: number;
+  mappingSimilarityReasons?: string[];
+}
+
 export interface GeneratedSectionDraft {
   sectionId: string;
   title: string;
@@ -280,6 +349,11 @@ export interface GeneratedSectionDraft {
   mappingWarnings?: string[];
   suspiciousMapping?: boolean;
   lastValidatedAt?: string;
+  validationProvider?: SectionGenerationProvider | 'local-deterministic';
+  validationModel?: string;
+  /** Snapshot of deterministic proposal preserved while reviewing an LLM proposal. */
+  deterministicValidationBackup?: ValidationProposalSnapshot | null;
+  llmValidationInProgress?: boolean;
   validationChanges?: ValidationChange[];
   validationHistory?: ValidationAttemptRecord[];
   /** Consistency Agent — downstream impact records when study facts change elsewhere. */
@@ -354,6 +428,8 @@ export interface ProtocolImportState {
   protocolId: string;
   sectionDrafts: Record<string, GeneratedSectionDraft>;
   structuralMappings?: MappedProtocolSection[];
+  suspiciousMappings?: SuspiciousMappingRecord[];
+  sectionImportDiagnostics?: Record<string, SectionImportDiagnostics>;
   lastImportCompletedAt: string | null;
   storageWarnings: string[];
   /** In-memory staging phase for the active import session. */

@@ -1,7 +1,7 @@
 import JSZip from 'jszip';
 import mammoth from 'mammoth';
 
-import { detectSourceSections } from './sourceSectionDetection';
+import { detectSourceSections, type DetectSourceSectionsOptions } from './sourceSectionDetection';
 import type {
   ExtractedHeading,
   ExtractedParagraph,
@@ -136,6 +136,7 @@ export async function extractDocxProtocolSource(
   blob: Blob,
   uploadId: string,
   filename: string,
+  options?: DetectSourceSectionsOptions,
 ): Promise<ImportedProtocolSource> {
   const warnings: string[] = [];
   const arrayBuffer = await blob.arrayBuffer();
@@ -220,5 +221,5 @@ export async function extractDocxProtocolSource(
     warnings.push('No Word heading styles detected in OOXML.');
   }
 
-  return detectSourceSections(uploadId, filename, alignedFullText, paragraphs, headings, tables, warnings);
+  return detectSourceSections(uploadId, filename, alignedFullText, paragraphs, headings, tables, warnings, options);
 }

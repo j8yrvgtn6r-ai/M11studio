@@ -7,8 +7,15 @@ import {
   consistencyAgent,
   evaluateConsistencyImpacts,
   evaluateStructuralMapping,
+  toStructuralMappingResult,
   evaluateValidation,
   buildTrackChangeSegments,
+  enrichTrackChangeSegments,
+  formatValidationChangeTooltip,
+  summarizeValidationChanges,
+  buildValidationReviewCompactSummary,
+  resolveControlledTerminologyStatus,
+  isLegacyTerminologyPendingMessage,
   STRUCTURAL_MAPPING_AGENT_ID,
   structuralMappingAgent,
   VALIDATION_AGENT_ID,
@@ -26,14 +33,19 @@ import {
   applyConsistencyAgentResults,
   acceptSectionValidation,
   applyValidationAgentProposal,
+  applyValidationNoChangesRequired,
   getProtocolImportState,
   initProtocolImportStore,
+  isValidationTextUnchanged,
   rejectSectionValidation,
+  revertToDeterministicValidationProposal,
+  clearLlmValidationInProgress,
   runSectionValidation,
 } from '../src/app/domain/protocol/import/protocolImportStore';
 import type { ExtractedParagraph, GeneratedSectionDraft } from '../src/app/domain/protocol/import/types';
 import { detectSourceSections } from '../src/app/domain/protocol/import/sourceSectionDetection';
 import { isMostlyTableOfContentsDots } from '../src/app/domain/protocol/import/sourceSectionBodyExtractor';
+import { buildSectionImportDiagnosticsForSection } from '../src/app/domain/protocol/import/sectionImportDiagnostics';
 import {
   inferWorkflowState,
   isValidationReviewReady,
@@ -391,6 +403,69 @@ function testShortNonsenseTextBecomesSuspicious() {
   assert.ok(output.suspiciousMappings.length > 0 || output.mappingSummary.importedCount === 0);
 }
 
+function testSection842VitalSignsImportDiagnostics() {
+  const paragraphs = [
+    buildMappingParagraph(0, '8.4 Study Assessments and Procedures', { isHeadingStyle: true, headingLevel: 2 }),
+    buildMappingParagraph(
+      1,
+      'Study assessments and procedures will be performed according to the schedule of activities table.',
+    ),
+    buildMappingParagraph(2, '8.4.2 Vital Signs', { isHeadingStyle: true, headingLevel: 3 }),
+    buildMappingParagraph(3, '8.4.2 Vital Signs'),
+  ];
+  const source = detectSourceSections(
+    'upload-vital-signs',
+    'fixture.docx',
+    paragraphs.map((p) => p.text).join('\n'),
+    paragraphs,
+    [],
+    [],
+    [],
+  );
+  const structuralOutput = evaluateStructuralMapping({
+    sourceExtraction: source,
+    trigger: 'import',
+  });
+  const mappingResult = toStructuralMappingResult(structuralOutput);
+  const suspicious842 = structuralOutput.suspiciousMappings.find((entry) => entry.mappedM11SectionId === '8.4.2');
+  assert.ok(mappingResult.needsGenerationSectionIds.includes('8.4.2'));
+  assert.ok(suspicious842, 'expected 8.4.2 Vital Signs to be flagged as suspicious/rejected mapping');
+
+  const schedule = evaluateGenerationSchedule(
+    baseScheduleInput({
+      trigger: 'import',
+      needsGenerationSectionIds: mappingResult.needsGenerationSectionIds,
+      importedSource: source,
+      protocolKnowledgeModel: null,
+      generationContext: { ready: true, phase: 'core-ready' },
+    }),
+  );
+  const skipped842 = schedule.skippedSections.find((entry) => entry.sectionId === '8.4.2');
+  assert.ok(skipped842, 'expected generation schedule to skip 8.4.2 without knowledge model context');
+
+  const diagnostics = buildSectionImportDiagnosticsForSection('8.4.2', {
+    mappings: mappingResult.mappings,
+    suspiciousMappings: structuralOutput.suspiciousMappings,
+    needsGenerationSectionIds: mappingResult.needsGenerationSectionIds,
+    generationSchedule: schedule,
+    importedSource: source,
+    protocolKnowledgeModel: null,
+    importContextPhase: 'core-ready',
+    sectionDrafts: {},
+    sectionSkipReasons: Object.fromEntries(schedule.skippedSections.map((entry) => [entry.sectionId, entry.reason])),
+    sectionGenerationStates: { '8.4.2': 'notGenerated' },
+  });
+
+  assert.equal(diagnostics.foundInSource, true);
+  assert.match(diagnostics.sourceHeadingMatch ?? '', /vital signs/i);
+  assert.equal(diagnostics.mappingStatus, 'suspicious');
+  assert.equal(diagnostics.mappingReason, 'headingOnly');
+  assert.equal(diagnostics.generationAttempted, false);
+  assert.equal(diagnostics.generationEligibility, 'noSourceContext');
+  assert.ok(diagnostics.generationSkipReason?.includes('source/context is insufficient'));
+  assert.ok(diagnostics.diagnosticSummary.includes('8.4.2'));
+}
+
 async function testStructuralMappingAgentExecute() {
   agentManager.register(structuralMappingAgent);
   const paragraphs = buildMappingParagraphs();
@@ -441,6 +516,125 @@ function testValidationAgentTerminologyReplacement() {
   assert.match(output.validatedText, /participants/i);
   assert.ok(output.changes.some((change) => change.type === 'terminology'));
   assert.ok(output.terminologySuggestions.length > 0);
+}
+
+function testValidationControlledTerminologyStatus() {
+  const output = evaluateValidation({
+    sectionId: '3.1',
+    sectionTitle: '3.1 Primary Objective(s) and Associated Estimand(s)',
+    importedText:
+      'The primary objective is to assess overall survival. Subjects with adverse events will be followed.',
+    trigger: 'validateImported',
+  });
+  assert.ok(output.changes.some((change) => change.type === 'terminology'));
+  assert.equal(resolveControlledTerminologyStatus(output.changes), 'Applied');
+  assert.ok(
+    output.findings.some(
+      (finding) =>
+        finding.code === 'controlled_terminology' &&
+        finding.message.includes('Controlled terminology checks applied'),
+    ),
+  );
+  assert.ok(
+    !output.findings.some((finding) => finding.message.includes('narrative validation pending')),
+  );
+  const compact = buildValidationReviewCompactSummary(output.changes, output.findings);
+  assert.match(compact, /proposed change/);
+}
+
+function testValidationTrackChangeTooltipMetadata() {
+  const output = evaluateValidation({
+    sectionId: '3.1',
+    sectionTitle: '3.1 Primary Objective(s) and Associated Estimand(s)',
+    importedText:
+      'The primary objective is to assess overall survival. Subjects with adverse events will be followed.',
+    trigger: 'validateImported',
+  });
+  const segments = enrichTrackChangeSegments(output.originalText, output.validatedText, output.changes);
+  const changed = segments.filter((segment) => segment.kind !== 'unchanged');
+  assert.ok(changed.length > 0);
+  assert.ok(changed.some((segment) => segment.change?.reason));
+  const tooltip = formatValidationChangeTooltip(changed.find((segment) => segment.change)?.change);
+  assert.match(tooltip, /Change type:/);
+  assert.match(tooltip, /Reason:/);
+  const summary = summarizeValidationChanges(output.changes);
+  assert.ok(summary.total > 0);
+  assert.match(summary.label, /proposed change/);
+}
+
+function testRevertDeterministicValidationProposal() {
+  initProtocolImportStore();
+  const original = 'Primary objective: improve overall survival for subjects.';
+  const draft = buildImportedDraft('3.1', original);
+  const deterministic = evaluateValidation({
+    sectionId: '3.1',
+    sectionTitle: draft.title,
+    importedText: original,
+    trigger: 'validateImported',
+  });
+  applyValidationAgentProposal('3.1', deterministic);
+  getProtocolImportState().sectionDrafts['3.1'] = {
+    ...getProtocolImportState().sectionDrafts['3.1'],
+    deterministicValidationBackup: {
+      validatedTargetText: deterministic.validatedText,
+      validationChanges: deterministic.changes,
+      validationFindings: deterministic.findings,
+      validationMessages: deterministic.findings.map((finding) => finding.message),
+      validationProvider: 'local-deterministic',
+    },
+    validationProvider: 'openai',
+    validatedTargetText: `${deterministic.validatedText} LLM extra`,
+    validationChanges: deterministic.changes,
+  };
+  revertToDeterministicValidationProposal('3.1');
+  const restored = getProtocolImportState().sectionDrafts['3.1'];
+  assert.equal(restored.validationProvider, 'local-deterministic');
+  assert.equal(restored.validatedTargetText, deterministic.validatedText);
+}
+
+function testLlmValidationFailurePreservesDeterministicProposal() {
+  initProtocolImportStore();
+  const draft = buildImportedDraft('3.1', 'Primary objective text for the trial.');
+  applyValidationAgentProposal(
+    '3.1',
+    evaluateValidation({
+      sectionId: '3.1',
+      sectionTitle: draft.title,
+      importedText: draft.generatedText,
+      trigger: 'validateImported',
+    }),
+  );
+  const before = getProtocolImportState().sectionDrafts['3.1'];
+  getProtocolImportState().sectionDrafts['3.1'] = {
+    ...before,
+    llmValidationInProgress: true,
+  };
+  clearLlmValidationInProgress('3.1');
+  const after = getProtocolImportState().sectionDrafts['3.1'];
+  assert.equal(after.llmValidationInProgress, false);
+  assert.equal(after.validatedTargetText, before.validatedTargetText);
+  assert.equal(after.validationProvider, before.validationProvider ?? 'local-deterministic');
+}
+
+function testValidationNoChangesRequiredAutoValidates() {
+  initProtocolImportStore();
+  const original =
+    'The primary objective is to assess overall survival (OS) in participants with the indicated condition.';
+  const draft = buildImportedDraft('3.1', original);
+  getProtocolImportState().sectionDrafts['3.1'] = draft;
+  const output = evaluateValidation({
+    sectionId: '3.1',
+    sectionTitle: draft.title,
+    importedText: original,
+    trigger: 'validateImported',
+  });
+  assert.ok(isValidationTextUnchanged(original, output.validatedText));
+  applyValidationNoChangesRequired('3.1', output);
+  const updated = getProtocolImportState().sectionDrafts['3.1'];
+  assert.equal(updated.workflowState, 'validated');
+  assert.equal(updated.state, 'validationPassed');
+  assert.equal(updated.validatedTargetText, undefined);
+  assert.ok((updated.validationHistory ?? []).some((entry) => entry.outcome === 'no_changes_required'));
 }
 
 function testValidationProposedStateFromStore() {
@@ -934,8 +1128,14 @@ async function main() {
   testStructuralMappingImportsVerbatimBody();
   testTocFragmentDoesNotImport();
   testShortNonsenseTextBecomesSuspicious();
+  testSection842VitalSignsImportDiagnostics();
   await testStructuralMappingAgentExecute();
   testValidationAgentTerminologyReplacement();
+  testValidationControlledTerminologyStatus();
+  testValidationTrackChangeTooltipMetadata();
+  testValidationNoChangesRequiredAutoValidates();
+  testRevertDeterministicValidationProposal();
+  testLlmValidationFailurePreservesDeterministicProposal();
   testValidationProposedStateFromStore();
   testTrackChangesAndSideBySideSegments();
   testAcceptValidationSetsValidated();

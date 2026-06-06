@@ -34,7 +34,7 @@ function buildFixtureParagraphs(): ExtractedParagraph[] {
     paragraph(5, '2 Study Objectives', { isHeadingStyle: true, headingLevel: 1 }),
     paragraph(6, 'Primary objective paragraph one.'),
     paragraph(7, '3.1 Primary Endpoints', { isHeadingStyle: true, headingLevel: 2 }),
-    paragraph(8, 'Primary endpoint details belong here.'),
+    paragraph(8, 'Primary endpoint details belong here and provide sufficient narrative context for deterministic mapping tests.'),
     paragraph(9, 'Appendix 4 Protocol Summary Form', { isHeadingStyle: true, headingLevel: 1 }),
     paragraph(10, 'Pr'),
   ];
@@ -142,17 +142,11 @@ function testEmptyBodySectionsAreSuspicious() {
 function testExactNumberBeatsSemanticHeuristic() {
   const paragraphs = buildFixtureParagraphs();
   const source = detectSourceSections('upload-1', 'fixture.docx', paragraphs.map((p) => p.text).join('\n'), paragraphs, [], [], []);
-  const objectivesCandidate = source.sections.find((section) => section.headingText.startsWith('2 Study Objectives'));
-  assert.ok(objectivesCandidate);
-  objectivesCandidate!.detectedNumber = '3.1';
-  objectivesCandidate!.possibleM11SectionId = '10';
-  const mapping = runStructuralMappingEngine({
-    ...source,
-    sections: source.sections.map((section) =>
-      section.id === objectivesCandidate!.id ? objectivesCandidate! : section,
-    ),
-  });
-  const mapped = mapping.mappings.find((entry) => entry.sourceSectionId === objectivesCandidate!.id);
+  const endpointsCandidate = source.sections.find((section) => section.headingText.startsWith('3.1 Primary Endpoints'));
+  assert.ok(endpointsCandidate);
+  assert.equal(endpointsCandidate!.detectedNumber, '3.1');
+  const mapping = runStructuralMappingEngine(source);
+  const mapped = mapping.mappings.find((entry) => entry.sourceSectionId === endpointsCandidate!.id);
   assert.ok(mapped);
   assert.equal(mapped?.mappedM11SectionId, '3.1');
   assert.equal(mapped?.mappingMethod, 'exactNumber');

@@ -1,65 +1,17 @@
-import { mapSourceCandidatesToM11 } from './m11SourceSectionMapping';
 import {
-  buildFullTextFromParagraphs,
-  buildParagraphCharStarts,
-  buildSourcePreview,
-  collectParagraphSectionBoundaries,
-  extractBodyTextBetweenParagraphs,
-  findNextPeerOrHigherBoundary,
-  isSuspiciousImportedBody,
-} from './sourceSectionBodyExtractor';
+  buildCanonicalDocument,
+  saveCanonicalDocument,
+  type CanonicalBuildProgressEvent,
+} from '../../document-ingestion';
+import { canonicalSectionsToSourceCandidates } from '../../document-ingestion/canonicalDocumentSelectors';
+import { mapSourceCandidatesToM11 } from './m11SourceSectionMapping';
+import { buildFullTextFromParagraphs, buildSourcePreview } from './sourceSectionBodyExtractor';
 import type {
   ExtractedHeading,
   ExtractedParagraph,
   ImportedProtocolSource,
   SourceSectionCandidate,
 } from './types';
-
-function buildSectionsFromBoundaries(
-  boundaries: ReturnType<typeof collectParagraphSectionBoundaries>,
-  paragraphs: ExtractedParagraph[],
-  fullText: string,
-  tables: ImportedProtocolSource['tables'],
-): SourceSectionCandidate[] {
-  if (boundaries.length === 0) {
-    return [];
-  }
-
-  return boundaries.map((boundary, index) => {
-    const endParagraphIndex = findNextPeerOrHigherBoundary(boundaries, index, paragraphs.length);
-    const bodyText = extractBodyTextBetweenParagraphs(
-      paragraphs,
-      boundary.paragraphIndex,
-      endParagraphIndex,
-      tables,
-    );
-    const charStarts = buildParagraphCharStarts(paragraphs);
-    const charStart = boundary.charStart;
-    const charEnd =
-      endParagraphIndex < paragraphs.length
-        ? charStarts[endParagraphIndex] ?? fullText.length
-        : fullText.length;
-    const combinedText = bodyText ? `${boundary.headingText}\n\n${bodyText}` : boundary.headingText;
-
-    return {
-      id: `source-section-${index + 1}`,
-      headingText: boundary.headingText,
-      headingLevel: boundary.headingLevel,
-      startIndex: charStart,
-      endIndex: charEnd,
-      sourceStartParagraphIndex: boundary.paragraphIndex,
-      sourceEndParagraphIndex: endParagraphIndex,
-      text: combinedText,
-      bodyText,
-      confidence: boundary.confidence,
-      detectedNumber: boundary.detectedNumber,
-      detectionMethod: boundary.detectionMethod,
-      sourcePreview: buildSourcePreview(bodyText || boundary.headingText),
-      importedTextLength: bodyText.length,
-      isSuspiciousBody: isSuspiciousImportedBody(bodyText, boundary.headingText),
-    };
-  });
-}
 
 function createWholeDocumentSection(fullText: string): SourceSectionCandidate {
   return {
@@ -77,7 +29,12 @@ function createWholeDocumentSection(fullText: string): SourceSectionCandidate {
     sourcePreview: buildSourcePreview(fullText),
     importedTextLength: fullText.trim().length,
     isSuspiciousBody: false,
+    canonicalSectionId: 'canonical-section-whole-document',
   };
+}
+
+export interface DetectSourceSectionsOptions {
+  onCanonicalProgress?: (event: CanonicalBuildProgressEvent) => void;
 }
 
 export function detectSourceSections(
@@ -88,11 +45,24 @@ export function detectSourceSections(
   headings: ExtractedHeading[],
   tables: ImportedProtocolSource['tables'],
   extractionWarnings: string[],
+  options?: DetectSourceSectionsOptions,
 ): ImportedProtocolSource {
   const warnings = [...extractionWarnings];
   const alignedFullText = paragraphs.length > 0 ? buildFullTextFromParagraphs(paragraphs) : fullText;
-  const boundaries = collectParagraphSectionBoundaries(paragraphs, headings);
-  let sections = buildSectionsFromBoundaries(boundaries, paragraphs, alignedFullText, tables);
+
+  const canonicalDocument = buildCanonicalDocument({
+    uploadId,
+    filename,
+    paragraphs,
+    headings,
+    tables,
+    fullText: alignedFullText,
+    warnings,
+    onProgress: options?.onCanonicalProgress,
+  });
+  saveCanonicalDocument(canonicalDocument);
+
+  let sections = canonicalSectionsToSourceCandidates(canonicalDocument, paragraphs, tables);
 
   if (sections.length === 0 && alignedFullText.trim()) {
     sections = [createWholeDocumentSection(alignedFullText)];
@@ -110,6 +80,7 @@ export function detectSourceSections(
     headings,
     sections,
     tables,
-    extractionWarnings: warnings,
+    extractionWarnings: [...warnings, ...canonicalDocument.warnings],
+    canonicalDocumentId: canonicalDocument.id,
   };
 }

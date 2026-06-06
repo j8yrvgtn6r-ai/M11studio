@@ -1,4 +1,4 @@
-import { ChevronRight, ChevronDown, FileText, AlertCircle, AlertTriangle, MessageSquare, FileEdit, BookOpen, BrainCircuit } from 'lucide-react';
+import { ChevronRight, ChevronDown, AlertTriangle, MessageSquare, FileEdit, BookOpen, BrainCircuit } from 'lucide-react';
 import { useState } from 'react';
 import type { GeneratedSectionDraft } from '../domain/protocol/import';
 import {
@@ -12,7 +12,6 @@ import {
 } from './SectionGenerationStateIndicator';
 import { importedSectionTooltip } from '../domain/protocol/import/sectionWorkflowState';
 import type { ProtocolSection } from '../types/protocol';
-import { getStatusColor } from '../utils/statusColors';
 import { ScrollArea } from './ui/scroll-area';
 import { Badge } from './ui/badge';
 import { Label } from './ui/label';
@@ -133,10 +132,21 @@ function SectionTreeNode({
     importDraft,
     buildActive,
   );
+  const statusTooltip = [
+    section?.title ?? section?.id ?? 'Section',
+    sectionGenerationStateLabel(generationState),
+    importedSectionTooltip(importDraft),
+  ]
+    .filter(Boolean)
+    .join(' · ');
   const [expanded, setExpanded] = useState(true);
   const hasChildren = section.children && section.children.length > 0;
   const isSelected = selectedSectionId === section.id;
-  const statusColor = getStatusColor(section.status);
+  const processingActive =
+    generationState === 'generating' ||
+    generationState === 'validationRunning' ||
+    generationState === 'queued' ||
+    generationState === 'backgroundQueued';
 
   return (
     <div>
@@ -172,64 +182,37 @@ function SectionTreeNode({
           <div className="w-3.5" />
         )}
 
-        <FileText className="h-3.5 w-3.5 shrink-0 opacity-70" />
+        <span
+          className="shrink-0"
+          title={statusTooltip}
+          data-testid={`import-section-indicator-${section.id}`}
+          data-generation-state={generationState}
+        >
+          <SectionGenerationStateIndicator state={generationState} compact animate={processingActive} />
+        </span>
 
         <span className={`flex-1 truncate ${section.ichM11InstructionOnly ? 'text-muted-foreground italic' : ''}`}>
           {section?.title ?? section?.id ?? 'Section'}
         </span>
 
         <div className="flex items-center gap-1 shrink-0">
-          {section.hasAmendment && (
-            <FileEdit className="h-3 w-3 text-orange-500" />
-          )}
-          {section.commentCount && section.commentCount > 0 && (
+          {section.hasAmendment ? <FileEdit className="h-3 w-3 text-orange-500" title="Amendment" /> : null}
+          {section.commentCount && section.commentCount > 0 ? (
             <Badge variant="outline" className="h-4 px-1 text-xs">
               <MessageSquare className="h-2.5 w-2.5 mr-0.5" />
               {section.commentCount}
             </Badge>
-          )}
-          {section.validationCount && section.validationCount > 0 && (
-            <Badge variant="outline" className={`h-4 px-1 text-xs ${statusColor.text}`}>
-              <AlertCircle className="h-2.5 w-2.5 mr-0.5" />
-              {section.validationCount}
-            </Badge>
-          )}
-          {(importDraft || buildActive || sectionGenerationStates[section.id]) ? (
-            <div
-              className="flex items-center gap-0.5"
-              title={[
-                section?.title ?? section?.id ?? 'Section',
-                `Generation: ${sectionGenerationStateLabel(generationState)}`,
-                importedSectionTooltip(importDraft),
-                importDraft?.contentOrigin
-                  ? `Source: ${importDraft.contentOrigin === 'imported' ? 'Imported' : 'Generated'}`
-                  : null,
-                generationProgress?.providerLabel
-                  ? `Provider: ${generationProgress.providerLabel}${generationProgress.model ? ` / ${generationProgress.model}` : ''}`
-                  : null,
-                importDraft?.generatedAt ? `Updated: ${new Date(importDraft.generatedAt).toLocaleString()}` : null,
-                importDraft?.validationMessages?.[0] ? `Error: ${importDraft.validationMessages[0]}` : null,
-                importDraft?.consistencyImpacts?.[0]?.reason ?? null,
-              ]
-                .filter(Boolean)
-                .join('\n')}
-              data-testid={`import-section-indicator-${section.id}`}
-              data-generation-state={generationState}
+          ) : null}
+          {generationState === 'outOfSync' ? (
+            <Badge
+              variant="outline"
+              className="h-4 px-1 text-[10px] text-amber-600 border-amber-500/50"
+              data-testid={`out-of-sync-badge-${section.id}`}
+              title="Out of sync"
             >
-              {generationState === 'outOfSync' ? (
-                <Badge
-                  variant="outline"
-                  className="h-4 px-1 text-[10px] text-amber-600 border-amber-500/50"
-                  data-testid={`out-of-sync-badge-${section.id}`}
-                >
-                  <AlertTriangle className="h-2.5 w-2.5" />
-                </Badge>
-              ) : null}
-              <SectionGenerationStateIndicator state={generationState} compact />
-            </div>
-          ) : (
-            <div className={`w-2 h-2 rounded-full ${statusColor.dot}`} title={section.status} />
-          )}
+              <AlertTriangle className="h-2.5 w-2.5" />
+            </Badge>
+          ) : null}
         </div>
       </button>
 

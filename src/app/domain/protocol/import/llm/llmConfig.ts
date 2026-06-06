@@ -206,6 +206,32 @@ export function isRealLlmProvider(providerId: LlmProviderId): boolean {
   return providerId === 'openai' || providerId === 'azure-openai' || providerId === 'anthropic';
 }
 
+export function getLlmValidationAvailability(): {
+  available: boolean;
+  message: string;
+  providerLabel?: string;
+} {
+  const requested = resolveRequestedLlmProviderId();
+  const providerId = getConfiguredLlmProviderId();
+  if (!requested || requested === 'fixture' || requested === 'local') {
+    return {
+      available: false,
+      message: 'LLM validation requires an OpenAI or Azure OpenAI provider in Settings → AI Providers.',
+    };
+  }
+  if (!isRealLlmProvider(providerId) || !hasLlmApiKey(providerId)) {
+    return {
+      available: false,
+      message: 'LLM validation requires an OpenAI or Azure OpenAI provider in Settings → AI Providers.',
+    };
+  }
+  return {
+    available: true,
+    message: '',
+    providerLabel: providerDisplayLabel(providerId),
+  };
+}
+
 function providerDisplayLabel(providerId: LlmProviderId): string {
   switch (providerId) {
     case 'openai':

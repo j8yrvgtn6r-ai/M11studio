@@ -35,12 +35,6 @@ export function validateGeneratedSectionDraft(
     );
   }
 
-  const terminologyNote =
-    'Controlled terminology validation available for structured fields; narrative validation pending.';
-  if (!messages.includes(terminologyNote)) {
-    messages.push(terminologyNote);
-  }
-
   const trialPhaseCheck = validateM11ControlledTerm('Trial Phase', 'Phase 3');
   if (draft.generatedText.toLowerCase().includes('phase 3') && !trialPhaseCheck.valid) {
     messages.push('Narrative mentions trial phase — structured codelist validation should run on bound fields.');
@@ -53,8 +47,7 @@ export function validateGeneratedSectionDraft(
     messages.length > 0 &&
     !hasError &&
     (messages.some((message) => message.includes('differs')) ||
-      messages.some((message) => message.includes('not implemented')) ||
-      messages.some((message) => message.includes('pending')));
+      messages.some((message) => message.includes('not implemented')));
 
   if (hasError) {
     return { validationStatus: 'failed', messages };

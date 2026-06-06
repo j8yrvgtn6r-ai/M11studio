@@ -55,22 +55,28 @@ export function sectionGenerationStateLabel(state: SectionGenerationState): stri
 export function SectionGenerationStateIndicator({
   state,
   compact = false,
+  animate = false,
 }: {
   state: SectionGenerationState;
   compact?: boolean;
+  animate?: boolean;
 }) {
   const className = compact ? 'h-3 w-3' : 'h-3.5 w-3.5';
+  const pulseClass =
+    animate && (state === 'queued' || state === 'backgroundQueued' || state === 'importedUnvalidated')
+      ? ' animate-pulse'
+      : '';
 
   switch (state) {
     case 'queued':
-      return <Circle className={`${className} text-muted-foreground/70`} />;
+      return <Circle className={`${className} text-muted-foreground/70${pulseClass}`} />;
     case 'backgroundQueued':
-      return <Circle className={`${className} text-indigo-500/80`} />;
+      return <Circle className={`${className} text-indigo-500/80${pulseClass}`} />;
     case 'generating':
       return <Loader2 className={`${className} animate-spin text-primary`} />;
     case 'imported':
     case 'importedUnvalidated':
-      return <Circle className={`${className} text-cyan-600 dark:text-cyan-400`} />;
+      return <Circle className={`${className} text-cyan-600 dark:text-cyan-400${pulseClass}`} />;
     case 'validationRunning':
       return <Loader2 className={`${className} animate-spin text-primary`} />;
     case 'validationProposed':
@@ -104,9 +110,9 @@ export function SectionGenerationStateIndicator({
 export function sectionGenerationOverlayClass(state: SectionGenerationState): string {
   switch (state) {
     case 'queued':
-      return 'ring-1 ring-muted-foreground/20';
+      return 'ring-1 ring-muted-foreground/20 animate-pulse';
     case 'backgroundQueued':
-      return 'ring-1 ring-indigo-400/40';
+      return 'ring-1 ring-indigo-400/40 animate-pulse';
     case 'generating':
       return 'ring-2 ring-primary/60 animate-pulse';
     case 'imported':
@@ -145,10 +151,13 @@ export function sectionGenerationDotClass(state: SectionGenerationState): string
     case 'backgroundQueued':
       return 'bg-indigo-400/70';
     case 'generating':
-      return 'bg-primary/40';
+      return 'bg-primary/40 animate-pulse';
     case 'imported':
     case 'importedUnvalidated':
       return 'bg-cyan-500/80';
+    case 'validationRunning':
+      return 'bg-primary/40 animate-pulse';
+    case 'validationProposed':
     case 'unvalidated':
       return 'bg-slate-400';
     case 'validated':

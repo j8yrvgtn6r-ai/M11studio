@@ -1,7 +1,7 @@
 import { Loader2 } from 'lucide-react';
-import type { GeneratedSectionDraft } from '../domain/protocol/import';
+import type { GeneratedSectionDraft, SectionImportDiagnostics } from '../domain/protocol/import/types';
+import { formatImportDiagnosticsTooltip } from '../domain/protocol/import/sectionImportDiagnostics';
 import {
-  getImportVisualizationPhase,
   resolveSectionGenerationState,
   type ImportVisualizationPhase,
   type SectionGenerationState,
@@ -24,6 +24,7 @@ interface DocumentMinimapProps {
   sectionImportDrafts?: Record<string, GeneratedSectionDraft>;
   sectionGenerationStates?: Record<string, SectionGenerationState>;
   sectionSkipReasons?: Record<string, string>;
+  sectionImportDiagnostics?: Record<string, SectionImportDiagnostics>;
   buildActive?: boolean;
   visualizationPhase?: ImportVisualizationPhase;
   generationProgress?: {
@@ -41,6 +42,7 @@ export function DocumentMinimap({
   sectionImportDrafts = {},
   sectionGenerationStates = {},
   sectionSkipReasons = {},
+  sectionImportDiagnostics = {},
   buildActive = false,
   visualizationPhase = 'idle',
   generationProgress = null,
@@ -64,7 +66,7 @@ export function DocumentMinimap({
   };
 
   const allSections = flattenSections(sections);
-  const phase = visualizationPhase === 'idle' ? getImportVisualizationPhase() : visualizationPhase;
+  const phase = visualizationPhase;
 
   return (
     <div className="flex flex-col h-full min-h-0 bg-card border-l border-border w-16" data-testid="document-minimap">
@@ -85,9 +87,9 @@ export function DocumentMinimap({
               buildActive,
             );
             const neutralImportTile =
-              generationState === 'notGenerated' ||
-              generationState === 'needsGeneration' ||
-              (buildActive && (phase === 'reset' || (generationState === 'queued' && !importDraft)));
+              (generationState === 'notGenerated' || generationState === 'needsGeneration') &&
+              !importDraft &&
+              (phase === 'reset' || !buildActive);
             const overlayClass =
               buildActive || importDraft ? sectionGenerationOverlayClass(generationState) : '';
             const tileBackground = neutralImportTile
@@ -95,6 +97,7 @@ export function DocumentMinimap({
               : buildActive || importDraft
                 ? sectionGenerationDotClass(generationState)
                 : 'bg-muted/40';
+            const importDiagnostics = sectionImportDiagnostics[section.id];
             const tooltipLines = [
               `Section: ${section?.title ?? section?.id ?? 'Section'}`,
               `Status: ${sectionGenerationStateLabel(generationState)}`,
@@ -106,7 +109,8 @@ export function DocumentMinimap({
                 ? `Imported length: ${importDraft.importedTextLength} characters`
                 : null,
               importDraft?.sourcePreview ? `Preview: ${importDraft.sourcePreview}` : null,
-              sectionSkipReasons[section.id]
+              ...(importDiagnostics ? formatImportDiagnosticsTooltip(importDiagnostics) : []),
+              !importDiagnostics && sectionSkipReasons[section.id]
                 ? `Skip reason: ${sectionSkipReasons[section.id]}`
                 : null,
               generationProgress?.providerLabel
@@ -130,10 +134,21 @@ export function DocumentMinimap({
                 data-generation-state={generationState}
               >
                 <div className="absolute inset-0 flex items-center justify-center">
-                  {!neutralImportTile && generationState === 'generating' ? (
-                    <Loader2 className="h-3 w-3 animate-spin text-primary-foreground" data-testid={`map-generating-${section.id}`} />
-                  ) : !neutralImportTile && (buildActive || importDraft) && generationState !== 'queued' ? (
-                    <SectionGenerationStateIndicator state={generationState} compact />
+                  {!neutralImportTile &&
+                  (generationState === 'generating' ||
+                    generationState === 'validationRunning' ||
+                    generationState === 'queued' ||
+                    generationState === 'backgroundQueued') ? (
+                    <Loader2
+                      className={`h-3 w-3 animate-spin ${
+                        generationState === 'queued' || generationState === 'backgroundQueued'
+                          ? 'text-muted-foreground'
+                          : 'text-primary-foreground'
+                      }`}
+                      data-testid={`map-processing-${section.id}`}
+                    />
+                  ) : !neutralImportTile && (buildActive || importDraft) ? (
+                    <SectionGenerationStateIndicator state={generationState} compact animate />
                   ) : null}
                 </div>
 

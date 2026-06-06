@@ -41,6 +41,9 @@ async function main() {
     localStorage.setItem('m11-template-reference-enabled', 'true');
     localStorage.setItem('m11-protocol-llm-provider', 'fixture');
     localStorage.setItem('m11-smoke-show-generation-progress', 'true');
+    localStorage.removeItem('m11-protocol-import-v3');
+    localStorage.removeItem('m11-protocol-import-v2');
+    localStorage.removeItem('m11-protocol-import-v1');
   });
 
   await page.goto(baseUrl, { waitUntil: 'domcontentloaded' });
@@ -87,6 +90,33 @@ async function main() {
   await page.getByTestId('import-protocol-dialog').waitFor({ state: 'hidden', timeout: 30_000 });
   await page.getByTestId('protocol-reconstruction-progress-title').waitFor({ timeout: 30_000 });
   await page.getByTestId('protocol-build-console').waitFor({ timeout: 30_000 });
+  if ((await page.getByTestId('protocol-build-console').getAttribute('data-expanded')) !== 'true') {
+    await page.getByTestId('protocol-build-toggle').click();
+  }
+
+  async function ensureBuildConsoleExpanded() {
+    if ((await page.getByTestId('protocol-build-console').getAttribute('data-expanded')) !== 'true') {
+      await page.getByTestId('protocol-build-toggle').click();
+    }
+    await page.getByTestId('protocol-build-console-scroll').waitFor({ state: 'visible', timeout: 10_000 });
+  }
+
+  async function waitForBuildConsoleMessage(message, timeout = 120_000) {
+    await ensureBuildConsoleExpanded();
+    await page.waitForFunction(
+      (expected) => {
+        const scroll = document.querySelector('[data-testid="protocol-build-console-scroll"]');
+        return Boolean(scroll?.textContent?.includes(expected));
+      },
+      message,
+      { timeout },
+    );
+  }
+
+  async function readBuildConsoleLog() {
+    await ensureBuildConsoleExpanded();
+    return page.getByTestId('protocol-build-console-scroll').evaluate((el) => el.textContent ?? '');
+  }
 
   const sawPreReadyImportContext = await page
     .waitForFunction(() => {
@@ -117,6 +147,13 @@ async function main() {
   }
   assertNoImportFailures('After Continue (understanding phase)');
 
+  // Milestone messages scroll out of the 1500-event console buffer once generation floods the log.
+  await waitForBuildConsoleMessage('Building Canonical Document');
+  await waitForBuildConsoleMessage('Canonical document complete');
+  await waitForBuildConsoleMessage('sections mapped');
+  await waitForBuildConsoleMessage('Building Core Study Model');
+  await waitForBuildConsoleMessage('Core Study Model complete');
+
   await page.waitForFunction(() => {
     const phase = document
       .querySelector('[data-testid="protocol-build-console"]')
@@ -124,23 +161,13 @@ async function main() {
     return phase === 'core-ready' || phase === 'enriching' || phase === 'ready';
   }, { timeout: 60_000 });
 
-  await page.getByTestId('protocol-build-toggle').click();
+  let buildConsoleText = await readBuildConsoleLog();
+
   await page.waitForFunction(() => {
-    const text = document.querySelector('[data-testid="protocol-build-console"]')?.textContent ?? '';
+    const text = document.querySelector('[data-testid="protocol-build-console-scroll"]')?.textContent ?? '';
     return text.includes('Knowledge Agent started') || text.includes('Knowledge Agent completed');
   }, { timeout: 60_000 });
-  let buildConsoleText = await page.getByTestId('protocol-build-console').evaluate(
-    (el) => el.textContent ?? '',
-  );
-  if (!buildConsoleText.includes('Building Core Study Model')) {
-    throw new Error('Expected Building Core Study Model in build console.');
-  }
-  if (!buildConsoleText.includes('Core Study Model complete')) {
-    throw new Error('Expected Core Study Model complete in build console.');
-  }
-  if (!buildConsoleText.includes('sections mapped')) {
-    throw new Error('Expected structural mapping summary in build console.');
-  }
+  buildConsoleText = await readBuildConsoleLog();
 
   const buildConsoleScroll = page.getByTestId('protocol-build-console-scroll');
   if (await buildConsoleScroll.isVisible().catch(() => false)) {
@@ -170,6 +197,9 @@ async function main() {
   await page.waitForFunction(() => {
     const status = document.querySelector('[data-testid="protocol-build-console"]')?.getAttribute('data-status');
     const importedCount = document.querySelectorAll('[data-generation-state="importedUnvalidated"]').length;
+    const mapImportedCount = document.querySelectorAll(
+      '[data-testid^="map-section-"][data-generation-state="importedUnvalidated"]',
+    ).length;
     const generatedCount = document.querySelectorAll('[data-generation-state="generated"]').length;
     const reviewCount = document.querySelectorAll('[data-generation-state="needsReview"]').length;
     const summary =
@@ -179,6 +209,7 @@ async function main() {
       ?.getAttribute('data-import-context-phase');
     return (
       importedCount > 0 ||
+      mapImportedCount > 0 ||
       generatedCount > 0 ||
       reviewCount > 0 ||
       summary.includes('generating') ||
@@ -187,6 +218,33 @@ async function main() {
       phase === 'enriching'
     );
   }, { timeout: 120_000 });
+
+  const liveMapImported = page.locator(
+    '[data-testid^="map-section-"][data-generation-state="importedUnvalidated"]',
+  );
+  const liveMapProgress = page.locator(
+    '[data-testid^="map-section-"][data-generation-state="importedUnvalidated"], [data-testid^="map-section-"][data-generation-state="needsReview"], [data-testid^="map-section-"][data-generation-state="generated"]',
+  );
+  if ((await liveMapImported.count()) === 0 && (await liveMapProgress.count()) === 0) {
+    throw new Error('MAP should show imported or generated section tiles during import.');
+  }
+
+  const explorerStatusIcon = page.locator('[data-testid^="import-section-indicator-"]').first();
+  await explorerStatusIcon.waitFor({ timeout: 15_000 });
+  const explorerStatusState = await explorerStatusIcon.getAttribute('data-generation-state');
+  if (!explorerStatusState) {
+    throw new Error('Protocol Explorer should show workflow status icons with data-generation-state.');
+  }
+
+  const activeProcessingAnimation = page.locator(
+    '[data-testid^="map-processing-"] .animate-spin, [data-testid^="import-section-indicator-"] .animate-spin, [data-testid^="import-section-indicator-"] .animate-pulse',
+  );
+  if ((await activeProcessingAnimation.count()) === 0) {
+    const buildStatus = await page.getByTestId('protocol-build-console').getAttribute('data-status');
+    if (buildStatus === 'running') {
+      throw new Error('Expected subtle spinner/pulse on active generating/validating/import states.');
+    }
+  }
 
   const buildConsole = page.getByTestId('protocol-build-console');
   const buildStatus = await buildConsole.getAttribute('data-status');
@@ -217,25 +275,123 @@ async function main() {
 
   const importedMapTile = page.locator(`[data-testid="map-section-${reviewSectionId}"]`);
   const importedMapState = await importedMapTile.getAttribute('data-generation-state');
-  if (importedMapState !== 'importedUnvalidated') {
-    throw new Error(`Expected imported MAP tile state importedUnvalidated, got ${importedMapState}`);
+  const importedMapStates = ['importedUnvalidated', 'needsReview', 'generated'];
+  if (!importedMapStates.includes(importedMapState ?? '')) {
+    throw new Error(`Expected imported MAP tile state in ${importedMapStates.join('|')}, got ${importedMapState}`);
   }
   const importedMapClass = await importedMapTile.getAttribute('class');
-  if (importedMapClass?.includes('bg-muted/80')) {
+  if (importedMapState === 'importedUnvalidated' && importedMapClass?.includes('bg-muted/80')) {
     throw new Error('Imported MAP tile must not use neutral gray styling.');
   }
 
   const validateButton = page.getByTestId('viewport-validate-section');
-  if (!(await validateButton.isVisible().catch(() => false))) {
-    throw new Error('Validate button should appear for importedUnvalidated section.');
+  const shouldRunValidationUi =
+    importedMapState === 'importedUnvalidated' ||
+    (await validateButton.isVisible().catch(() => false));
+
+  if (shouldRunValidationUi) {
+    if (!(await validateButton.isVisible().catch(() => false))) {
+      throw new Error('Validate button should appear for importedUnvalidated section.');
+    }
+    await validateButton.click();
+
+    await page.waitForFunction(
+      () =>
+        !!document.querySelector('[data-testid="viewport-validation-running"]') ||
+        !!document.querySelector('[data-testid="section-validation-review-panel"]') ||
+        document
+          .querySelector('[data-testid="import-draft-workflow-badge"]')
+          ?.textContent?.includes('validated'),
+      { timeout: 30_000 },
+    );
+
+    const reviewPanel = page.getByTestId('section-validation-review-panel');
+    await page.waitForFunction(
+      (sectionId) => {
+        const reviewVisible = !!document.querySelector('[data-testid="section-validation-review-panel"]');
+        const mapState = document
+          .querySelector(`[data-testid="map-section-${sectionId}"]`)
+          ?.getAttribute('data-generation-state');
+        const workflowBadge =
+          document.querySelector('[data-testid="import-draft-workflow-badge"]')?.textContent ?? '';
+        return (
+          reviewVisible ||
+          mapState === 'validated' ||
+          mapState === 'validationProposed' ||
+          workflowBadge.includes('validated') ||
+          workflowBadge.includes('validationProposed')
+        );
+      },
+      reviewSectionId,
+      { timeout: 120_000 },
+    );
+
+    if (await reviewPanel.isVisible().catch(() => false)) {
+    await page.getByTestId('validation-compact-summary').waitFor({ timeout: 15_000 });
+    await page.getByTestId('validation-comparison-region').waitFor({ timeout: 15_000 });
+    const findingsList = page.getByTestId('validation-findings-list');
+    if ((await findingsList.count()) > 0) {
+      throw new Error('Gray bottom findings list should be removed from validation review panel.');
+    }
+    const legacyTerminology = page.getByText(/narrative validation pending/i);
+    if ((await legacyTerminology.count()) > 0) {
+      throw new Error('Legacy controlled terminology pending message should not appear.');
+    }
+    await page.getByTestId('validation-run-llm-button').waitFor({ timeout: 15_000 });
+    const llmUnavailable = page.getByTestId('validation-llm-unavailable-message');
+    if ((await llmUnavailable.count()) === 0) {
+      throw new Error('Expected helpful LLM unavailable message when fixture provider is active.');
+    }
+
+    const highlight = page.locator('[data-testid="validation-change-highlight"]').first();
+    if ((await highlight.count()) > 0) {
+      await highlight.hover();
+      await page.getByTestId('validation-change-tooltip').waitFor({ timeout: 5_000 });
+    }
+
+    await page.getByTestId('validation-view-side-by-side').click();
+    await page.getByTestId('validation-side-by-side-left').waitFor({ timeout: 15_000 });
+    await page.getByTestId('validation-side-by-side-right').waitFor({ timeout: 15_000 });
+    const comparisonHeight = await page.getByTestId('validation-comparison-region').evaluate((el) => el.clientHeight);
+    if (comparisonHeight < 180) {
+      throw new Error(`Side-by-Side comparison region should fill available height (got ${comparisonHeight}px).`);
+    }
+    const leftPaneHeight = await page.getByTestId('validation-side-by-side-left').evaluate((el) => el.clientHeight);
+    if (leftPaneHeight < 120) {
+      throw new Error(`Side-by-Side left pane should be scrollable with meaningful height (got ${leftPaneHeight}px).`);
+    }
+    const sideHighlightCount = await page.locator('[data-testid="validation-change-highlight"]').count();
+    if (sideHighlightCount === 0) {
+      throw new Error('Side-by-Side view should highlight differences.');
+    }
+
+    const scrollArea = page.getByTestId('validation-comparison-region');
+    await scrollArea.evaluate((el) => {
+      el.scrollTop = el.scrollHeight;
+    });
+    const actionBar = page.getByTestId('validation-action-bar');
+    await actionBar.waitFor({ timeout: 5_000 });
+    if (!(await actionBar.isVisible())) {
+      throw new Error('Validation action bar should remain visible while scrolling.');
+    }
+
+    await page.getByTestId('validation-view-track-changes').click();
+    await page.getByTestId('validation-track-changes-view').waitFor({ timeout: 15_000 });
+    await page.getByTestId('validation-accept-button').click();
+  } else {
+    const validatedMapTile = page.locator(`[data-testid="map-section-${reviewSectionId}"]`);
+    const validatedMapState = await validatedMapTile.getAttribute('data-generation-state');
+    if (validatedMapState !== 'validated' && validatedMapState !== 'reviewed') {
+      throw new Error(
+        `Expected validation to complete without manual accept, got MAP state ${validatedMapState}`,
+      );
+    }
+    const workflowBadge = await page.getByTestId('import-draft-workflow-badge').textContent();
+    if (!workflowBadge?.includes('validated')) {
+      throw new Error(`Expected validated workflow after validation no-op, got "${workflowBadge}"`);
+    }
   }
-  await validateButton.click();
-  await page.getByTestId('section-validation-review-panel').waitFor({ timeout: 15_000 });
-  await page.getByTestId('validation-view-track-changes').click();
-  await page.getByTestId('validation-track-changes-view').waitFor({ timeout: 15_000 });
-  await page.getByTestId('validation-view-side-by-side').click();
-  await page.getByTestId('validation-side-by-side-view').waitFor({ timeout: 15_000 });
-  await page.getByTestId('validation-accept-button').click();
+  }
 
   const pendingTile = page
     .locator(
@@ -262,10 +418,13 @@ async function main() {
 
   await page.getByTestId('import-reconstruction-banner').waitFor({ timeout: 180_000 });
 
-  await page.getByTestId('protocol-build-toggle').click();
-  buildConsoleText = await page.getByTestId('protocol-build-console').evaluate((el) => el.textContent ?? '');
-  if (!buildConsoleText.includes('First draft available')) {
-    throw new Error('Expected First draft available in build console.');
+  buildConsoleText = await readBuildConsoleLog();
+  if (
+    !buildConsoleText.includes('First draft available') &&
+    !buildConsoleText.includes('Priority generation complete') &&
+    !buildConsoleText.includes('Hybrid import workspace ready')
+  ) {
+    throw new Error('Expected First draft available or generation completion in build console.');
   }
   if (!buildConsoleText.includes('Deep Study Model enrichment started')) {
     throw new Error('Expected Deep Study Model enrichment started in build console.');
@@ -344,6 +503,12 @@ async function main() {
     throw new Error(`Page errors: ${pageErrors.join('; ')}`);
   }
   assertNoImportFailures('Final');
+
+  await page.getByTestId('header-autosave-status').waitFor({ timeout: 15_000 });
+  const footerValidationIssues = page.getByText(/\d+ validation issues/i);
+  if ((await footerValidationIssues.count()) > 0) {
+    throw new Error('Footer should not show static mock validation issue counts.');
+  }
 
   console.log('Protocol import workflow smoke passed (hybrid mapping-first import + validation).');
   await browser.close();

@@ -1,24 +1,34 @@
 // M11 Studio - Status Bar Component
 import { Badge } from './ui/badge';
-import { Users, FileText, AlertCircle, CheckCircle2, Clock } from 'lucide-react';
+import { Users, FileText, CheckCircle2, Clock, Loader2 } from 'lucide-react';
+import { format } from 'date-fns';
+
+export type AutosaveStatus = 'idle' | 'saving' | 'saved';
 
 interface StatusBarProps {
   protocolId: string;
-  lastSaved?: Date;
+  autosaveStatus?: AutosaveStatus;
+  lastSaved?: Date | null;
   currentUser: string;
   totalSections: number;
   completedSections: number;
-  validationIssues: number;
 }
 
 export function StatusBar({
   protocolId,
+  autosaveStatus = 'idle',
   lastSaved,
   currentUser,
   totalSections,
   completedSections,
-  validationIssues,
 }: StatusBarProps) {
+  const autosaveLabel =
+    autosaveStatus === 'saving'
+      ? 'Saving…'
+      : lastSaved
+        ? `Autosaved ${format(lastSaved, 'h:mm a')}`
+        : 'Saved';
+
   return (
     <div className="h-6 bg-card border-t border-border flex items-center px-4 text-xs text-muted-foreground gap-4 shrink-0">
       <div className="flex items-center gap-1.5">
@@ -38,23 +48,16 @@ export function StatusBar({
         </span>
       </div>
 
-      {validationIssues > 0 && (
-        <div className="flex items-center gap-1.5 text-red-500">
-          <AlertCircle className="h-3 w-3" />
-          <span>{validationIssues} validation issues</span>
-        </div>
-      )}
-
       <div className="flex-1" />
 
-      {lastSaved && (
-        <div className="flex items-center gap-1.5">
+      <div className="flex items-center gap-1.5" data-testid="autosave-status" data-autosave-state={autosaveStatus}>
+        {autosaveStatus === 'saving' ? (
+          <Loader2 className="h-3 w-3 animate-spin" />
+        ) : (
           <Clock className="h-3 w-3" />
-          <span>
-            Last saved: {lastSaved.toLocaleTimeString()}
-          </span>
-        </div>
-      )}
+        )}
+        <span>{autosaveLabel}</span>
+      </div>
 
       <Badge variant="outline" className="h-4 text-[10px]">
         M11 v1.0

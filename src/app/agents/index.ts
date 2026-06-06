@@ -111,6 +111,17 @@ export type {
 } from './ValidationAgent';
 export {
   buildTrackChangeSegments,
+  enrichTrackChangeSegments,
+  buildSideBySidePanels,
+  summarizeValidationChanges,
+  formatValidationChangeTooltip,
+  formatValidationChangeType,
+  buildValidationReviewCompactSummary,
+  resolveControlledTerminologyStatus,
+  resolveControlledTerminologyMessage,
+  resolveM11StructureStatus,
+  formatValidationProviderLabel,
+  isLegacyTerminologyPendingMessage,
   evaluateValidation,
   evaluateValidationFromDraft,
   getControlledTerminologySuggestions,
@@ -126,6 +137,7 @@ export {
   emitValidationRejected,
   ensureValidationAgentRegistered,
   runValidationAgentForSection,
+  runLlmValidationAgentForSection,
 } from './validationAgentRunner';
 
 export { GENERATION_AGENT_ID, generationAgent } from './GenerationAgent';

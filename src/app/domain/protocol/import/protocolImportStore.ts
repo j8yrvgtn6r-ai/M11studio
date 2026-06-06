@@ -3,6 +3,12 @@ import { updateSectionGenerationState, getProtocolBuildConsoleState } from '../b
 import { clearStudyModel, rebuildStudyModel } from '../../study-model/studyModelStore';
 import { refreshStudyModelFromContext } from '../../study-model/refreshStudyModelFromContext';
 import { inferWorkflowState, resolveWorkflowGenerationState } from './sectionWorkflowState';
+import {
+  buildCanonicalDocumentFromImportedSource,
+  clearCanonicalDocuments,
+  getCanonicalDocumentByUploadId,
+  saveCanonicalDocument,
+} from '../../document-ingestion';
 
 import { ICH_M11_TERMINOLOGY_META } from '../ichM11/ichM11ControlledTerminology';
 
@@ -77,6 +83,10 @@ import type {
 
   ProtocolSourceArtifact,
 
+  SectionImportDiagnostics,
+
+  SuspiciousMappingRecord,
+
 } from './types';
 
 
@@ -85,8 +95,19 @@ const STORAGE_KEY = 'm11-protocol-import-v3';
 
 
 
-const blobUrlCache = new Map<string, string>();
+function hydrateCanonicalDocumentFromSource(source: ImportedProtocolSource): void {
+  if (getCanonicalDocumentByUploadId(source.uploadId)) {
+    return;
+  }
+  saveCanonicalDocument(buildCanonicalDocumentFromImportedSource(source));
+}
 
+function cacheImportedSource(source: ImportedProtocolSource): void {
+  extractionCache.set(source.uploadId, source);
+  hydrateCanonicalDocumentFromSource(source);
+}
+
+const blobUrlCache = new Map<string, string>();
 const extractionCache = new Map<string, ImportedProtocolSource>();
 
 function queueKnowledgeAgentFromDraft(
@@ -116,6 +137,8 @@ function queueKnowledgeAgentEdit(
 const knowledgeCache = new Map<string, ProtocolKnowledgeModel>();
 
 const listeners = new Set<() => void>();
+const persistListeners = new Set<(timestamp: string) => void>();
+let lastPersistedAt: string | null = null;
 
 
 
@@ -229,6 +252,10 @@ function persistMetadata(): void {
 
         structuralMappings: state.structuralMappings,
 
+        suspiciousMappings: state.suspiciousMappings,
+
+        sectionImportDiagnostics: state.sectionImportDiagnostics,
+
         lastImportCompletedAt: state.lastImportCompletedAt,
 
         protocolKnowledgeModel: state.protocolKnowledgeModelId
@@ -240,6 +267,8 @@ function persistMetadata(): void {
       }),
 
     );
+    lastPersistedAt = new Date().toISOString();
+    persistListeners.forEach((listener) => listener(lastPersistedAt!));
   } catch (error) {
     const message =
       error instanceof Error ? error.message : 'Import metadata could not be saved to browser storage.';
@@ -307,9 +336,17 @@ function loadPersistedMetadata(): void {
 
       sectionDrafts: normalized.sectionDrafts,
 
+      structuralMappings: parsed.structuralMappings,
+
+      suspiciousMappings: parsed.suspiciousMappings,
+
+      sectionImportDiagnostics: parsed.sectionImportDiagnostics,
+
       lastImportCompletedAt: normalized.lastImportCompletedAt,
 
       storageWarnings: normalized.warnings,
+
+      importContextPhase: parsed.importContextPhase ?? (normalized.lastImportCompletedAt ? 'ready' : 'idle'),
 
     };
 
@@ -373,7 +410,7 @@ export async function initProtocolImportStore(): Promise<void> {
 
     if (extraction) {
 
-      extractionCache.set(extraction.uploadId, extraction);
+      cacheImportedSource(extraction);
 
     }
 
@@ -395,6 +432,53 @@ export function subscribeProtocolImport(listener: () => void): () => void {
 
   return () => listeners.delete(listener);
 
+}
+
+export function subscribeProtocolImportPersist(listener: (timestamp: string) => void): () => void {
+  persistListeners.add(listener);
+  if (lastPersistedAt) {
+    listener(lastPersistedAt);
+  }
+  return () => persistListeners.delete(listener);
+}
+
+export function getLastPersistedAt(): string | null {
+  return lastPersistedAt;
+}
+
+export function collectImportValidationFindings(
+  sectionDrafts: Record<string, GeneratedSectionDraft> = state.sectionDrafts,
+): Array<{
+  sectionId: string;
+  severity: 'error' | 'warning' | 'info';
+  message: string;
+  code?: string;
+}> {
+  const findings: Array<{
+    sectionId: string;
+    severity: 'error' | 'warning' | 'info';
+    message: string;
+    code?: string;
+  }> = [];
+  for (const [sectionId, draft] of Object.entries(sectionDrafts)) {
+    for (const finding of draft.validationFindings ?? []) {
+      findings.push({
+        sectionId,
+        severity: finding.severity,
+        message: finding.message,
+        code: finding.code,
+      });
+    }
+  }
+  return findings;
+}
+
+export function normalizeValidationText(text: string): string {
+  return text.replace(/\s+/g, ' ').trim();
+}
+
+export function isValidationTextUnchanged(originalText: string, validatedText: string): boolean {
+  return normalizeValidationText(originalText) === normalizeValidationText(validatedText);
 }
 
 
@@ -583,17 +667,44 @@ export function prepareProtocolImportOverwrite(): void {
   state.lastImportCompletedAt = null;
   state.storageWarnings = [];
   state.artifact = null;
+  state.structuralMappings = undefined;
+  state.suspiciousMappings = undefined;
+  state.sectionImportDiagnostics = undefined;
   state.importContextPhase = 'idle';
+  clearCanonicalDocuments();
   clearStudyModel();
   persistMetadata();
   notify();
 }
 
 /** Persists structural mapping results for the active import session. */
-export async function stageProtocolImportMappings(mappings: MappedProtocolSection[]): Promise<void> {
+export async function stageProtocolImportMappings(
+  mappings: MappedProtocolSection[],
+  suspiciousMappings?: SuspiciousMappingRecord[],
+): Promise<void> {
   state.structuralMappings = mappings;
+  if (suspiciousMappings) {
+    state.suspiciousMappings = suspiciousMappings;
+  }
   persistMetadata();
   notify();
+}
+
+/** Persists import diagnostics snapshot captured after structural mapping + generation scheduling. */
+export async function stageProtocolImportDiagnostics(
+  diagnostics: Record<string, SectionImportDiagnostics>,
+): Promise<void> {
+  state.sectionImportDiagnostics = diagnostics;
+  persistMetadata();
+  notify();
+}
+
+export function getSectionImportDiagnostics(sectionId: string): SectionImportDiagnostics | null {
+  return state.sectionImportDiagnostics?.[sectionId] ?? null;
+}
+
+export function getAllSectionImportDiagnostics(): Record<string, SectionImportDiagnostics> {
+  return state.sectionImportDiagnostics ?? {};
 }
 
 export function getStructuralMappings(): MappedProtocolSection[] {
@@ -605,7 +716,7 @@ export async function stageProtocolImportExtraction(
   artifact: ProtocolSourceArtifact,
   importedSource: ImportedProtocolSource,
 ): Promise<void> {
-  extractionCache.set(importedSource.uploadId, importedSource);
+  cacheImportedSource(importedSource);
   await saveImportedProtocolSource(importedSource);
 
   state.artifact = artifact;
@@ -629,7 +740,7 @@ export async function stageProtocolImportCoreUnderstanding(
   importedSource: ImportedProtocolSource,
   protocolKnowledgeModel: ProtocolKnowledgeModel,
 ): Promise<void> {
-  extractionCache.set(importedSource.uploadId, importedSource);
+  cacheImportedSource(importedSource);
   knowledgeCache.set(protocolKnowledgeModel.id, protocolKnowledgeModel);
   await saveImportedProtocolSource(importedSource);
 
@@ -659,7 +770,7 @@ export async function stageProtocolImportUnderstanding(
   importedSource: ImportedProtocolSource,
   protocolKnowledgeModel: ProtocolKnowledgeModel,
 ): Promise<void> {
-  extractionCache.set(importedSource.uploadId, importedSource);
+  cacheImportedSource(importedSource);
   knowledgeCache.set(protocolKnowledgeModel.id, protocolKnowledgeModel);
   await saveImportedProtocolSource(importedSource);
 
@@ -674,7 +785,9 @@ export async function stageProtocolImportUnderstanding(
 
 /** Makes a freshly generated section draft available in the workspace before import completes. */
 export function upsertLiveSectionImportDraft(draft: GeneratedSectionDraft): void {
-  state.sectionDrafts[draft.sectionId] = normalizeSectionDraft(draft);
+  const normalized = normalizeSectionDraft(draft);
+  state.sectionDrafts[draft.sectionId] = normalized;
+  updateSectionGenerationState(draft.sectionId, resolveWorkflowGenerationState(normalized));
   persistMetadata();
   notify();
   queueKnowledgeAgentFromDraft(
@@ -712,7 +825,7 @@ export async function setProtocolImportResult(
 
 
 
-  extractionCache.set(importedSource.uploadId, importedSource);
+  cacheImportedSource(importedSource);
 
   knowledgeCache.set(protocolKnowledgeModel.id, protocolKnowledgeModel);
 
@@ -915,6 +1028,10 @@ export function applyValidationAgentProposal(
   sectionId: string,
   output: ValidationAgentOutput,
   actor = 'Current user',
+  options?: {
+    provider?: import('./types').SectionGenerationProvider | 'local-deterministic';
+    model?: string;
+  },
 ): void {
   const draft = state.sectionDrafts[sectionId];
   if (!draft) {
@@ -922,11 +1039,13 @@ export function applyValidationAgentProposal(
   }
 
   const now = new Date().toISOString();
+  const provider = options?.provider ?? 'local-deterministic';
   const historyEntry = {
     attemptedAt: now,
     validatedTargetText: output.validatedText,
     changeCount: output.changes.length,
     outcome: 'proposed' as const,
+    provider,
   };
 
   state.sectionDrafts[sectionId] = {
@@ -936,22 +1055,168 @@ export function applyValidationAgentProposal(
     validationFindings: output.findings,
     validationChanges: output.changes,
     validationStatus: output.validationSummary.status === 'failed' ? 'failed' : 'warnings',
+    validationProvider: provider,
+    validationModel: options?.model,
+    lastValidatedAt: now,
+    llmValidationInProgress: false,
     workflowState: 'validationProposed',
     state: 'validationPending',
     stateChangedAt: now,
-    stateChangedBy: 'Validation Agent',
+    stateChangedBy: provider === 'local-deterministic' ? 'Validation Agent' : 'LLM Validation',
     validationHistory: [...(draft.validationHistory ?? []), historyEntry],
     stateHistory: [
       ...draft.stateHistory,
       {
         state: 'validationPending',
         changedAt: now,
-        changedBy: 'Validation Agent',
+        changedBy: provider === 'local-deterministic' ? 'Validation Agent' : 'LLM Validation',
         note: `Validation proposed (${output.validationSummary.changeCount} changes)`,
       },
     ],
   };
   updateSectionGenerationState(sectionId, 'validationProposed');
+  persistMetadata();
+  notify();
+}
+
+function captureValidationProposalSnapshot(draft: GeneratedSectionDraft): import('./types').ValidationProposalSnapshot {
+  return {
+    validatedTargetText: draft.validatedTargetText,
+    validationChanges: draft.validationChanges,
+    validationFindings: draft.validationFindings,
+    validationMessages: draft.validationMessages,
+    validationProvider: draft.validationProvider ?? 'local-deterministic',
+    validationModel: draft.validationModel,
+    lastValidatedAt: draft.lastValidatedAt,
+  };
+}
+
+export function revertToDeterministicValidationProposal(sectionId: string, actor = 'Current user'): void {
+  const draft = state.sectionDrafts[sectionId];
+  const backup = draft?.deterministicValidationBackup;
+  if (!draft || !backup) {
+    return;
+  }
+
+  const now = new Date().toISOString();
+  state.sectionDrafts[sectionId] = {
+    ...draft,
+    validatedTargetText: backup.validatedTargetText,
+    validationChanges: backup.validationChanges,
+    validationFindings: backup.validationFindings ?? [],
+    validationMessages: backup.validationMessages ?? [],
+    validationProvider: backup.validationProvider ?? 'local-deterministic',
+    validationModel: backup.validationModel,
+    lastValidatedAt: backup.lastValidatedAt,
+    llmValidationInProgress: false,
+    workflowState: 'validationProposed',
+    state: 'validationPending',
+    stateChangedAt: now,
+    stateChangedBy: actor,
+    stateHistory: [
+      ...draft.stateHistory,
+      { state: 'validationPending', changedAt: now, changedBy: actor, note: 'Reverted to deterministic validation proposal' },
+    ],
+  };
+  updateSectionGenerationState(sectionId, 'validationProposed');
+  persistMetadata();
+  notify();
+}
+
+export function runLlmSectionValidation(sectionId: string, actor = 'Current user'): void {
+  const draft = state.sectionDrafts[sectionId];
+  if (!draft || draft.llmValidationInProgress) {
+    return;
+  }
+
+  const now = new Date().toISOString();
+  const backup =
+    draft.deterministicValidationBackup ??
+    (draft.workflowState === 'validationProposed' ? captureValidationProposalSnapshot(draft) : null);
+
+  state.sectionDrafts[sectionId] = {
+    ...draft,
+    deterministicValidationBackup: backup ?? draft.deterministicValidationBackup,
+    llmValidationInProgress: true,
+    stateChangedAt: now,
+    stateChangedBy: actor,
+  };
+  notify();
+
+  void import('../../../agents/validationAgentRunner')
+    .then(({ runLlmValidationAgentForSection }) => runLlmValidationAgentForSection(sectionId, actor))
+    .catch((error) => {
+      console.error('LLM validation failed to start', error);
+      const current = state.sectionDrafts[sectionId];
+      if (current) {
+        state.sectionDrafts[sectionId] = { ...current, llmValidationInProgress: false };
+        notify();
+      }
+    });
+}
+
+export function clearLlmValidationInProgress(sectionId: string): void {
+  const draft = state.sectionDrafts[sectionId];
+  if (!draft?.llmValidationInProgress) {
+    return;
+  }
+  state.sectionDrafts[sectionId] = { ...draft, llmValidationInProgress: false };
+  notify();
+}
+
+export function applyValidationNoChangesRequired(
+  sectionId: string,
+  output: ValidationAgentOutput,
+  actor = 'Current user',
+): void {
+  const draft = state.sectionDrafts[sectionId];
+  if (!draft) {
+    return;
+  }
+
+  const now = new Date().toISOString();
+  const originalText = draft.sourceText ?? draft.generatedText;
+  state.sectionDrafts[sectionId] = {
+    ...draft,
+    validatedTargetText: undefined,
+    validationChanges: [],
+    validationMessages: output.findings.map((finding) => finding.message),
+    validationFindings: output.findings,
+    validationStatus:
+      output.validationSummary.status === 'failed'
+        ? 'failed'
+        : output.findings.some((finding) => finding.severity === 'warning')
+          ? 'warnings'
+          : 'passed',
+    workflowState: 'validated',
+    state: 'validationPassed',
+    stateChangedAt: now,
+    stateChangedBy: 'Validation Agent',
+    validationProvider: 'local-deterministic',
+    lastValidatedAt: now,
+    llmValidationInProgress: false,
+    generatedText: originalText,
+    validationHistory: [
+      ...(draft.validationHistory ?? []),
+      {
+        attemptedAt: now,
+        validatedTargetText: output.validatedText,
+        changeCount: 0,
+        outcome: 'no_changes_required',
+        provider: 'local-deterministic',
+      },
+    ],
+    stateHistory: [
+      ...draft.stateHistory,
+      {
+        state: 'validationPassed',
+        changedAt: now,
+        changedBy: 'Validation Agent',
+        note: 'Validation complete — no changes required',
+      },
+    ],
+  };
+  updateSectionGenerationState(sectionId, 'validated');
   persistMetadata();
   notify();
 }

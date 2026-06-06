@@ -12,8 +12,13 @@ import { ThemeToggle } from './components/ThemeToggle';
 import { ProtocolBuildConsole } from './components/ProtocolBuildConsole';
 import { useProtocolBuildConsole } from './domain/protocol/build/useProtocolBuildConsole';
 import { WelcomeDialog } from './components/WelcomeDialog';
-import { StatusBar } from './components/StatusBar';
-import { Button } from './components/ui/button';
+import { StatusBar, type AutosaveStatus } from './components/StatusBar';
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from './components/ui/popover';
+import { ScrollArea } from './components/ui/scroll-area';
 import { Badge } from './components/ui/badge';
 import {
   Command,
@@ -33,10 +38,14 @@ import {
   Users,
   Workflow,
   AlertCircle,
+  AlertTriangle,
   CheckCircle2,
   Network,
   FileUp,
+  Loader2,
+  Clock,
 } from 'lucide-react';
+import { Button } from './components/ui/button';
 import {
   getAuditEvents,
   getComments,
@@ -56,13 +65,26 @@ import { SectionAuthoringCanvas } from './components/m11-template-reference/Sect
 import { ImportProtocolDialog } from './components/protocol-import/ImportProtocolDialog';
 import { ImportStorageRecoveryBanner } from './components/protocol-import/ImportStorageRecoveryBanner';
 import { ProtocolImportReviewWorkspace } from './components/protocol-import/ProtocolImportReviewWorkspace';
-import { updateSectionImportDraft } from './domain/protocol/import';
+import {
+  collectImportValidationFindings,
+  getLastPersistedAt,
+  subscribeProtocolImportPersist,
+} from './domain/protocol/import/protocolImportStore';
 import { subscribeStudyModelUpdated } from './agents';
 import { resolveSectionGenerationState } from './domain/protocol/build/protocolBuildConsoleStore';
+import { updateSectionImportDraft } from './domain/protocol/import';
+import { getCanonicalDocumentByUploadId } from './domain/document-ingestion';
+
 import { useProtocolImport, useSectionImportDraft } from './domain/protocol/import/ProtocolImportContext';
 
+type HeaderValidationFinding = {
+  id: string;
+  sectionId: string;
+  severity: 'error' | 'warning' | 'info';
+  message: string;
+  name?: string;
+};
 const initialProtocolSections = getProtocolSections();
-const validationIssues = getValidationIssues();
 const auditEvents = getAuditEvents();
 const comments = getComments();
 
@@ -72,7 +94,12 @@ export default function App() {
   const [fields, setFields] = useState(() => getFieldDefinitions());
   const [commandOpen, setCommandOpen] = useState(false);
   const [welcomeOpen, setWelcomeOpen] = useState(false);
-  const [lastSaved, setLastSaved] = useState(new Date());
+  const [protocolValidationIssues, setProtocolValidationIssues] = useState(() => getValidationIssues());
+  const [autosaveStatus, setAutosaveStatus] = useState<AutosaveStatus>('idle');
+  const [lastSaved, setLastSaved] = useState<Date | null>(() => {
+    const persisted = getLastPersistedAt();
+    return persisted ? new Date(persisted) : null;
+  });
   const [showDependencyGraph, setShowDependencyGraph] = useState(false);
   const [selectedDependencyNode, setSelectedDependencyNode] = useState<DependencyNode | null>(null);
   const [dependencyGraphRevision, setDependencyGraphRevision] = useState(0);
@@ -143,6 +170,7 @@ export default function App() {
     return subscribe(() => {
       setProtocolSections(getProtocolSections());
       setFields(getFieldDefinitions());
+      setProtocolValidationIssues(getValidationIssues());
       setDependencyGraphRevision((revision) => revision + 1);
       setSelectedDependencyNode((current) => {
         if (!current) {
@@ -151,6 +179,20 @@ export default function App() {
 
         return getDependencyNodes().find((node) => node.id === current.id) ?? current;
       });
+    });
+  }, []);
+
+  useEffect(() => {
+    let savingTimer: ReturnType<typeof setTimeout> | undefined;
+    return subscribeProtocolImportPersist((timestamp) => {
+      setAutosaveStatus('saving');
+      if (savingTimer) {
+        clearTimeout(savingTimer);
+      }
+      savingTimer = setTimeout(() => {
+        setLastSaved(new Date(timestamp));
+        setAutosaveStatus('saved');
+      }, 250);
     });
   }, []);
 
@@ -169,6 +211,54 @@ export default function App() {
   const isScheduleOfActivities = selectedSection?.viewKind === 'schedule-of-activities';
   const sectionFields = fields.filter((f) => f.sectionId === selectedSectionId);
   const selectedField = selectedFieldId ? fields.find((f) => f.id === selectedFieldId) || null : null;
+  const selectedStructuralMapping =
+    selectedSectionId && importState.structuralMappings
+      ? importState.structuralMappings.find((mapping) => mapping.mappedM11SectionId === selectedSectionId) ?? null
+      : null;
+  const selectedSectionImportDiagnostics =
+    selectedSectionId && importState.sectionImportDiagnostics
+      ? importState.sectionImportDiagnostics[selectedSectionId] ?? null
+      : null;
+  const canonicalDocument = importState.importedSourceSummary?.uploadId
+    ? getCanonicalDocumentByUploadId(importState.importedSourceSummary.uploadId)
+    : null;
+  const selectedCanonicalSourceSection =
+    canonicalDocument && selectedSectionImportDiagnostics?.canonicalSectionId
+      ? canonicalDocument.sections.find(
+          (section) => section.id === selectedSectionImportDiagnostics.canonicalSectionId,
+        ) ?? null
+      : canonicalDocument && selectedSectionImportDiagnostics?.sourceHeadingMatch
+        ? canonicalDocument.sections.find(
+            (section) =>
+              section.title.trim().toLowerCase() ===
+              selectedSectionImportDiagnostics.sourceHeadingMatch!.trim().toLowerCase(),
+          ) ?? null
+        : null;
+  const hasImportDrafts = Object.keys(importState.sectionDrafts).length > 0;
+  const importValidationFindings = collectImportValidationFindings(importState.sectionDrafts);
+  const headerValidationFindings: HeaderValidationFinding[] = hasImportDrafts
+    ? importValidationFindings.map((finding, index) => ({
+        id: `${finding.sectionId}-${finding.code ?? index}`,
+        sectionId: finding.sectionId,
+        severity: finding.severity,
+        message: finding.message,
+        name: finding.code,
+      }))
+    : protocolValidationIssues.map((issue) => ({
+        id: issue.id,
+        sectionId: issue.sectionId,
+        severity: issue.severity,
+        message: issue.message,
+        name: issue.name,
+      }));
+  const errorCount = headerValidationFindings.filter((finding) => finding.severity === 'error').length;
+  const warningCount = headerValidationFindings.filter((finding) => finding.severity === 'warning').length;
+  const autosaveLabel =
+    autosaveStatus === 'saving'
+      ? 'Saving…'
+      : lastSaved
+        ? `Autosaved ${lastSaved.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`
+        : 'Saved';
 
   const handleFieldChange = (fieldId: string, value: any) => {
     updateElementValue(fieldId, value);
@@ -211,9 +301,7 @@ export default function App() {
     return count;
   };
 
-  const totalValidationIssues = validationIssues.length;
-  const errorCount = validationIssues.filter((i) => i.severity === 'error').length;
-  const warningCount = validationIssues.filter((i) => i.severity === 'warning').length;
+  const totalValidationIssues = headerValidationFindings.length;
 
   return (
     <SoAAssessmentAuthoringProvider>
@@ -239,12 +327,56 @@ export default function App() {
 
         <div className="flex items-center gap-2">
           {totalValidationIssues > 0 ? (
-            <Badge variant="destructive" className="h-6 text-xs">
-              <AlertCircle className="h-3 w-3 mr-1" />
-              {errorCount} errors, {warningCount} warnings
-            </Badge>
+            <Popover>
+              <PopoverTrigger asChild>
+                <button
+                  type="button"
+                  className="inline-flex items-center rounded-md border border-transparent bg-destructive px-2 py-0.5 text-xs font-semibold text-destructive-foreground hover:bg-destructive/90"
+                  data-testid="header-validation-summary"
+                >
+                  <AlertCircle className="h-3 w-3 mr-1" />
+                  {errorCount} errors, {warningCount} warnings
+                </button>
+              </PopoverTrigger>
+              <PopoverContent align="end" className="w-80 p-0">
+                <div className="px-3 py-2 border-b border-border">
+                  <p className="text-sm font-medium">Validation issues</p>
+                  <p className="text-xs text-muted-foreground">
+                    {hasImportDrafts ? 'From import validation findings' : 'From protocol validation'}
+                  </p>
+                </div>
+                <ScrollArea className="max-h-64">
+                  <div className="p-2 space-y-2">
+                    {headerValidationFindings.map((finding) => (
+                      <button
+                        key={finding.id}
+                        type="button"
+                        className="w-full text-left p-2 rounded-md border border-border hover:bg-muted/50"
+                        onClick={() => handleSectionSelect(finding.sectionId)}
+                      >
+                        <div className="flex items-start gap-2">
+                          {finding.severity === 'error' ? (
+                            <AlertCircle className="h-3.5 w-3.5 mt-0.5 text-red-500" />
+                          ) : finding.severity === 'warning' ? (
+                            <AlertTriangle className="h-3.5 w-3.5 mt-0.5 text-amber-500" />
+                          ) : (
+                            <CheckCircle2 className="h-3.5 w-3.5 mt-0.5 text-muted-foreground" />
+                          )}
+                          <div className="min-w-0">
+                            <p className="text-xs font-medium truncate">
+                              {finding.name ?? finding.sectionId}
+                            </p>
+                            <p className="text-xs text-muted-foreground">{finding.message}</p>
+                          </div>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </ScrollArea>
+              </PopoverContent>
+            </Popover>
           ) : (
-            <Badge variant="outline" className="h-6 text-xs text-green-600 dark:text-green-400 border-green-500/30">
+            <Badge variant="outline" className="h-6 text-xs text-green-600 dark:text-green-400 border-green-500/30" data-testid="header-validation-summary">
               <CheckCircle2 className="h-3 w-3 mr-1" />
               No issues
             </Badge>
@@ -293,10 +425,18 @@ export default function App() {
             Export
           </Button>
 
-          <Button variant="default" size="sm" className="h-8 text-xs">
-            <Save className="h-3.5 w-3.5 mr-1.5" />
-            Save
-          </Button>
+          <div
+            className="inline-flex items-center h-8 px-2 text-xs text-muted-foreground"
+            data-testid="header-autosave-status"
+            data-autosave-state={autosaveStatus}
+          >
+            {autosaveStatus === 'saving' ? (
+              <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
+            ) : (
+              <Clock className="h-3.5 w-3.5 mr-1.5" />
+            )}
+            {autosaveLabel}
+          </div>
 
           <ThemeToggle />
 
@@ -470,7 +610,14 @@ export default function App() {
                           <DetailInspector
                             selectedField={selectedField}
                             selectedSectionId={selectedSectionId}
-                            validationIssues={validationIssues}
+                            selectedSectionTitle={selectedSection?.title}
+                            sectionDraft={sectionImportDraft}
+                            sectionGenerationState={selectedSectionGenerationState}
+                            structuralMapping={selectedStructuralMapping}
+                            sectionImportDiagnostics={selectedSectionImportDiagnostics}
+                            canonicalDocument={canonicalDocument}
+                            canonicalSourceSection={selectedCanonicalSourceSection}
+                            validationIssues={protocolValidationIssues}
                             auditEvents={auditEvents}
                             comments={comments}
                             isScheduleOfActivitiesView={isScheduleOfActivities}
@@ -497,6 +644,7 @@ export default function App() {
                       sectionImportDrafts={importState.sectionDrafts}
                       sectionGenerationStates={buildState.sectionStates}
                       sectionSkipReasons={buildState.sectionSkipReasons}
+                      sectionImportDiagnostics={importState.sectionImportDiagnostics}
                       buildActive={buildActive || buildState.status === 'complete'}
                       visualizationPhase={buildState.visualizationPhase}
                       generationProgress={buildState.generationProgress}
@@ -570,10 +718,10 @@ export default function App() {
       <StatusBar
         protocolId="PROTO-XYZ-301"
         currentUser="Dr. Sarah Chen"
+        autosaveStatus={autosaveStatus}
         lastSaved={lastSaved}
         totalSections={countTotalSections(protocolSections)}
         completedSections={countCompletedSections(protocolSections)}
-        validationIssues={totalValidationIssues}
       />
     </div>
     </SoAAssessmentAuthoringProvider>
