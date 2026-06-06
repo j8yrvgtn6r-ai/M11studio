@@ -101,14 +101,27 @@ export { buildCoreStudyModel, coreStudyModelToProtocolKnowledgeModel } from './c
 export type { CoreStudyModel } from './coreStudyModel';
 
 export { runStructuralMappingEngine } from './structuralMappingEngine';
-export { createImportedSectionDraft, markDraftAsGenerated } from './importedSectionBuilder';
-export { buildValidatedTarget } from './sectionValidationTargetEngine';
+export {
+  buildFullTextFromParagraphs,
+  buildSourcePreview,
+  collectParagraphSectionBoundaries,
+  extractBodyTextBetweenParagraphs,
+  findNextPeerOrHigherBoundary,
+  isAppendixHeading,
+  isAppendixM11Section,
+  isSuspiciousImportedBody,
+  isTableOfContentsEntry,
+  MIN_IMPORTED_BODY_LENGTH,
+} from './sourceSectionBodyExtractor';
 export {
   contentOriginLabel,
+  importedSectionTooltip,
   inferWorkflowState,
   resolveWorkflowGenerationState,
   workflowStateLabel,
 } from './sectionWorkflowState';
+export { createImportedSectionDraft, markDraftAsGenerated } from './importedSectionBuilder';
+export { buildValidatedTarget } from './sectionValidationTargetEngine';
 
 export { DocxExtractionError, extractDocxProtocolSource } from './docxProtocolExtractor';
 export { buildProtocolKnowledgeModel, buildLocalDeterministicKnowledgeModel } from './buildProtocolKnowledgeModel';

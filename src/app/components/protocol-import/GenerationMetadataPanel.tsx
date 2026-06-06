@@ -194,9 +194,32 @@ export function GenerationMetadataPanel({ draft }: GenerationMetadataPanelProps)
 
             </dd>
 
+            {draft.contentOrigin === 'imported' ? (
+              <>
+                <dt className="text-muted-foreground">Source heading</dt>
+                <dd data-testid="import-source-heading">{draft.sourceHeading ?? 'Unknown'}</dd>
+
+                <dt className="text-muted-foreground">Mapping method</dt>
+                <dd data-testid="import-mapping-method">{draft.mappingMethod ?? 'Unknown'}</dd>
+
+                <dt className="text-muted-foreground">Imported length</dt>
+                <dd data-testid="import-text-length">
+                  {draft.importedTextLength ?? draft.sourceText?.length ?? 0} characters
+                </dd>
+
+                <dt className="text-muted-foreground">Source preview</dt>
+                <dd data-testid="import-source-preview">
+                  {draft.sourcePreview ?? draft.sourceText?.slice(0, 120) ?? 'None'}
+                </dd>
+
+                <dt className="text-muted-foreground">Source section id</dt>
+                <dd className="font-mono" data-testid="import-source-section-id">
+                  {draft.sourceSectionId ?? draft.matchedSourceCandidateIds?.[0] ?? 'Unknown'}
+                </dd>
+              </>
+            ) : null}
+
           </dl>
-
-
 
           {(p.knowledgeElementsUsed ?? []).length > 0 ? (
 
@@ -218,17 +241,15 @@ export function GenerationMetadataPanel({ draft }: GenerationMetadataPanelProps)
 
           ) : null}
 
-
-
-          {(p.generationNotes ?? []).map((note) => (
-
-            <p key={note} className="text-muted-foreground">
-
-              {note}
-
-            </p>
-
-          ))}
+          {(p.generationNotes ?? []).length > 0 ? (
+            <div className="space-y-1">
+              {p.generationNotes.map((note) => (
+                <p key={note} className="text-muted-foreground">
+                  {note}
+                </p>
+              ))}
+            </div>
+          ) : null}
 
         </div>
 

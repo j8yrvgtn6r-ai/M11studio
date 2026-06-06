@@ -141,7 +141,8 @@ export function DocumentViewport({
 
   const workflowState = importDraft ? inferWorkflowState(importDraft) : null;
 
-  const isImportedSection = workflowState === 'imported';
+  const isImportedUnvalidatedSection =
+    workflowState === 'importedUnvalidated' || workflowState === 'imported';
 
   const isUnvalidatedSection = workflowState === 'unvalidated';
 
@@ -205,7 +206,7 @@ export function DocumentViewport({
 
                 </Badge>
 
-                {isImportedSection && !importDraft.validatedTargetText ? (
+                {isImportedUnvalidatedSection && !importDraft.validatedTargetText ? (
 
                   <Button
 
@@ -392,7 +393,7 @@ export function DocumentViewport({
 
 
 
-          {importDraft && isImportedSection && !importDraft.validatedTargetText ? (
+          {importDraft && isImportedUnvalidatedSection && !importDraft.validatedTargetText ? (
 
             <div className="space-y-3 mb-8">
 

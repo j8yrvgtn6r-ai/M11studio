@@ -23,7 +23,8 @@ export function sectionGenerationStateLabel(state: SectionGenerationState): stri
     case 'generated':
       return 'Generated';
     case 'imported':
-      return 'Imported';
+    case 'importedUnvalidated':
+      return 'Imported (unvalidated)';
     case 'unvalidated':
       return 'Unvalidated';
     case 'validated':
@@ -60,7 +61,8 @@ export function SectionGenerationStateIndicator({
     case 'generating':
       return <Loader2 className={`${className} animate-spin text-primary`} />;
     case 'imported':
-      return <Circle className={`${className} text-muted-foreground`} />;
+    case 'importedUnvalidated':
+      return <Circle className={`${className} text-cyan-600 dark:text-cyan-400`} />;
     case 'unvalidated':
       return <AlertTriangle className={`${className} text-slate-500`} />;
     case 'validated':
@@ -94,7 +96,8 @@ export function sectionGenerationOverlayClass(state: SectionGenerationState): st
     case 'generating':
       return 'ring-2 ring-primary/60 animate-pulse';
     case 'imported':
-      return 'ring-1 ring-muted-foreground/40';
+    case 'importedUnvalidated':
+      return 'ring-1 ring-cyan-500/50';
     case 'unvalidated':
       return 'ring-1 ring-slate-400/50';
     case 'validated':
@@ -125,7 +128,8 @@ export function sectionGenerationDotClass(state: SectionGenerationState): string
     case 'generating':
       return 'bg-primary/40';
     case 'imported':
-      return 'bg-muted-foreground/60';
+    case 'importedUnvalidated':
+      return 'bg-cyan-500/80';
     case 'unvalidated':
       return 'bg-slate-400';
     case 'validated':

@@ -1,4 +1,13 @@
 import { mapSourceCandidatesToM11 } from './m11SourceSectionMapping';
+import {
+  buildFullTextFromParagraphs,
+  buildParagraphCharStarts,
+  buildSourcePreview,
+  collectParagraphSectionBoundaries,
+  extractBodyTextBetweenParagraphs,
+  findNextPeerOrHigherBoundary,
+  isSuspiciousImportedBody,
+} from './sourceSectionBodyExtractor';
 import type {
   ExtractedHeading,
   ExtractedParagraph,
@@ -6,120 +15,48 @@ import type {
   SourceSectionCandidate,
 } from './types';
 
-const NUMBERED_HEADING = /^(\d+(?:\.\d+)*)\s+(.+)$/;
-const ALL_CAPS_HEADING = /^[A-Z][A-Z0-9\s\-–—:]{4,}$/;
-
-interface SectionBoundary {
-  id: string;
-  headingText: string;
-  headingLevel?: number;
-  startIndex: number;
-  confidence: number;
-  detectedNumber?: string;
-  detectionMethod: SourceSectionCandidate['detectionMethod'];
-}
-
-function buildCharOffsets(paragraphs: ExtractedParagraph[]): number[] {
-  const offsets: number[] = [];
-  let cursor = 0;
-  for (const paragraph of paragraphs) {
-    offsets.push(cursor);
-    cursor += paragraph.text.length + 1;
-  }
-  return offsets;
-}
-
-function paragraphCharStart(paragraphIndex: number, offsets: number[]): number {
-  return offsets[paragraphIndex] ?? 0;
-}
-
-function collectBoundaries(
-  paragraphs: ExtractedParagraph[],
-  headings: ExtractedHeading[],
-  fullText: string,
-): SectionBoundary[] {
-  const offsets = buildCharOffsets(paragraphs);
-  const boundaries: SectionBoundary[] = [];
-  const seenStarts = new Set<number>();
-
-  const pushBoundary = (boundary: SectionBoundary) => {
-    if (!boundary.headingText.trim() || seenStarts.has(boundary.startIndex)) {
-      return;
-    }
-    seenStarts.add(boundary.startIndex);
-    boundaries.push(boundary);
-  };
-
-  for (const heading of headings) {
-    pushBoundary({
-      id: `boundary-heading-${heading.id}`,
-      headingText: heading.text,
-      headingLevel: heading.level,
-      startIndex: heading.charStart,
-      confidence: 0.9,
-      detectionMethod: 'heading-style',
-    });
-  }
-
-  for (const paragraph of paragraphs) {
-    const text = paragraph.text.trim();
-    if (!text) {
-      continue;
-    }
-
-    const numbered = NUMBERED_HEADING.exec(text);
-    if (numbered) {
-      pushBoundary({
-        id: `boundary-number-${paragraph.index}`,
-        headingText: text,
-        headingLevel: numbered[1].split('.').length,
-        startIndex: paragraphCharStart(paragraph.index, offsets),
-        confidence: 0.85,
-        detectedNumber: numbered[1],
-        detectionMethod: 'numbering',
-      });
-      continue;
-    }
-
-    if (ALL_CAPS_HEADING.test(text) && text.length <= 120) {
-      pushBoundary({
-        id: `boundary-caps-${paragraph.index}`,
-        headingText: text,
-        headingLevel: 1,
-        startIndex: paragraphCharStart(paragraph.index, offsets),
-        confidence: 0.55,
-        detectionMethod: 'all-caps',
-      });
-    }
-  }
-
-  boundaries.sort((left, right) => left.startIndex - right.startIndex);
-  return boundaries;
-}
-
 function buildSectionsFromBoundaries(
-  boundaries: SectionBoundary[],
+  boundaries: ReturnType<typeof collectParagraphSectionBoundaries>,
+  paragraphs: ExtractedParagraph[],
   fullText: string,
+  tables: ImportedProtocolSource['tables'],
 ): SourceSectionCandidate[] {
   if (boundaries.length === 0) {
     return [];
   }
 
   return boundaries.map((boundary, index) => {
-    const next = boundaries[index + 1];
-    const endIndex = next ? next.startIndex : fullText.length;
-    const text = fullText.slice(boundary.startIndex, endIndex).trim();
+    const endParagraphIndex = findNextPeerOrHigherBoundary(boundaries, index, paragraphs.length);
+    const bodyText = extractBodyTextBetweenParagraphs(
+      paragraphs,
+      boundary.paragraphIndex,
+      endParagraphIndex,
+      tables,
+    );
+    const charStarts = buildParagraphCharStarts(paragraphs);
+    const charStart = boundary.charStart;
+    const charEnd =
+      endParagraphIndex < paragraphs.length
+        ? charStarts[endParagraphIndex] ?? fullText.length
+        : fullText.length;
+    const combinedText = bodyText ? `${boundary.headingText}\n\n${bodyText}` : boundary.headingText;
 
     return {
       id: `source-section-${index + 1}`,
       headingText: boundary.headingText,
       headingLevel: boundary.headingLevel,
-      startIndex: boundary.startIndex,
-      endIndex,
-      text,
+      startIndex: charStart,
+      endIndex: charEnd,
+      sourceStartParagraphIndex: boundary.paragraphIndex,
+      sourceEndParagraphIndex: endParagraphIndex,
+      text: combinedText,
+      bodyText,
       confidence: boundary.confidence,
       detectedNumber: boundary.detectedNumber,
       detectionMethod: boundary.detectionMethod,
+      sourcePreview: buildSourcePreview(bodyText || boundary.headingText),
+      importedTextLength: bodyText.length,
+      isSuspiciousBody: isSuspiciousImportedBody(bodyText, boundary.headingText),
     };
   });
 }
@@ -131,9 +68,15 @@ function createWholeDocumentSection(fullText: string): SourceSectionCandidate {
     headingLevel: 1,
     startIndex: 0,
     endIndex: fullText.length,
+    sourceStartParagraphIndex: 0,
+    sourceEndParagraphIndex: Number.MAX_SAFE_INTEGER,
     text: fullText.trim(),
+    bodyText: fullText.trim(),
     confidence: 0.35,
     detectionMethod: 'whole-document',
+    sourcePreview: buildSourcePreview(fullText),
+    importedTextLength: fullText.trim().length,
+    isSuspiciousBody: false,
   };
 }
 
@@ -147,14 +90,13 @@ export function detectSourceSections(
   extractionWarnings: string[],
 ): ImportedProtocolSource {
   const warnings = [...extractionWarnings];
-  const boundaries = collectBoundaries(paragraphs, headings, fullText);
-  let sections = buildSectionsFromBoundaries(boundaries, fullText);
+  const alignedFullText = paragraphs.length > 0 ? buildFullTextFromParagraphs(paragraphs) : fullText;
+  const boundaries = collectParagraphSectionBoundaries(paragraphs, headings);
+  let sections = buildSectionsFromBoundaries(boundaries, paragraphs, alignedFullText, tables);
 
-  if (sections.length === 0 && fullText.trim()) {
-    sections = [createWholeDocumentSection(fullText)];
-    warnings.push(
-      'No structured headings detected; rewrite will rely on full document context.',
-    );
+  if (sections.length === 0 && alignedFullText.trim()) {
+    sections = [createWholeDocumentSection(alignedFullText)];
+    warnings.push('No structured headings detected; rewrite will rely on full document context.');
   }
 
   sections = mapSourceCandidatesToM11(sections);
@@ -163,7 +105,7 @@ export function detectSourceSections(
     uploadId,
     filename,
     extractedAt: new Date().toISOString(),
-    fullText,
+    fullText: alignedFullText,
     paragraphs,
     headings,
     sections,

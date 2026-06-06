@@ -281,7 +281,26 @@ export async function runProtocolImportProcessing(
     updateStep('identifying-sections', { state: 'active' });
     appendProtocolBuildEvent({ type: 'progress', message: 'Detecting protocol structure...' });
     appendProtocolBuildEvent({ type: 'progress', message: 'Matching protocol headings...' });
-    const structuralMapping = runStructuralMappingEngine(importedSource);
+    const structuralMapping = runStructuralMappingEngine(importedSource, {
+      onMapping: (mapping) => {
+        appendProtocolBuildEvent({
+          type: 'success',
+          message: `Mapped section ${mapping.mappedM11SectionId} from source heading "${mapping.sourceHeading}"`,
+          sectionId: mapping.mappedM11SectionId,
+          metadata: {
+            importedTextLength: mapping.importedTextLength,
+            mappingMethod: mapping.mappingMethod,
+          },
+        });
+      },
+      onRejectedMapping: ({ mappedM11SectionId, sourceHeading, reason }) => {
+        appendProtocolBuildEvent({
+          type: 'warning',
+          message: `Skipped mapping for ${mappedM11SectionId} from "${sourceHeading}": ${reason}`,
+          sectionId: mappedM11SectionId,
+        });
+      },
+    });
     appendProtocolBuildEvent({ type: 'progress', message: 'Mapping content into M11 hierarchy...' });
     appendProtocolBuildEvent({
       type: 'success',
@@ -303,7 +322,7 @@ export async function runProtocolImportProcessing(
 
     for (const draft of importedDrafts) {
       upsertLiveSectionImportDraft(draft);
-      updateSectionGenerationState(draft.sectionId, 'imported');
+      updateSectionGenerationState(draft.sectionId, 'importedUnvalidated');
       callbacks.onSectionDraftGenerated?.(draft);
     }
     if (importedDrafts.length > 0) {

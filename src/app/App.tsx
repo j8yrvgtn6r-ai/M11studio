@@ -57,6 +57,7 @@ import { ImportProtocolDialog } from './components/protocol-import/ImportProtoco
 import { ImportStorageRecoveryBanner } from './components/protocol-import/ImportStorageRecoveryBanner';
 import { ProtocolImportReviewWorkspace } from './components/protocol-import/ProtocolImportReviewWorkspace';
 import { updateSectionImportDraft } from './domain/protocol/import';
+import { subscribeStudyModelUpdated } from './agents';
 import { resolveSectionGenerationState } from './domain/protocol/build/protocolBuildConsoleStore';
 import { useProtocolImport, useSectionImportDraft } from './domain/protocol/import/ProtocolImportContext';
 
@@ -87,6 +88,7 @@ export default function App() {
   const [importDialogOpen, setImportDialogOpen] = useState(false);
   const [importReviewOpen, setImportReviewOpen] = useState(false);
   const [importCompleteBanner, setImportCompleteBanner] = useState<string | null>(null);
+  const [studyModelUpdatedBanner, setStudyModelUpdatedBanner] = useState<string | null>(null);
   const { state: importState, storageWarnings } = useProtocolImport();
   const buildState = useProtocolBuildConsole();
   const buildActive = buildState.status === 'running' || buildState.status === 'paused';
@@ -117,6 +119,12 @@ export default function App() {
       setWelcomeOpen(true);
       localStorage.setItem('m11-studio-visited', 'true');
     }
+  }, []);
+
+  useEffect(() => {
+    return subscribeStudyModelUpdated((message) => {
+      setStudyModelUpdatedBanner(message);
+    });
   }, []);
 
   useEffect(() => {
@@ -309,6 +317,20 @@ export default function App() {
       {!importReviewOpen && storageWarnings.length > 0 ? (
         <div className="px-4 py-2 border-b border-border shrink-0">
           <ImportStorageRecoveryBanner warnings={storageWarnings} />
+        </div>
+      ) : null}
+
+      {studyModelUpdatedBanner ? (
+        <div className="px-4 py-2 border-b border-border shrink-0 bg-cyan-500/10" data-testid="study-model-updated-banner">
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex items-start gap-2 text-sm">
+              <CheckCircle2 className="h-4 w-4 text-cyan-600 mt-0.5 shrink-0" />
+              <p>{studyModelUpdatedBanner}</p>
+            </div>
+            <Button variant="ghost" size="sm" className="h-7 text-xs shrink-0" onClick={() => setStudyModelUpdatedBanner(null)}>
+              Dismiss
+            </Button>
+          </div>
         </div>
       ) : null}
 

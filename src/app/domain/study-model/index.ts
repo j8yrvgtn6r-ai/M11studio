@@ -11,9 +11,14 @@ export {
   clearStudyModel,
   getStudyModel,
   getStudyModelDependencies,
+  getStudyModelPhase,
+  patchStudyModel,
   rebuildStudyModel,
+  setStudyModelPhase,
   subscribeStudyModel,
 } from './studyModelStore';
+export { applyStudyModelPatch } from './studyModelPatch';
+export type { StudyModelPatch } from './studyModelPatch';
 export {
   getStudyModelCollectionLabel,
   getStudyModelCollectionsForSection,

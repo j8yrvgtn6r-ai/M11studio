@@ -27,6 +27,7 @@ export type SectionGenerationState =
   | 'failed'
   | 'outOfDate'
   | 'imported'
+  | 'importedUnvalidated'
   | 'unvalidated'
   | 'validated'
   | 'reviewed'
@@ -76,7 +77,7 @@ export interface ProtocolBuildConsoleState {
   } | null;
 }
 
-const MAX_EVENTS = 500;
+const MAX_EVENTS = 1500;
 
 let eventCounter = 0;
 let pauseRequested = false;
@@ -129,6 +130,7 @@ export function normalizeSectionGenerationState(value: unknown): SectionGenerati
     'failed',
     'outOfDate',
     'imported',
+    'importedUnvalidated',
     'unvalidated',
     'validated',
     'reviewed',
@@ -423,6 +425,7 @@ const PROTECTED_SECTION_STATES: SectionGenerationState[] = [
   'approved',
   'generating',
   'imported',
+  'importedUnvalidated',
   'unvalidated',
   'validated',
   'reviewed',
@@ -480,7 +483,7 @@ export function mergeSectionGenerationStatesFromDrafts(
 export function markSectionsNotGenerated(sectionIds: string[]): void {
   const next = { ...state.sectionStates };
   for (const sectionId of sectionIds) {
-    if (next[sectionId] !== 'generating' && next[sectionId] !== 'needsReview' && next[sectionId] !== 'approved' && next[sectionId] !== 'imported' && next[sectionId] !== 'validated') {
+    if (next[sectionId] !== 'generating' && next[sectionId] !== 'needsReview' && next[sectionId] !== 'approved' && next[sectionId] !== 'imported' && next[sectionId] !== 'importedUnvalidated' && next[sectionId] !== 'validated') {
       next[sectionId] = 'needsGeneration';
     }
   }

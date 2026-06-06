@@ -115,11 +115,21 @@ export interface SourceSectionCandidate {
   headingLevel?: number;
   startIndex: number;
   endIndex: number;
+  /** Paragraph index of the heading line. */
+  sourceStartParagraphIndex?: number;
+  /** Exclusive paragraph index where this section ends. */
+  sourceEndParagraphIndex?: number;
+  /** Full section text including heading line. */
   text: string;
+  /** Body text under the heading (verbatim, excludes heading line). */
+  bodyText?: string;
   confidence: number;
   detectedNumber?: string;
   possibleM11SectionId?: string;
   detectionMethod: 'heading-style' | 'numbering' | 'all-caps' | 'whole-document';
+  importedTextLength?: number;
+  sourcePreview?: string;
+  isSuspiciousBody?: boolean;
 }
 
 export interface ImportedProtocolSource {
@@ -154,6 +164,7 @@ export type MappingMethod =
   | 'content-context';
 
 export type ProtocolSectionWorkflowState =
+  | 'importedUnvalidated'
   | 'imported'
   | 'unvalidated'
   | 'validated'
@@ -167,12 +178,18 @@ export type SectionContentOrigin = 'imported' | 'generated';
 export interface MappedProtocolSection {
   mappedM11SectionId: string;
   mappedM11SectionTitle: string;
+  sourceSectionId: string;
   sourceHeading: string;
+  sourceHeadingLevel?: number;
   sourceText: string;
   sourceCandidateId: string;
+  sourceStartIndex: number;
+  sourceEndIndex: number;
   mappingConfidence: number;
   mappingMethod: MappingMethod;
   needsValidation: boolean;
+  importedTextLength: number;
+  sourcePreview: string;
 }
 
 export interface StructuralMappingResult {
@@ -211,6 +228,12 @@ export interface GeneratedSectionDraft {
   contentOrigin?: SectionContentOrigin;
   sourceText?: string;
   sourceHeading?: string;
+  sourceSectionId?: string;
+  sourceHeadingLevel?: number;
+  sourceStartIndex?: number;
+  sourceEndIndex?: number;
+  importedTextLength?: number;
+  sourcePreview?: string;
   validatedTargetText?: string;
   mappingConfidence?: number;
   mappingMethod?: MappingMethod;

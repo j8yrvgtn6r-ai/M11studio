@@ -8,6 +8,8 @@
     "dev": "vite",
     "test:parity": "npx vite-node scripts/check-protocol-parity.ts",
     "test:ensure-array": "npx vite-node scripts/test-ensure-array.ts",
+    "test:source-section-boundary": "npx vite-node scripts/test-source-section-boundary.ts",
+    "test:agents": "npx vite-node scripts/test-agents.ts",
     "test:schedule-parity": "npx vite-node scripts/check-schedule-parity.ts",
     "generate:parity-fixtures": "npx vite-node scripts/generate-parity-fixtures.ts",
     "generate:schedule-parity-fixtures": "npx vite-node scripts/generate-schedule-parity-fixtures.ts",

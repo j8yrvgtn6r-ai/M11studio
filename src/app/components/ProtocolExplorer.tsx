@@ -10,6 +10,7 @@ import {
   SectionGenerationStateIndicator,
   sectionGenerationStateLabel,
 } from './SectionGenerationStateIndicator';
+import { importedSectionTooltip } from '../domain/protocol/import/sectionWorkflowState';
 import type { ProtocolSection } from '../types/protocol';
 import { getStatusColor } from '../utils/statusColors';
 import { ScrollArea } from './ui/scroll-area';
@@ -197,6 +198,10 @@ function SectionTreeNode({
               title={[
                 section.title,
                 `Generation: ${sectionGenerationStateLabel(generationState)}`,
+                importedSectionTooltip(importDraft),
+                importDraft?.contentOrigin
+                  ? `Source: ${importDraft.contentOrigin === 'imported' ? 'Imported' : 'Generated'}`
+                  : null,
                 generationProgress?.providerLabel
                   ? `Provider: ${generationProgress.providerLabel}${generationProgress.model ? ` / ${generationProgress.model}` : ''}`
                   : null,

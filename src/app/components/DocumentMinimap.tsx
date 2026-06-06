@@ -13,6 +13,7 @@ import {
   SectionGenerationStateIndicator,
   sectionGenerationDotClass,
 } from './SectionGenerationStateIndicator';
+import { importedSectionTooltip } from '../domain/protocol/import/sectionWorkflowState';
 import { formatBuildDurationMs } from '../domain/protocol/build/formatBuildDuration';
 import { ScrollArea } from './ui/scroll-area';
 
@@ -74,6 +75,7 @@ export function DocumentMinimap({
             );
             const neutralImportTile =
               generationState === 'notGenerated' ||
+              generationState === 'needsGeneration' ||
               (buildActive && (phase === 'reset' || (generationState === 'queued' && !importDraft)));
             const overlayClass =
               buildActive || importDraft ? sectionGenerationOverlayClass(generationState) : '';
@@ -85,6 +87,14 @@ export function DocumentMinimap({
             const tooltipLines = [
               `Section: ${section.title}`,
               `Status: ${sectionGenerationStateLabel(generationState)}`,
+              importedSectionTooltip(importDraft),
+              importDraft?.contentOrigin
+                ? `Source: ${importDraft.contentOrigin === 'imported' ? 'Imported' : 'Generated'}`
+                : null,
+              importDraft?.importedTextLength
+                ? `Imported length: ${importDraft.importedTextLength} characters`
+                : null,
+              importDraft?.sourcePreview ? `Preview: ${importDraft.sourcePreview}` : null,
               generationProgress?.providerLabel
                 ? `Provider: ${generationProgress.providerLabel}${generationProgress.model ? ` / ${generationProgress.model}` : ''}`
                 : null,

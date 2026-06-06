@@ -49,6 +49,13 @@ export function rebuildStudyModel(input: {
   return studyModel;
 }
 
+export function patchStudyModel(next: StudyModel, document?: ProtocolDocument | null): StudyModel {
+  studyModel = next;
+  dependencies = buildStudyModelDependencies(next, document ?? null);
+  notify();
+  return next;
+}
+
 export function clearStudyModel(): void {
   studyModel = null;
   dependencies = [];

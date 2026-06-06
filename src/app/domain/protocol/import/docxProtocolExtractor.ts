@@ -206,11 +206,19 @@ export async function extractDocxProtocolSource(
     warnings.push('Paragraph structure inferred from plain text lines.');
   }
 
+  const alignedFullText =
+    paragraphs.length > 0
+      ? paragraphs
+          .map((paragraph) => paragraph.text)
+          .filter((text) => text.length > 0)
+          .join('\n')
+      : fullText;
+
   const headings = buildHeadingsFromParagraphs(paragraphs);
 
   if (headings.length === 0) {
     warnings.push('No Word heading styles detected in OOXML.');
   }
 
-  return detectSourceSections(uploadId, filename, fullText, paragraphs, headings, tables, warnings);
+  return detectSourceSections(uploadId, filename, alignedFullText, paragraphs, headings, tables, warnings);
 }

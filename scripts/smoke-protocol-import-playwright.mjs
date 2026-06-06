@@ -125,7 +125,13 @@ async function main() {
   }, { timeout: 60_000 });
 
   await page.getByTestId('protocol-build-toggle').click();
-  let buildConsoleText = await page.getByTestId('protocol-build-console').innerText();
+  await page.waitForFunction(() => {
+    const text = document.querySelector('[data-testid="protocol-build-console"]')?.textContent ?? '';
+    return text.includes('Knowledge Agent started') || text.includes('Knowledge Agent completed');
+  }, { timeout: 60_000 });
+  let buildConsoleText = await page.getByTestId('protocol-build-console').evaluate(
+    (el) => el.textContent ?? '',
+  );
   if (!buildConsoleText.includes('Building Core Study Model')) {
     throw new Error('Expected Building Core Study Model in build console.');
   }
@@ -163,7 +169,7 @@ async function main() {
 
   await page.waitForFunction(() => {
     const status = document.querySelector('[data-testid="protocol-build-console"]')?.getAttribute('data-status');
-    const importedCount = document.querySelectorAll('[data-generation-state="imported"]').length;
+    const importedCount = document.querySelectorAll('[data-generation-state="importedUnvalidated"]').length;
     const generatedCount = document.querySelectorAll('[data-generation-state="generated"]').length;
     const reviewCount = document.querySelectorAll('[data-generation-state="needsReview"]').length;
     const summary =
@@ -191,7 +197,7 @@ async function main() {
   }
 
   const importedIndicator = page
-    .locator('[data-testid^="import-section-indicator-"][data-generation-state="imported"]')
+    .locator('[data-testid^="import-section-indicator-"][data-generation-state="importedUnvalidated"]')
     .first();
   const generatedIndicator = page
     .locator(
@@ -204,17 +210,32 @@ async function main() {
     (await contentIndicator.getAttribute('data-testid'))?.replace('import-section-indicator-', '') ?? '1';
   await page.locator(`[data-testid="map-section-${reviewSectionId}"]`).click();
   await page.getByTestId('viewport-import-generated-text').waitFor({ timeout: 15_000 });
+  const importedText = await page.getByTestId('viewport-import-generated-text').inputValue();
+  if (importedText.trim().length < 20) {
+    throw new Error(`Expected verbatim imported section text, got fragment: "${importedText.trim()}"`);
+  }
+
+  const importedMapTile = page.locator(`[data-testid="map-section-${reviewSectionId}"]`);
+  const importedMapState = await importedMapTile.getAttribute('data-generation-state');
+  if (importedMapState !== 'importedUnvalidated') {
+    throw new Error(`Expected imported MAP tile state importedUnvalidated, got ${importedMapState}`);
+  }
+  const importedMapClass = await importedMapTile.getAttribute('class');
+  if (importedMapClass?.includes('bg-muted/80')) {
+    throw new Error('Imported MAP tile must not use neutral gray styling.');
+  }
 
   const validateButton = page.getByTestId('viewport-validate-section');
-  if (await validateButton.isVisible().catch(() => false)) {
-    await validateButton.click();
-    await page.getByTestId('section-validation-review-panel').waitFor({ timeout: 15_000 });
-    await page.getByTestId('validation-view-track-changes').click();
-    await page.getByTestId('validation-track-changes-view').waitFor({ timeout: 15_000 });
-    await page.getByTestId('validation-view-side-by-side').click();
-    await page.getByTestId('validation-side-by-side-view').waitFor({ timeout: 15_000 });
-    await page.getByTestId('validation-accept-button').click();
+  if (!(await validateButton.isVisible().catch(() => false))) {
+    throw new Error('Validate button should appear for importedUnvalidated section.');
   }
+  await validateButton.click();
+  await page.getByTestId('section-validation-review-panel').waitFor({ timeout: 15_000 });
+  await page.getByTestId('validation-view-track-changes').click();
+  await page.getByTestId('validation-track-changes-view').waitFor({ timeout: 15_000 });
+  await page.getByTestId('validation-view-side-by-side').click();
+  await page.getByTestId('validation-side-by-side-view').waitFor({ timeout: 15_000 });
+  await page.getByTestId('validation-accept-button').click();
 
   const pendingTile = page
     .locator(
@@ -242,7 +263,7 @@ async function main() {
   await page.getByTestId('import-reconstruction-banner').waitFor({ timeout: 180_000 });
 
   await page.getByTestId('protocol-build-toggle').click();
-  buildConsoleText = await page.getByTestId('protocol-build-console').innerText();
+  buildConsoleText = await page.getByTestId('protocol-build-console').evaluate((el) => el.textContent ?? '');
   if (!buildConsoleText.includes('First draft available')) {
     throw new Error('Expected First draft available in build console.');
   }
@@ -257,6 +278,9 @@ async function main() {
   }
   if (!buildConsoleText.includes('Mapping content into M11 hierarchy')) {
     throw new Error('Expected structural mapping progress in build console.');
+  }
+  if (!buildConsoleText.includes('Knowledge Agent started')) {
+    throw new Error('Expected Knowledge Agent started in build console.');
   }
   assertNoImportFailures('During hybrid import');
   await page.getByTestId('protocol-build-toggle').click();
@@ -285,6 +309,12 @@ async function main() {
 
   await page.getByTestId('app-review-import-button').click();
   await page.getByTestId('protocol-import-review-workspace').waitFor();
+  const studyModelBannerDismiss = page
+    .getByTestId('study-model-updated-banner')
+    .getByRole('button', { name: 'Dismiss' });
+  if (await studyModelBannerDismiss.isVisible().catch(() => false)) {
+    await studyModelBannerDismiss.click();
+  }
   const reviewGenerateRemaining = page.getByTestId('import-generate-remaining-sections');
   if (await reviewGenerateRemaining.isVisible().catch(() => false)) {
     if (await reviewGenerateRemaining.isDisabled()) {
@@ -298,7 +328,7 @@ async function main() {
   const sectionId =
     (await firstReviewRow.getAttribute('data-testid'))?.replace('import-review-row-', '') ?? '2';
 
-  await page.getByTestId(`import-review-open-${sectionId}`).click();
+  await page.getByTestId(`import-review-open-${sectionId}`).click({ force: true });
   await page.getByTestId('section-import-review-screen').waitFor();
   await page.getByTestId('generation-metadata-panel').waitFor();
 

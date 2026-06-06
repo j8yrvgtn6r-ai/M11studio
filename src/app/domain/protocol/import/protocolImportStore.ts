@@ -87,6 +87,30 @@ const blobUrlCache = new Map<string, string>();
 
 const extractionCache = new Map<string, ImportedProtocolSource>();
 
+function queueKnowledgeAgentFromDraft(
+  draft: GeneratedSectionDraft,
+  trigger: 'import' | 'sectionEdit' | 'sectionApproval' | 'regeneration' | 'manual' | 'background',
+  previousText?: string,
+): void {
+  void import('../../../agents/knowledgeAgentRunner').then(({ triggerKnowledgeAgentFromDraft }) => {
+    triggerKnowledgeAgentFromDraft(draft, trigger, previousText);
+  });
+}
+
+function queueKnowledgeAgentEdit(
+  draft: GeneratedSectionDraft,
+  previousText?: string,
+): void {
+  void import('../../../agents/knowledgeAgentRunner').then(({ scheduleKnowledgeAgentForSectionEdit }) => {
+    scheduleKnowledgeAgentForSectionEdit({
+      sectionId: draft.sectionId,
+      sectionTitle: draft.title,
+      currentText: draft.generatedText,
+      previousText,
+    });
+  });
+}
+
 const knowledgeCache = new Map<string, ProtocolKnowledgeModel>();
 
 const listeners = new Set<() => void>();
@@ -634,6 +658,10 @@ export function upsertLiveSectionImportDraft(draft: GeneratedSectionDraft): void
   state.sectionDrafts[draft.sectionId] = normalizeSectionDraft(draft);
   persistMetadata();
   notify();
+  queueKnowledgeAgentFromDraft(
+    draft,
+    draft.contentOrigin === 'generated' ? 'regeneration' : 'import',
+  );
 }
 
 /** Replaces import drafts after on-demand or remaining-section generation. */
@@ -826,6 +854,10 @@ export function updateSectionImportDraft(
 
   notify();
 
+  if (patch.generatedText !== undefined && patch.generatedText !== current.generatedText) {
+    queueKnowledgeAgentEdit(next, current.generatedText);
+  }
+
 }
 
 
@@ -889,6 +921,7 @@ export function acceptSectionValidation(sectionId: string, reviewer = 'Current u
     finalized.validationMessages.join(' ') || 'Section validated against M11 guidance.',
   );
   updateSectionGenerationState(sectionId, 'validated');
+  queueKnowledgeAgentFromDraft(finalized, 'sectionApproval', draft.generatedText);
   refreshStudyModelFromContext();
   persistMetadata();
   notify();
@@ -904,7 +937,7 @@ export function rejectSectionValidation(sectionId: string, reviewer = 'Current u
   state.sectionDrafts[sectionId] = {
     ...draft,
     validatedTargetText: undefined,
-    workflowState: 'imported',
+    workflowState: 'importedUnvalidated',
     state: 'pendingReview',
     validationStatus: 'not-run',
     validationMessages: [],
@@ -916,7 +949,7 @@ export function rejectSectionValidation(sectionId: string, reviewer = 'Current u
       { state: 'pendingReview', changedAt: now, changedBy: reviewer, note: 'Validation rejected — restored imported text' },
     ],
   };
-  updateSectionGenerationState(sectionId, 'imported');
+  updateSectionGenerationState(sectionId, 'importedUnvalidated');
   persistMetadata();
   notify();
 }
@@ -996,6 +1029,7 @@ export function approveSectionImportDraft(sectionId: string, reviewer = 'Current
     );
 
     updateSectionGenerationState(sectionId, 'approved');
+    queueKnowledgeAgentFromDraft(finalized, 'sectionApproval', draft.generatedText);
     refreshStudyModelFromContext();
 
   }
