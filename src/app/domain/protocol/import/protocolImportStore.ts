@@ -16,6 +16,10 @@ import {
 } from './protocolImportStorage';
 
 import { commitApprovedSectionToProtocol } from './protocolImportProcessor';
+import {
+  isImportGenerationContextReady,
+  logImportGenerationContextGap,
+} from './importGenerationContext';
 
 import { normalizePersistedImportMetadata, normalizeProtocolKnowledgeModel, normalizeSectionDraft } from './draftMigration';
 
@@ -108,6 +112,8 @@ let state: ProtocolImportState = {
   lastImportCompletedAt: null,
 
   storageWarnings: [],
+
+  importContextPhase: 'idle',
 
 };
 
@@ -528,9 +534,33 @@ export function prepareProtocolImportOverwrite(): void {
   state.lastImportCompletedAt = null;
   state.storageWarnings = [];
   state.artifact = null;
+  state.importContextPhase = 'idle';
   clearStudyModel();
   persistMetadata();
   notify();
+}
+
+/** Stages extraction + artifact immediately after DOCX parse — before protocol understanding. */
+export async function stageProtocolImportExtraction(
+  artifact: ProtocolSourceArtifact,
+  importedSource: ImportedProtocolSource,
+): Promise<void> {
+  extractionCache.set(importedSource.uploadId, importedSource);
+  await saveImportedProtocolSource(importedSource);
+
+  state.artifact = artifact;
+  state.importedSourceSummary = toSummary(importedSource);
+  state.protocolId = defaultProtocolId();
+  state.importContextPhase = 'extraction';
+  persistMetadata();
+  notify();
+}
+
+export function markProtocolImportUnderstandingPhase(): void {
+  if (state.importContextPhase === 'extraction' || state.importContextPhase === 'understanding') {
+    state.importContextPhase = 'understanding';
+    notify();
+  }
 }
 
 /** Stages artifact, extraction summary, and knowledge model while M11 reconstruction is still running. */
@@ -547,6 +577,7 @@ export async function stageProtocolImportUnderstanding(
   state.importedSourceSummary = toSummary(importedSource);
   state.protocolKnowledgeModelId = protocolKnowledgeModel.id;
   state.protocolId = defaultProtocolId();
+  state.importContextPhase = 'ready';
   persistMetadata();
   notify();
 }
@@ -554,6 +585,15 @@ export async function stageProtocolImportUnderstanding(
 /** Makes a freshly generated section draft available in the workspace before import completes. */
 export function upsertLiveSectionImportDraft(draft: GeneratedSectionDraft): void {
   state.sectionDrafts[draft.sectionId] = normalizeSectionDraft(draft);
+  persistMetadata();
+  notify();
+}
+
+/** Replaces import drafts after on-demand or remaining-section generation. */
+export function syncSectionImportDrafts(drafts: GeneratedSectionDraft[]): void {
+  for (const draft of drafts) {
+    state.sectionDrafts[draft.sectionId] = normalizeSectionDraft(draft);
+  }
   persistMetadata();
   notify();
 }
@@ -603,13 +643,10 @@ export async function setProtocolImportResult(
   state.protocolId = defaultProtocolId();
 
   state.storageWarnings = [];
-
-
+  state.importContextPhase = 'ready';
 
   if (hadPriorImport || options?.isOverwrite) {
-
     createImportOverwriteCommit(state.protocolId, artifact.filename);
-
   }
 
   createImportProcessingCommit(state.protocolId, artifact.filename);
@@ -937,7 +974,7 @@ export async function regenerateSectionImportDraftAsync(
     supersededVersion: current?.draftVersion,
   });
 
-  updateSectionGenerationState(sectionId, 'generated');
+  updateSectionGenerationState(sectionId, 'needsReview');
   refreshStudyModelFromContext();
 
   persistMetadata();
@@ -1166,6 +1203,58 @@ export function setProtocolImportDrafts(
 
   });
 
+}
+
+
+
+export async function generateSectionImportDraftOnDemandAsync(sectionId: string): Promise<void> {
+  if (!isImportGenerationContextReady()) {
+    logImportGenerationContextGap('generateSectionImportDraftOnDemandAsync');
+    return;
+  }
+
+  const { generateM11SectionOnDemand } = await import('./protocolImportProcessor');
+  const { setProtocolBuildGenerationProgress } = await import('../build/protocolBuildConsoleStore');
+  try {
+    await generateM11SectionOnDemand(sectionId, {
+      onSectionDraftGenerated: (draft) => upsertLiveSectionImportDraft(draft),
+      onGenerationProgress: setProtocolBuildGenerationProgress,
+      onStepsUpdate: () => {},
+    });
+  } catch (error) {
+    if (error instanceof Error && error.name === 'ImportGenerationContextNotReadyError') {
+      logImportGenerationContextGap('generateSectionImportDraftOnDemandAsync');
+      return;
+    }
+    throw error;
+  }
+}
+
+export async function generateRemainingSectionImportDraftsAsync(): Promise<{
+  failedSectionIds: string[];
+}> {
+  if (!isImportGenerationContextReady()) {
+    logImportGenerationContextGap('generateRemainingSectionImportDraftsAsync');
+    return { failedSectionIds: [] };
+  }
+
+  const { generateRemainingM11Sections } = await import('./protocolImportProcessor');
+  const { setProtocolBuildGenerationProgress } = await import('../build/protocolBuildConsoleStore');
+  try {
+    const result = await generateRemainingM11Sections({
+      onSectionDraftGenerated: (draft) => upsertLiveSectionImportDraft(draft),
+      onGenerationProgress: setProtocolBuildGenerationProgress,
+      onStepsUpdate: () => {},
+    });
+    syncSectionImportDrafts(result.sectionDrafts);
+    return { failedSectionIds: result.failedSectionIds };
+  } catch (error) {
+    if (error instanceof Error && error.name === 'ImportGenerationContextNotReadyError') {
+      logImportGenerationContextGap('generateRemainingSectionImportDraftsAsync');
+      return { failedSectionIds: [] };
+    }
+    throw error;
+  }
 }
 
 

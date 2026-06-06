@@ -43,9 +43,14 @@ export {
   openSectionForReview,
   openProtocolSourceArtifact,
   prepareProtocolImportOverwrite,
+  generateSectionImportDraftOnDemandAsync,
+  generateRemainingSectionImportDraftsAsync,
   regenerateSectionImportDraft,
   regenerateSectionImportDraftAsync,
+  stageProtocolImportExtraction,
   stageProtocolImportUnderstanding,
+  markProtocolImportUnderstandingPhase,
+  syncSectionImportDrafts,
   upsertLiveSectionImportDraft,
   requestChangesOnSectionImportDraft,
   setProtocolImportArtifact,
@@ -62,11 +67,20 @@ export {
   isDocxFile,
   loadDocxBlobForArtifact,
   retryFailedM11SectionGeneration,
+  generateM11SectionOnDemand,
+  generateRemainingM11Sections,
   runProtocolImportProcessing,
   storeUploadedDocxArtifact,
 } from './protocolImportProcessor';
 export type { ProtocolImportProcessingResult, ProcessImportCallbacks } from './protocolImportProcessor';
 export { ImportProcessingAbortedError, LlmRequestTimeoutError } from './llm/llmRequestTimeouts';
+export {
+  assertImportGenerationContextReady,
+  getImportGenerationContextDiagnostics,
+  ImportGenerationContextNotReadyError,
+  isImportGenerationContextReady,
+  logImportGenerationContextGap,
+} from './importGenerationContext';
 
 export { DocxExtractionError, extractDocxProtocolSource } from './docxProtocolExtractor';
 export { buildProtocolKnowledgeModel, buildLocalDeterministicKnowledgeModel } from './buildProtocolKnowledgeModel';
@@ -140,3 +154,12 @@ export { runM11SectionGeneration, runM11SectionRegeneration, resolveM11Generatio
 export type { M11GenerationCallbacks, M11GenerationProgressSnapshot } from './llm/m11GenerationProgress';
 export type { ProtocolUnderstandingCallbacks } from './llm/types';
 export { GENERATION_PROMPT_VERSION, UNDERSTANDING_PROMPT_VERSION, type LlmProviderId } from './llm/types';
+export {
+  countPendingM11Sections,
+  isQuickReconstructionSection,
+  listQuickReconstructionSectionIds,
+  listSectionsEligibleForGeneration,
+  QUICK_RECONSTRUCTION_SECTION_IDS,
+} from './quickReconstructionSections';
+export { listM11GenerationTargetSectionIds, flattenProtocolSectionIds } from './importVisualizationUtils';
+export { runStagedProtocolUnderstanding } from './llm/understandingSlices';

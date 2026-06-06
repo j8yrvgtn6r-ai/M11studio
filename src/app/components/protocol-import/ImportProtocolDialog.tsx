@@ -16,6 +16,8 @@ import {
   getImportedProtocolSource,
   getProtocolImportState,
   getProtocolKnowledgeModel,
+  generateRemainingSectionImportDraftsAsync,
+  isImportGenerationContextReady,
 } from '../../domain/protocol/import';
 import {
   endProtocolBuildSession,
@@ -96,6 +98,8 @@ export function ImportProtocolDialog({
     endProtocolBuildSession('idle');
   }, []);
 
+  const handleGenerateRemainingRef = useRef<(() => Promise<void>) | null>(null);
+
   useEffect(() => {
     registerProtocolBuildControls({
       cancel: () => abortControllerRef.current?.abort(),
@@ -103,6 +107,9 @@ export function ImportProtocolDialog({
       resume: () => resumeProtocolBuild(),
       retryFailed: () => {
         void handleRetryFailedSectionsRef.current?.();
+      },
+      generateRemaining: () => {
+        void handleGenerateRemainingRef.current?.();
       },
     });
   }, []);
@@ -177,7 +184,7 @@ export function ImportProtocolDialog({
     setProcessingSteps(createInitialProcessingSteps());
     reconstructionStartedRef.current = false;
     prepareProtocolImportOverwrite();
-    startProtocolBuildSession({ mode: 'Full' });
+    startProtocolBuildSession({ mode: 'Quick' });
     onOpenChange(false);
 
     const abortController = new AbortController();
@@ -311,14 +318,29 @@ export function ImportProtocolDialog({
 
   handleRetryFailedSectionsRef.current = handleRetryFailedSections;
 
+  const handleGenerateRemainingSections = async () => {
+    if (!isImportGenerationContextReady()) {
+      return;
+    }
+    setProcessingActive(true);
+    onOpenChange(false);
+    try {
+      await generateRemainingSectionImportDraftsAsync();
+    } finally {
+      setProcessingActive(false);
+    }
+  };
+
+  handleGenerateRemainingRef.current = handleGenerateRemainingSections;
+
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto" data-testid="import-protocol-dialog">
         <DialogHeader>
           <DialogTitle>Import Protocol</DialogTitle>
           <DialogDescription>
-            This workflow understands your uploaded protocol as a complete study design document, then
-            reconstructs ICH M11 section proposals. Generated content is never auto-approved.
+            M11 Studio will first reconstruct key M11 sections so review can begin quickly. Additional sections
+            can be generated later.
           </DialogDescription>
         </DialogHeader>
 
@@ -388,18 +410,23 @@ export function ImportProtocolDialog({
             onChange={(event) => handleFile(event.target.files?.[0])}
           />
 
-          <div className="flex items-start gap-2">
-            <Checkbox
-              id="import-overwrite-confirm"
-              checked={overwriteConfirmed}
-              disabled={processingActive}
-              onCheckedChange={(checked) => setOverwriteConfirmed(checked === true)}
-              data-testid="import-overwrite-confirm"
-            />
-            <Label htmlFor="import-overwrite-confirm" className="text-sm leading-snug cursor-pointer">
-              I understand this import will overwrite current generated protocol content.
-            </Label>
-          </div>
+            <div className="flex items-start gap-2">
+              <Checkbox
+                id="import-overwrite-confirm"
+                checked={overwriteConfirmed}
+                disabled={processingActive}
+                onCheckedChange={(checked) => setOverwriteConfirmed(checked === true)}
+                data-testid="import-overwrite-confirm"
+              />
+              <Label htmlFor="import-overwrite-confirm" className="text-sm leading-snug cursor-pointer">
+                I understand this import will overwrite current generated protocol content.
+              </Label>
+            </div>
+
+            <p className="text-sm text-muted-foreground" data-testid="import-quick-reconstruction-copy">
+              M11 Studio will first reconstruct key M11 sections so review can begin quickly. Additional sections
+              can be generated later.
+            </p>
 
           {uploadError ? (
             <p className="text-sm text-destructive" data-testid="import-upload-error">

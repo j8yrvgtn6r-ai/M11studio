@@ -44,6 +44,10 @@ export interface ProtocolKnowledgeModel {
   efficacyAssessments: string[];
   statisticalSummary?: string;
   riskBenefitSummary?: string;
+  /** Per-slice completion status from staged protocol understanding. */
+  understandingSliceStatus?: Partial<Record<string, 'complete' | 'failed'>>;
+  /** True when one or more understanding slices failed but import continued. */
+  partialUnderstanding?: boolean;
   /** @deprecated use targetPopulation */
   population?: string;
   /** @deprecated use primaryObjectives */

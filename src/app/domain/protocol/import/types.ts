@@ -229,7 +229,11 @@ export interface ProtocolImportState {
   sectionDrafts: Record<string, GeneratedSectionDraft>;
   lastImportCompletedAt: string | null;
   storageWarnings: string[];
+  /** In-memory staging phase for the active import session. */
+  importContextPhase?: ImportContextPhase;
 }
+
+export type ImportContextPhase = 'idle' | 'extraction' | 'understanding' | 'ready';
 
 export type ImportProcessingStepId =
   | 'uploading'

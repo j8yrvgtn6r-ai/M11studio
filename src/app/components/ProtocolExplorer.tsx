@@ -191,7 +191,7 @@ function SectionTreeNode({
               {section.validationCount}
             </Badge>
           )}
-          {(importDraft || buildActive) ? (
+          {(importDraft || buildActive || sectionGenerationStates[section.id]) ? (
             <div
               className="flex items-center"
               title={[

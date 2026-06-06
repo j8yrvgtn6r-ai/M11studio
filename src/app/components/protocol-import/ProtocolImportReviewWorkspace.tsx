@@ -3,7 +3,10 @@ import { ArrowLeft, ClipboardCheck, Download } from 'lucide-react';
 
 import {
   approveSectionImportDraft,
+  countPendingM11Sections,
   downloadM11StudioArchive,
+  generateRemainingSectionImportDraftsAsync,
+  isImportGenerationContextReady,
   isSectionActionable,
   openSectionForReview,
   requestChangesOnSectionImportDraft,
@@ -51,6 +54,9 @@ export function ProtocolImportReviewWorkspace({
   const { state, summary, storageWarnings } = useProtocolImport();
   const [activeSectionId, setActiveSectionId] = useState<string | null>(initialSectionId);
   const [activeTab, setActiveTab] = useState<'sections' | 'extraction' | 'knowledge' | 'versions'>('sections');
+  const [generatingRemaining, setGeneratingRemaining] = useState(false);
+  const generationContextReady = isImportGenerationContextReady();
+  const pendingSections = countPendingM11Sections(state.sectionDrafts);
 
   const drafts = useMemo(
     () =>
@@ -98,6 +104,28 @@ export function ProtocolImportReviewWorkspace({
           </div>
         </div>
         <div className="flex flex-wrap gap-2">
+          {pendingSections > 0 ? (
+            <Button
+              size="sm"
+              variant="secondary"
+              data-testid="import-generate-remaining-sections"
+              disabled={generatingRemaining || !generationContextReady}
+              title={
+                generationContextReady
+                  ? undefined
+                  : 'Generation unavailable until import context is ready.'
+              }
+              onClick={() => {
+                if (!generationContextReady) {
+                  return;
+                }
+                setGeneratingRemaining(true);
+                void generateRemainingSectionImportDraftsAsync().finally(() => setGeneratingRemaining(false));
+              }}
+            >
+              {generatingRemaining ? 'Generating…' : `Generate Remaining Sections (${pendingSections})`}
+            </Button>
+          ) : null}
           <Button
             size="sm"
             variant="outline"

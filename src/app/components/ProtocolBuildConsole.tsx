@@ -19,6 +19,8 @@ import {
   type ProtocolBuildEventType,
 } from '../domain/protocol/build/protocolBuildConsoleStore';
 import { useProtocolBuildConsole } from '../domain/protocol/build/useProtocolBuildConsole';
+import { countPendingM11Sections, isImportGenerationContextReady } from '../domain/protocol/import';
+import { useProtocolImport } from '../domain/protocol/import/ProtocolImportContext';
 import { GenerationProgressSummary } from './GenerationProgressSummary';
 import { Button } from './ui/button';
 import { cn } from './ui/utils';
@@ -68,6 +70,9 @@ function resolveActivePhase(build: ReturnType<typeof useProtocolBuildConsole>): 
 
 export function ProtocolBuildConsole() {
   const build = useProtocolBuildConsole();
+  const { state: importState } = useProtocolImport();
+  const pendingSections = countPendingM11Sections(importState.sectionDrafts);
+  const generationContextReady = isImportGenerationContextReady();
   const [expanded, setExpanded] = useState(false);
   const [autoScroll, setAutoScroll] = useState(true);
   const scrollRef = useRef<HTMLDivElement | null>(null);
@@ -130,6 +135,7 @@ export function ProtocolBuildConsole() {
       data-testid="protocol-build-console"
       data-expanded={expanded ? 'true' : 'false'}
       data-status={build.status}
+      data-import-context-phase={importState.importContextPhase ?? 'idle'}
     >
       <div className="h-10 px-3 flex items-center gap-2 border-b border-border/60">
         {isActive ? (
@@ -210,6 +216,30 @@ export function ProtocolBuildConsole() {
             >
               <RefreshCw className="h-3 w-3 mr-1" />
               Retry Failed Sections
+            </Button>
+          ) : null}
+
+          {build.status === 'complete' && pendingSections > 0 ? (
+            <Button
+              size="sm"
+              variant="secondary"
+              className="h-7 text-[10px] px-2"
+              data-testid="protocol-build-generate-remaining"
+              disabled={!generationContextReady}
+              title={
+                generationContextReady
+                  ? undefined
+                  : 'Generation unavailable until import context is ready.'
+              }
+              onClick={() => {
+                if (!generationContextReady) {
+                  return;
+                }
+                build.controls.generateRemaining?.();
+              }}
+            >
+              <RefreshCw className="h-3 w-3 mr-1" />
+              Generate Remaining Sections
             </Button>
           ) : null}
 

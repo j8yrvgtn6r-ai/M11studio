@@ -2,8 +2,13 @@ import { ICH_M11_TEMPLATE_SECTION_SPECS } from '../../ichM11/ichM11Template';
 import {
   appendProtocolBuildEvent,
   initializeSectionGenerationQueue,
+  injectSectionIntoGenerationQueue,
   isProtocolBuildPauseRequested,
   markProtocolBuildPaused,
+  prependSectionGenerationPriority,
+  pullInjectedSectionGenerationId,
+  pullPrioritySectionGenerationId,
+  hasPendingInjectedSections,
   updateSectionGenerationState,
   waitForProtocolBuildResume,
 } from '../../build/protocolBuildConsoleStore';
@@ -243,8 +248,50 @@ async function generateSectionsWithProgress(
   emitProgress(callbacks, initialProgress, sectionDurations);
 
   const drafts: GeneratedSectionDraft[] = [];
+  const specById = new Map(specs.map((spec) => [spec.id, spec]));
+  const pendingIds = specs.map((spec) => spec.id);
+  const allTemplateSpecs = input.m11TemplateSections ?? ICH_M11_TEMPLATE_SECTION_SPECS;
 
-  for (const spec of specs) {
+  const drainInjectedSections = (): void => {
+    let injectedId = pullInjectedSectionGenerationId();
+    while (injectedId) {
+      if (!specById.has(injectedId)) {
+        const injectedSpec = allTemplateSpecs.find((entry) => entry.id === injectedId);
+        if (injectedSpec && shouldGenerate(injectedSpec)) {
+          specById.set(injectedId, injectedSpec);
+        }
+      }
+      if (specById.has(injectedId) && !pendingIds.includes(injectedId)) {
+        pendingIds.unshift(injectedId);
+      } else if (specById.has(injectedId)) {
+        prependSectionGenerationPriority(injectedId);
+      }
+      injectedId = pullInjectedSectionGenerationId();
+    }
+  };
+
+  while (pendingIds.length > 0 || hasPendingInjectedSections()) {
+    drainInjectedSections();
+    if (pendingIds.length === 0) {
+      continue;
+    }
+
+    const priorityId = pullPrioritySectionGenerationId();
+    let nextId: string | undefined;
+    if (priorityId && pendingIds.includes(priorityId)) {
+      pendingIds.splice(pendingIds.indexOf(priorityId), 1);
+      nextId = priorityId;
+    } else if (priorityId && specById.has(priorityId)) {
+      nextId = priorityId;
+    } else {
+      nextId = pendingIds.shift();
+    }
+    const spec = nextId ? specById.get(nextId) : undefined;
+
+    if (!spec) {
+      continue;
+    }
+
     await waitForProtocolBuildResume();
     throwIfAborted(callbacks?.signal);
 
@@ -315,7 +362,7 @@ async function generateSectionsWithProgress(
       drafts.push(draft);
       const requestDurationMs = performance.now() - requestStartedAt;
       sectionDurations.push(requestDurationMs);
-      updateSectionGenerationState(spec.id, 'generated');
+      updateSectionGenerationState(spec.id, 'needsReview');
       callbacks?.onSectionDraft?.(draft);
       logM11Generation('section-completed', {
         sectionId: spec.id,

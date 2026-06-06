@@ -73,7 +73,8 @@ export function DocumentMinimap({
               buildActive,
             );
             const neutralImportTile =
-              buildActive && (phase === 'reset' || (generationState === 'queued' && !importDraft));
+              generationState === 'notGenerated' ||
+              (buildActive && (phase === 'reset' || (generationState === 'queued' && !importDraft)));
             const overlayClass =
               buildActive || importDraft ? sectionGenerationOverlayClass(generationState) : '';
             const tileBackground = neutralImportTile

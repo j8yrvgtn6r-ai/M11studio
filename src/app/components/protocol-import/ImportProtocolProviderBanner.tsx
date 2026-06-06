@@ -66,9 +66,9 @@ export function ImportProtocolProviderBanner() {
       <LlmSafetyNotice compact />
 
       <ul className="text-xs text-muted-foreground list-disc pl-4 space-y-1" data-testid="import-protocol-expectations">
-        <li>Large protocols may take several minutes. M11 Studio reconstructs the protocol section by section.</li>
-        <li>You can review drafts after processing completes.</li>
-        <li>For v1, SoA extraction is not yet included.</li>
+        <li>M11 Studio will first reconstruct key M11 sections so review can begin quickly.</li>
+        <li>Additional sections can be generated later from the editor or review workspace.</li>
+        <li>Generated content is never auto-approved.</li>
       </ul>
     </div>
   );

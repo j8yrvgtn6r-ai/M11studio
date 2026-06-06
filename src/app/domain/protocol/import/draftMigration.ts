@@ -1,5 +1,6 @@
 import { GENERATION_PROMPT_VERSION, UNDERSTANDING_PROMPT_VERSION } from './llm/types';
 import type { ProtocolKnowledgeModel } from './protocolKnowledgeTypes';
+import { normalizeProtocolKnowledgeModelArrays } from './protocolKnowledgeNormalization';
 import type { GeneratedSectionDraft, GeneratedSectionGenerationStatus, GeneratedSectionReviewStatus, ImportedProtocolSourceSummary, ProtocolImportState, SectionReviewState, SectionGenerationProvenance } from './types';
 
 function reviewStatusToState(reviewStatus?: GeneratedSectionReviewStatus): SectionReviewState {
@@ -227,5 +228,5 @@ export function normalizeProtocolKnowledgeModel(
     }
   }
 
-  return normalized;
+  return normalizeProtocolKnowledgeModelArrays(normalized) as ProtocolKnowledgeModel;
 }

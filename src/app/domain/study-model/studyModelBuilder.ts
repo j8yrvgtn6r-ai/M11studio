@@ -1,5 +1,6 @@
 import type { ProtocolKnowledgeModel } from '../protocol/import/protocolKnowledgeTypes';
 import type { ProtocolDocument } from '../protocol/types';
+import { ensureArray } from '../../utils/ensureArray';
 import type { StudyModel, StudyModelItem } from './studyModelTypes';
 
 function slug(value: string, index: number): string {
@@ -18,7 +19,7 @@ function itemsFromStrings(
   timestamp?: string,
 ): StudyModelItem[] {
   const now = timestamp ?? new Date().toISOString();
-  return (values ?? [])
+  return ensureArray<string>(values)
     .filter((value) => typeof value === 'string' && value.trim().length > 0)
     .map((value, index) => ({
       id: `${prefix}-${slug(value, index)}`,
@@ -83,7 +84,7 @@ export function buildStudyModelFromSources(input: {
           {
             id: 'visits-summary',
             name: `${visitCount} protocol visits`,
-            description: (knowledge?.visits ?? []).slice(0, 5).join('; '),
+            description: ensureArray<string>(knowledge?.visits).slice(0, 5).join('; '),
             sourceSections: inferSectionForCollection('visits', assessmentSection),
             lastUpdated: now,
           },
@@ -94,7 +95,7 @@ export function buildStudyModelFromSources(input: {
           {
             id: 'activities-summary',
             name: `${activityCount} schedule activities`,
-            description: (knowledge?.assessments ?? []).slice(0, 5).join('; '),
+            description: ensureArray<string>(knowledge?.assessments).slice(0, 5).join('; '),
             sourceSections: inferSectionForCollection('activities', assessmentSection),
             lastUpdated: now,
           },
@@ -105,7 +106,9 @@ export function buildStudyModelFromSources(input: {
           {
             id: 'assessments-summary',
             name: `${assessmentCount} scheduled assessments`,
-            description: (knowledge?.efficacyAssessments ?? knowledge?.safetyAssessments ?? []).slice(0, 5).join('; '),
+            description: ensureArray<string>(
+              knowledge?.efficacyAssessments ?? knowledge?.safetyAssessments,
+            ).slice(0, 5).join('; '),
             sourceSections: inferSectionForCollection('assessments', assessmentSection),
             lastUpdated: now,
           },
@@ -146,7 +149,7 @@ export function buildStudyModelFromSources(input: {
           },
         ]
       : [],
-    references: (knowledge?.sourceReferences ?? []).map((reference, index) => ({
+    references: ensureArray(knowledge?.sourceReferences).map((reference, index) => ({
       id: `reference-${index}`,
       name: reference.label,
       description: reference.excerpt,
