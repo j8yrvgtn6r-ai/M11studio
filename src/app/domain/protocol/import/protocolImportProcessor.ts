@@ -2,7 +2,9 @@ import { applyApprovedSectionDraft, clearDraftProtocolContentForImport } from '.
 import {
   appendProtocolBuildEvent,
   completeProtocolBuildSession,
+  markProtocolImportGenerationPhase,
   mergeSectionGenerationStatesFromDrafts,
+  resetProtocolImportVisualization,
   setProtocolBuildFailedSectionIds,
   setProtocolBuildGenerationProgress,
   startProtocolBuildSession,
@@ -23,7 +25,11 @@ import {
   throwIfAborted,
 } from './llm/llmRequestTimeouts';
 import { loadProtocolSourceDocument, saveProtocolSourceDocument } from './protocolImportStorage';
-import { applyPostGenerationValidationBatch } from './postGenerationValidation';
+import { applyPostGenerationValidation, applyPostGenerationValidationBatch } from './postGenerationValidation';
+import {
+  stageProtocolImportUnderstanding,
+  upsertLiveSectionImportDraft,
+} from './protocolImportStore';
 import { ICH_M11_TEMPLATE_SECTION_SPECS } from '../ichM11/ichM11Template';
 import { ICH_M11_TECHNICAL_SPEC_SECTION_SPECS } from '../ichM11/ichM11TechnicalSpecification';
 import { getM11CodelistCount, getM11TermCount } from '../ichM11/ichM11ControlledTerminology';
@@ -36,7 +42,13 @@ import type {
   ImportedProtocolSource,
   ProtocolSourceArtifact,
 } from './types';
-import { mutateProtocolDocument } from '../store/protocolStore';
+import { mutateProtocolDocument, getProtocolDocument } from '../store/protocolStore';
+import {
+  flattenProtocolSectionIds,
+  listM11GenerationTargetSectionIds,
+} from './importVisualizationUtils';
+import { rebuildStudyModel } from '../../study-model/studyModelStore';
+import { STUDY_MODEL_BUILD_STEPS } from '../../study-model/studyModelBuilder';
 
 export const IMPORT_PROCESSING_STEP_DEFS: Array<{ id: ImportProcessingStepId; label: string }> = [
   { id: 'uploading', label: 'Upload' },
@@ -111,7 +123,16 @@ export async function storeUploadedDocxArtifact(file: File): Promise<ProtocolSou
 export interface ProcessImportCallbacks {
   onStepsUpdate: (steps: ImportProcessingStep[]) => void;
   onGenerationProgress?: (progress: M11GenerationProgressSnapshot) => void;
+  onSectionDraftGenerated?: (draft: GeneratedSectionDraft) => void;
   signal?: AbortSignal;
+}
+
+function createLiveSectionDraftHandler(callbacks: ProcessImportCallbacks) {
+  return (draft: GeneratedSectionDraft) => {
+    const validated = applyPostGenerationValidation(draft);
+    upsertLiveSectionImportDraft(validated);
+    callbacks.onSectionDraftGenerated?.(validated);
+  };
 }
 
 export interface ProtocolImportProcessingResult {
@@ -186,12 +207,16 @@ export async function runProtocolImportProcessing(
   try {
     throwIfAborted(callbacks.signal);
 
+    const protocolSectionIds = flattenProtocolSectionIds(getProtocolDocument().sections);
+    const m11TargetSectionIds = listM11GenerationTargetSectionIds();
+    resetProtocolImportVisualization({ protocolSectionIds, m11TargetSectionIds });
+
     updateStep('uploading', { state: 'active', detail: artifact.filename });
     appendProtocolBuildEvent({ type: 'info', message: `DOCX uploaded: ${artifact.filename}` });
     await delay(200);
     updateStep('uploading', { state: 'complete' });
 
-    updateStep('reading-docx', { state: 'active', detail: 'Extracting paragraphs and tables…' });
+    updateStep('reading-docx', { state: 'active', detail: 'Extracting DOCX…' });
     const importedSource = await extractDocxProtocolSource(docxBlob, artifact.id, artifact.filename);
     appendProtocolBuildEvent({
       type: 'success',
@@ -250,6 +275,22 @@ export async function runProtocolImportProcessing(
       model: protocolKnowledgeModel.understandingModel,
       durationMs: Math.round(performance.now() - understandingStartedAt),
     });
+
+    await stageProtocolImportUnderstanding(artifact, importedSource, protocolKnowledgeModel);
+
+    appendProtocolBuildEvent({ type: 'progress', message: 'Building Structured Study Model...' });
+    for (const step of STUDY_MODEL_BUILD_STEPS) {
+      throwIfAborted(callbacks.signal);
+      appendProtocolBuildEvent({ type: 'progress', message: step });
+      await delay(120);
+    }
+    rebuildStudyModel({
+      sourceUploadId: importedSource.uploadId,
+      knowledge: protocolKnowledgeModel,
+      document: getProtocolDocument(),
+    });
+    appendProtocolBuildEvent({ type: 'success', message: 'Structured Study Model Complete.' });
+
     updateStep('understanding-context', {
       state: 'complete',
       detail: `${protocolKnowledgeModel.knowledgeProvider}/${protocolKnowledgeModel.understandingModel} · confidence ${Math.round(protocolKnowledgeModel.confidence * 100)}%`,
@@ -261,13 +302,16 @@ export async function runProtocolImportProcessing(
     });
     appendProtocolBuildEvent({
       type: 'progress',
-      message: 'M11 section generation started',
+      message: 'Generating M11 Sections...',
       provider: providerId,
     });
+    markProtocolImportGenerationPhase();
 
+    const onSectionDraft = createLiveSectionDraftHandler(callbacks);
     let drafts = await runM11SectionGeneration(buildGenerationInput(artifact, importedSource, protocolKnowledgeModel), {
       signal: callbacks.signal,
       onProgress: updateGenerationProgress,
+      onSectionDraft,
     });
 
     const failedSectionIds = failedSectionIdsFromDrafts(drafts);
@@ -429,6 +473,7 @@ export async function retryFailedM11SectionGeneration(
           ),
         );
       },
+      onSectionDraft: createLiveSectionDraftHandler(callbacks),
     },
   );
 

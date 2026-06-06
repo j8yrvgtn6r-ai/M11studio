@@ -4,7 +4,6 @@ import {
   Check,
   Circle,
   Loader2,
-  MoreHorizontal,
 } from 'lucide-react';
 
 import type { SectionGenerationState } from '../domain/protocol/build/protocolBuildConsoleStore';
@@ -43,40 +42,63 @@ export function SectionGenerationStateIndicator({
 
   switch (state) {
     case 'queued':
-      return <MoreHorizontal className={`${className} text-muted-foreground`} />;
+      return <Circle className={`${className} text-muted-foreground/70`} />;
     case 'generating':
       return <Loader2 className={`${className} animate-spin text-primary`} />;
     case 'generated':
+      return <Check className={`${className} text-sky-500`} />;
     case 'approved':
-      return <Check className={`${className} ${state === 'approved' ? 'text-green-600' : 'text-sky-500'}`} />;
+      return <Check className={`${className} text-green-600`} />;
     case 'needsReview':
-      return <span className={`inline-block rounded-full bg-amber-500 ${compact ? 'h-2 w-2' : 'h-2.5 w-2.5'}`} />;
+      return <AlertTriangle className={`${className} text-amber-500`} />;
     case 'failed':
       return <AlertCircle className={`${className} text-destructive`} />;
     case 'outOfDate':
-      return <AlertTriangle className={`${className} text-amber-600`} />;
+      return <AlertTriangle className={`${className} text-purple-500`} />;
     case 'notGenerated':
     default:
-      return <Circle className={`${className} text-muted-foreground/50`} />;
+      return <Circle className={`${className} text-muted-foreground/30`} />;
   }
 }
 
 export function sectionGenerationOverlayClass(state: SectionGenerationState): string {
   switch (state) {
     case 'queued':
-      return 'ring-1 ring-muted-foreground/30';
+      return 'ring-1 ring-muted-foreground/20';
     case 'generating':
       return 'ring-2 ring-primary/60 animate-pulse';
-    case 'needsReview':
     case 'generated':
+      return 'ring-1 ring-sky-500/50';
+    case 'needsReview':
       return 'ring-1 ring-amber-500/50';
     case 'approved':
       return 'ring-1 ring-green-500/50';
     case 'failed':
       return 'ring-2 ring-destructive/60';
     case 'outOfDate':
-      return 'ring-1 ring-amber-600/60';
+      return 'ring-1 ring-purple-500/60';
     default:
       return '';
+  }
+}
+
+export function sectionGenerationDotClass(state: SectionGenerationState): string {
+  switch (state) {
+    case 'queued':
+      return 'bg-muted-foreground/30';
+    case 'generating':
+      return 'bg-primary/40';
+    case 'generated':
+      return 'bg-sky-500';
+    case 'needsReview':
+      return 'bg-amber-500';
+    case 'approved':
+      return 'bg-green-500';
+    case 'failed':
+      return 'bg-destructive';
+    case 'outOfDate':
+      return 'bg-purple-500';
+    default:
+      return 'bg-muted';
   }
 }

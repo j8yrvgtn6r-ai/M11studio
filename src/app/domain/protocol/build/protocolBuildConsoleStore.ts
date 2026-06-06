@@ -30,6 +30,8 @@ export type ProtocolBuildStatus = 'idle' | 'running' | 'paused' | 'complete' | '
 
 export type ProtocolBuildMode = 'Full' | 'Quick' | 'Selected';
 
+export type ImportVisualizationPhase = 'idle' | 'reset' | 'generating' | 'complete';
+
 export interface ProtocolBuildSessionControls {
   cancel?: () => void;
   pauseAfterCurrent?: () => void;
@@ -42,6 +44,7 @@ export interface ProtocolBuildConsoleState {
   events: ProtocolBuildEvent[];
   generationProgress: M11GenerationProgressSnapshot | null;
   sectionStates: Record<string, SectionGenerationState>;
+  visualizationPhase: ImportVisualizationPhase;
   mode: ProtocolBuildMode;
   failedSectionIds: string[];
   controls: ProtocolBuildSessionControls;
@@ -69,6 +72,7 @@ let state: ProtocolBuildConsoleState = {
   events: [],
   generationProgress: null,
   sectionStates: {},
+  visualizationPhase: 'idle',
   mode: 'Full',
   failedSectionIds: [],
   controls: {},
@@ -127,8 +131,11 @@ export function resolveSectionGenerationState(
   buildActive: boolean,
 ): SectionGenerationState {
   const live = liveStates[sectionId];
-  if (buildActive && live) {
-    return live;
+  if (buildActive) {
+    if (live) {
+      return live;
+    }
+    return 'queued';
   }
   if (!importDraft) {
     return 'notGenerated';
@@ -189,6 +196,7 @@ export function startProtocolBuildSession(options?: {
     events: [],
     generationProgress: null,
     sectionStates: {},
+    visualizationPhase: 'idle',
     mode: options?.mode ?? 'Full',
     failedSectionIds: [],
     controls: state.controls,
@@ -216,6 +224,7 @@ export function endProtocolBuildSession(status: ProtocolBuildStatus = 'idle'): v
   state = {
     ...state,
     status,
+    visualizationPhase: status === 'idle' ? 'idle' : state.visualizationPhase,
     controls: status === 'idle' ? {} : state.controls,
   };
   notify();
@@ -226,12 +235,53 @@ export function setProtocolBuildGenerationProgress(progress: M11GenerationProgre
   notify();
 }
 
+export function resetProtocolImportVisualization(options: {
+  protocolSectionIds: string[];
+  m11TargetSectionIds: string[];
+}): void {
+  const sectionStates: Record<string, SectionGenerationState> = {};
+  for (const sectionId of new Set([...options.protocolSectionIds, ...options.m11TargetSectionIds])) {
+    sectionStates[sectionId] = 'queued';
+  }
+
+  state = {
+    ...state,
+    status: 'running',
+    visualizationPhase: 'reset',
+    sectionStates,
+    generationProgress: null,
+    failedSectionIds: [],
+    completionSummary: null,
+  };
+
+  appendProtocolBuildEvent({ type: 'info', message: 'Resetting protocol state...' });
+  appendProtocolBuildEvent({ type: 'info', message: 'Clearing review package...' });
+  appendProtocolBuildEvent({ type: 'info', message: 'Clearing validation results...' });
+  appendProtocolBuildEvent({ type: 'info', message: 'Clearing MAP indicators...' });
+  appendProtocolBuildEvent({ type: 'info', message: 'Initializing protocol reconstruction...' });
+  appendProtocolBuildEvent({
+    type: 'progress',
+    message: `${options.m11TargetSectionIds.length} M11 sections queued.`,
+    metadata: { queuedSections: options.m11TargetSectionIds.length },
+  });
+  notify();
+}
+
+export function markProtocolImportGenerationPhase(): void {
+  state = { ...state, visualizationPhase: 'generating' };
+  notify();
+}
+
+export function getImportVisualizationPhase(): ImportVisualizationPhase {
+  return state.visualizationPhase;
+}
+
 export function initializeSectionGenerationQueue(sectionIds: string[]): void {
   const sectionStates: Record<string, SectionGenerationState> = {};
   for (const sectionId of sectionIds) {
     sectionStates[sectionId] = 'queued';
   }
-  state = { ...state, sectionStates };
+  state = { ...state, sectionStates, visualizationPhase: 'generating' };
   notify();
 }
 
@@ -254,10 +304,10 @@ export function mergeSectionGenerationStatesFromDrafts(drafts: GeneratedSectionD
     } else if (draft.state === 'approved' || draft.state === 'validationPassed') {
       next[draft.sectionId] = 'approved';
     } else {
-      next[draft.sectionId] = 'needsReview';
+      next[draft.sectionId] = 'generated';
     }
   }
-  state = { ...state, sectionStates: next };
+  state = { ...state, sectionStates: next, visualizationPhase: 'complete' };
   notify();
 }
 
@@ -278,6 +328,7 @@ export function completeProtocolBuildSession(summary: {
   state = {
     ...state,
     status: 'complete',
+    visualizationPhase: 'complete',
     completionSummary: {
       sectionsGenerated: summary.sectionsGenerated,
       sectionsFailed: summary.sectionsFailed,

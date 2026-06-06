@@ -27,6 +27,9 @@ function notifyListeners(): void {
 export function mutateProtocolDocument(mutator: (document: ProtocolDocument) => void): void {
   mutator(protocolDocument);
   notifyListeners();
+  void import('../../study-model/refreshStudyModelFromContext').then(({ refreshStudyModelFromContext }) => {
+    refreshStudyModelFromContext();
+  });
 }
 
 /** Returns the authoritative in-memory protocol document. */

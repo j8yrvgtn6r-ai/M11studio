@@ -48,26 +48,37 @@ async function main() {
   await continueButton.scrollIntoViewIfNeeded();
   await continueButton.click();
 
-  await page.getByTestId('protocol-import-processing-steps').waitFor();
-  await page.getByTestId('import-generation-progress').waitFor({ timeout: 120_000 });
+  await page.getByTestId('import-protocol-dialog').waitFor({ state: 'hidden', timeout: 30_000 });
+  await page.getByTestId('protocol-reconstruction-progress-title').waitFor({ timeout: 30_000 });
   await page.getByTestId('protocol-build-console').waitFor({ timeout: 30_000 });
   await page.getByTestId('protocol-build-progress-summary').waitFor({ timeout: 30_000 });
   await page.getByTestId('protocol-build-event').first().waitFor({ timeout: 30_000 });
-  await page.getByTestId('import-pause-processing').waitFor();
-  await page.getByTestId('import-pause-processing').click();
+  await page.getByTestId('protocol-build-spinner').waitFor({ timeout: 30_000 });
+  await page.getByTestId('protocol-build-pause').waitFor();
+  await page.getByTestId('protocol-build-pause').click();
   await page.getByTestId('protocol-build-paused-badge').waitFor({ timeout: 30_000 });
-  await page.getByTestId('import-resume-processing').click();
+  await page.getByTestId('protocol-build-resume').click();
+
   await page.locator('[data-generation-state="queued"], [data-generation-state="generating"]').first().waitFor({
     timeout: 30_000,
   });
   await page.locator('[data-testid^="map-section-"][data-generation-state="queued"], [data-testid^="map-section-"][data-generation-state="generating"]').first().waitFor({
     timeout: 30_000,
   });
-  await page.getByTestId('import-generation-completed-count').waitFor({ timeout: 120_000 });
 
-  await page.getByTestId('import-protocol-open-review').waitFor({ timeout: 120_000 });
-  await page.getByTestId('protocol-understanding-summary').waitFor();
-  await page.getByTestId('import-protocol-open-review').click();
+  const generatedIndicator = page
+    .locator('[data-testid^="import-section-indicator-"][data-generation-state="generated"]')
+    .first();
+  await generatedIndicator.waitFor({ timeout: 120_000 });
+  const generatedTestId = await generatedIndicator.getAttribute('data-testid');
+  const generatedSectionId = generatedTestId?.replace('import-section-indicator-', '') ?? '2';
+  await generatedIndicator.locator('xpath=ancestor::button[1]').click();
+  await page.getByTestId('viewport-import-generated-text').waitFor({ timeout: 30_000 });
+
+  await page.getByTestId('import-generation-completed-count').waitFor({ timeout: 120_000 });
+  await page.getByTestId('import-reconstruction-banner').waitFor({ timeout: 120_000 });
+
+  await page.getByTestId('app-review-import-button').click();
   await page.getByTestId('protocol-import-review-workspace').waitFor();
   await page.getByTestId('import-llm-provider-status').waitFor();
   await page.getByTestId('import-generation-provider').waitFor();
@@ -79,7 +90,7 @@ async function main() {
   const firstReviewRow = page.locator('[data-testid^="import-review-row-"]').first();
   await firstReviewRow.waitFor();
   const sectionId =
-    (await firstReviewRow.getAttribute('data-testid'))?.replace('import-review-row-', '') ?? '2';
+    (await firstReviewRow.getAttribute('data-testid'))?.replace('import-review-row-', '') ?? generatedSectionId;
 
   await page.getByTestId(`import-review-open-${sectionId}`).click();
   await page.getByTestId('section-import-review-screen').waitFor();

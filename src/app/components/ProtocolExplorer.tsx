@@ -1,8 +1,9 @@
-import { ChevronRight, ChevronDown, FileText, AlertCircle, MessageSquare, FileEdit, BookOpen } from 'lucide-react';
+import { ChevronRight, ChevronDown, FileText, AlertCircle, MessageSquare, FileEdit, BookOpen, BrainCircuit } from 'lucide-react';
 import { useState } from 'react';
 import type { GeneratedSectionDraft } from '../domain/protocol/import';
 import {
   resolveSectionGenerationState,
+  type ImportVisualizationPhase,
   type SectionGenerationState,
 } from '../domain/protocol/build/protocolBuildConsoleStore';
 import {
@@ -22,9 +23,12 @@ interface ProtocolExplorerProps {
   onSelectSection: (sectionId: string) => void;
   templateReferenceEnabled: boolean;
   onTemplateReferenceChange: (enabled: boolean) => void;
+  studyModelEnabled: boolean;
+  onStudyModelChange: (enabled: boolean) => void;
   sectionImportDrafts?: Record<string, GeneratedSectionDraft>;
   sectionGenerationStates?: Record<string, SectionGenerationState>;
   buildActive?: boolean;
+  visualizationPhase?: ImportVisualizationPhase;
   generationProgress?: {
     providerLabel?: string;
     model?: string;
@@ -38,9 +42,12 @@ export function ProtocolExplorer({
   onSelectSection,
   templateReferenceEnabled,
   onTemplateReferenceChange,
+  studyModelEnabled,
+  onStudyModelChange,
   sectionImportDrafts = {},
   sectionGenerationStates = {},
   buildActive = false,
+  visualizationPhase = 'idle',
   generationProgress = null,
 }: ProtocolExplorerProps) {
   return (
@@ -62,6 +69,19 @@ export function ProtocolExplorer({
             aria-label="Toggle M11 Template Reference"
           />
         </div>
+        <div className="flex items-center justify-between gap-2 rounded-md border border-sidebar-border bg-card/40 px-2 py-1.5">
+          <Label htmlFor="study-model-toggle" className="text-xs flex items-center gap-1.5 cursor-pointer">
+            <BrainCircuit className="h-3.5 w-3.5 shrink-0" />
+            Study Model
+          </Label>
+          <Switch
+            id="study-model-toggle"
+            checked={studyModelEnabled}
+            onCheckedChange={onStudyModelChange}
+            aria-label="Toggle Study Model panel"
+            data-testid="study-model-toggle"
+          />
+        </div>
       </div>
       <ScrollArea className="flex-1">
         <div className="p-2">
@@ -74,6 +94,7 @@ export function ProtocolExplorer({
               sectionImportDrafts={sectionImportDrafts}
               sectionGenerationStates={sectionGenerationStates}
               buildActive={buildActive}
+              visualizationPhase={visualizationPhase}
               generationProgress={generationProgress}
             />
           ))}
@@ -90,6 +111,7 @@ function SectionTreeNode({
   sectionImportDrafts,
   sectionGenerationStates,
   buildActive,
+  visualizationPhase,
   generationProgress,
 }: {
   section: ProtocolSection;
@@ -98,6 +120,7 @@ function SectionTreeNode({
   sectionImportDrafts: Record<string, GeneratedSectionDraft>;
   sectionGenerationStates: Record<string, SectionGenerationState>;
   buildActive: boolean;
+  visualizationPhase: ImportVisualizationPhase;
   generationProgress: ProtocolExplorerProps['generationProgress'];
 }) {
   const importDraft = sectionImportDrafts[section.id];
@@ -168,7 +191,7 @@ function SectionTreeNode({
               {section.validationCount}
             </Badge>
           )}
-          {importDraft || buildActive ? (
+          {(importDraft || buildActive) ? (
             <div
               className="flex items-center"
               title={[
@@ -204,6 +227,7 @@ function SectionTreeNode({
               sectionImportDrafts={sectionImportDrafts}
               sectionGenerationStates={sectionGenerationStates}
               buildActive={buildActive}
+              visualizationPhase={visualizationPhase}
               generationProgress={generationProgress}
             />
           ))}

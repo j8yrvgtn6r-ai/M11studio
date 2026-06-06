@@ -257,6 +257,7 @@ async function generateSectionsWithProgress(
       const errorMessage = 'Simulated section failure for smoke testing.';
       drafts.push(createFailedSectionDraft(spec, input, 1, providerId, model, errorMessage));
       updateSectionGenerationState(spec.id, 'failed');
+      callbacks?.onSectionDraft?.(drafts[drafts.length - 1]);
       appendProtocolBuildEvent({
         type: 'error',
         message: `Section ${spec.id} failed; retry available`,
@@ -314,7 +315,8 @@ async function generateSectionsWithProgress(
       drafts.push(draft);
       const requestDurationMs = performance.now() - requestStartedAt;
       sectionDurations.push(requestDurationMs);
-      updateSectionGenerationState(spec.id, 'needsReview');
+      updateSectionGenerationState(spec.id, 'generated');
+      callbacks?.onSectionDraft?.(draft);
       logM11Generation('section-completed', {
         sectionId: spec.id,
         durationMs: Math.round(requestDurationMs),
@@ -345,6 +347,7 @@ async function generateSectionsWithProgress(
       updateSectionGenerationState(spec.id, 'failed');
       logM11Generation('section-failed', { sectionId: spec.id, error: errorMessage });
       drafts.push(createFailedSectionDraft(spec, input, 1, providerId, model, errorMessage));
+      callbacks?.onSectionDraft?.(drafts[drafts.length - 1]);
       appendProtocolBuildEvent({
         type: 'error',
         message: `Section ${spec.id} failed; retry available`,

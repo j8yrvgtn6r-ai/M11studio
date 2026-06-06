@@ -1,4 +1,7 @@
 import { getProtocolDocument } from '../store/protocolStore';
+import { updateSectionGenerationState } from '../build/protocolBuildConsoleStore';
+import { clearStudyModel, rebuildStudyModel } from '../../study-model/studyModelStore';
+import { refreshStudyModelFromContext } from '../../study-model/refreshStudyModelFromContext';
 
 import { ICH_M11_TERMINOLOGY_META } from '../ichM11/ichM11ControlledTerminology';
 
@@ -517,6 +520,46 @@ export function setProtocolImportExtractionFailed(
 
 
 
+/** Clears persisted import/review state when the user confirms a new protocol overwrite. */
+export function prepareProtocolImportOverwrite(): void {
+  state.sectionDrafts = {};
+  state.importedSourceSummary = null;
+  state.protocolKnowledgeModelId = null;
+  state.lastImportCompletedAt = null;
+  state.storageWarnings = [];
+  state.artifact = null;
+  clearStudyModel();
+  persistMetadata();
+  notify();
+}
+
+/** Stages artifact, extraction summary, and knowledge model while M11 reconstruction is still running. */
+export async function stageProtocolImportUnderstanding(
+  artifact: ProtocolSourceArtifact,
+  importedSource: ImportedProtocolSource,
+  protocolKnowledgeModel: ProtocolKnowledgeModel,
+): Promise<void> {
+  extractionCache.set(importedSource.uploadId, importedSource);
+  knowledgeCache.set(protocolKnowledgeModel.id, protocolKnowledgeModel);
+  await saveImportedProtocolSource(importedSource);
+
+  state.artifact = artifact;
+  state.importedSourceSummary = toSummary(importedSource);
+  state.protocolKnowledgeModelId = protocolKnowledgeModel.id;
+  state.protocolId = defaultProtocolId();
+  persistMetadata();
+  notify();
+}
+
+/** Makes a freshly generated section draft available in the workspace before import completes. */
+export function upsertLiveSectionImportDraft(draft: GeneratedSectionDraft): void {
+  state.sectionDrafts[draft.sectionId] = normalizeSectionDraft(draft);
+  persistMetadata();
+  notify();
+}
+
+
+
 export async function setProtocolImportResult(
 
   drafts: GeneratedSectionDraft[],
@@ -592,6 +635,12 @@ export async function setProtocolImportResult(
   );
 
   persistMetadata();
+
+  rebuildStudyModel({
+    sourceUploadId: importedSource.uploadId,
+    knowledge: protocolKnowledgeModel,
+    document: getProtocolDocument(),
+  });
 
   notify();
 
@@ -771,6 +820,9 @@ export function approveSectionImportDraft(sectionId: string, reviewer = 'Current
 
     );
 
+    updateSectionGenerationState(sectionId, 'approved');
+    refreshStudyModelFromContext();
+
   }
 
 
@@ -884,6 +936,9 @@ export async function regenerateSectionImportDraftAsync(
     generationModel: newDraft.provenance.generationModel,
     supersededVersion: current?.draftVersion,
   });
+
+  updateSectionGenerationState(sectionId, 'generated');
+  refreshStudyModelFromContext();
 
   persistMetadata();
   notify();

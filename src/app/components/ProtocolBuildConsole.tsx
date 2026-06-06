@@ -3,6 +3,7 @@ import {
   ChevronDown,
   ChevronUp,
   Eraser,
+  Loader2,
   Pause,
   Play,
   RefreshCw,
@@ -11,6 +12,7 @@ import {
 } from 'lucide-react';
 
 import { formatBuildClockTime } from '../domain/protocol/build/formatBuildDuration';
+import { formatEstimatedRemaining } from '../domain/protocol/import/llm/m11GenerationProgress';
 import {
   clearProtocolBuildEvents,
   type ProtocolBuildEvent,
@@ -45,6 +47,25 @@ function BuildEventLine({ event }: { event: ProtocolBuildEvent }) {
   );
 }
 
+function resolveActivePhase(build: ReturnType<typeof useProtocolBuildConsole>): string {
+  if (build.status === 'paused') {
+    return 'Paused';
+  }
+  if (build.visualizationPhase === 'reset') {
+    return 'Resetting protocol state';
+  }
+  if (build.generationProgress?.currentSectionTitle) {
+    return `Generating ${build.generationProgress.currentSectionTitle}`;
+  }
+  if (build.status === 'running') {
+    return 'Reconstructing protocol';
+  }
+  if (build.status === 'complete') {
+    return 'Reconstruction complete';
+  }
+  return 'Waiting';
+}
+
 export function ProtocolBuildConsole() {
   const build = useProtocolBuildConsole();
   const [expanded, setExpanded] = useState(false);
@@ -54,6 +75,12 @@ export function ProtocolBuildConsole() {
   const latestEvent = build.events[build.events.length - 1];
   const isActive = build.status === 'running' || build.status === 'paused';
   const showConsole = build.status !== 'idle' || build.events.length > 0;
+  const phaseLabel = resolveActivePhase(build);
+  const completed = build.generationProgress?.completedSections ?? build.completionSummary?.sectionsGenerated ?? 0;
+  const total = build.generationProgress?.totalSections ?? completed;
+  const etaLabel = build.generationProgress
+    ? formatEstimatedRemaining(build.generationProgress)
+    : 'Estimating…';
 
   useEffect(() => {
     if (!expanded || !autoScroll || !scrollRef.current) {
@@ -73,10 +100,13 @@ export function ProtocolBuildConsole() {
 
   const summaryLine = useMemo(() => {
     if (build.status === 'paused') {
-      return 'Paused — resume to continue generation';
+      return `${phaseLabel} · ${completed}/${total || '—'} · Resume to continue`;
     }
     if (build.status === 'complete' && build.completionSummary) {
       return `Completed · ${build.completionSummary.sectionsGenerated} generated · ${build.completionSummary.sectionsFailed} failed`;
+    }
+    if (isActive) {
+      return `${phaseLabel} · ${completed}/${total || '—'} · ${etaLabel}`;
     }
     if (build.generationProgress) {
       const progress = build.generationProgress;
@@ -85,7 +115,7 @@ export function ProtocolBuildConsole() {
       }`;
     }
     return latestEvent?.message ?? 'Waiting for build activity…';
-  }, [build.completionSummary, build.generationProgress, build.status, latestEvent?.message]);
+  }, [build.completionSummary, build.generationProgress, build.status, completed, etaLabel, isActive, latestEvent?.message, phaseLabel, total]);
 
   if (!showConsole) {
     return null;
@@ -102,15 +132,34 @@ export function ProtocolBuildConsole() {
       data-status={build.status}
     >
       <div className="h-10 px-3 flex items-center gap-2 border-b border-border/60">
-        <ScrollText className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+        {isActive ? (
+          <Loader2 className="h-3.5 w-3.5 animate-spin text-primary shrink-0" data-testid="protocol-build-spinner" />
+        ) : (
+          <ScrollText className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+        )}
         <div className="min-w-0 flex-1">
-          <p className="text-xs font-medium truncate">Protocol Build Console</p>
-          {!expanded ? (
-            <p className="text-[10px] text-muted-foreground truncate" data-testid="protocol-build-console-summary">
-              {summaryLine}
-            </p>
-          ) : null}
+          <p className="text-xs font-medium truncate" data-testid="protocol-reconstruction-progress-title">
+            {isActive || build.status === 'complete' ? 'Protocol Reconstruction Progress' : 'Protocol Build Console'}
+          </p>
+          <p className="text-[10px] text-muted-foreground truncate" data-testid="protocol-build-console-summary">
+            {summaryLine}
+          </p>
         </div>
+
+        {isActive ? (
+          <div
+            className="hidden sm:flex items-center gap-2 text-[10px] text-muted-foreground shrink-0"
+            data-testid="protocol-build-inline-progress"
+          >
+            <span data-testid="import-generation-completed-count">
+              {completed}/{total || '—'}
+            </span>
+            <span>·</span>
+            <span data-testid="protocol-build-phase">{phaseLabel}</span>
+            <span>·</span>
+            <span data-testid="protocol-build-estimated-remaining-inline">{etaLabel}</span>
+          </div>
+        ) : null}
 
         <div className="flex items-center gap-1 shrink-0">
           {isActive ? (
@@ -135,7 +184,7 @@ export function ProtocolBuildConsole() {
                   onClick={() => build.controls.pauseAfterCurrent?.()}
                 >
                   <Pause className="h-3 w-3 mr-1" />
-                  Pause
+                  Pause After Current Section
                 </Button>
               )}
               <Button
@@ -160,7 +209,7 @@ export function ProtocolBuildConsole() {
               onClick={() => build.controls.retryFailed?.()}
             >
               <RefreshCw className="h-3 w-3 mr-1" />
-              Retry Failed
+              Retry Failed Sections
             </Button>
           ) : null}
 

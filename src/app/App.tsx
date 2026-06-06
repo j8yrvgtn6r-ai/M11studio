@@ -57,6 +57,7 @@ import { ImportProtocolDialog } from './components/protocol-import/ImportProtoco
 import { ImportStorageRecoveryBanner } from './components/protocol-import/ImportStorageRecoveryBanner';
 import { ProtocolImportReviewWorkspace } from './components/protocol-import/ProtocolImportReviewWorkspace';
 import { updateSectionImportDraft } from './domain/protocol/import';
+import { resolveSectionGenerationState } from './domain/protocol/build/protocolBuildConsoleStore';
 import { useProtocolImport, useSectionImportDraft } from './domain/protocol/import/ProtocolImportContext';
 
 const initialProtocolSections = getProtocolSections();
@@ -80,12 +81,24 @@ export default function App() {
   const [templateReferenceEnabled, setTemplateReferenceEnabled] = useState(() => {
     return localStorage.getItem('m11-template-reference-enabled') === 'true';
   });
+  const [studyModelEnabled, setStudyModelEnabled] = useState(() => {
+    return localStorage.getItem('m11-study-model-enabled') === 'true';
+  });
   const [importDialogOpen, setImportDialogOpen] = useState(false);
   const [importReviewOpen, setImportReviewOpen] = useState(false);
+  const [importCompleteBanner, setImportCompleteBanner] = useState<string | null>(null);
   const { state: importState, storageWarnings } = useProtocolImport();
   const buildState = useProtocolBuildConsole();
   const buildActive = buildState.status === 'running' || buildState.status === 'paused';
   const sectionImportDraft = useSectionImportDraft(selectedSectionId);
+  const selectedSectionGenerationState = selectedSectionId
+    ? resolveSectionGenerationState(
+        selectedSectionId,
+        buildState.sectionStates,
+        importState.sectionDrafts[selectedSectionId],
+        buildActive || buildState.status === 'complete',
+      )
+    : undefined;
 
   console.log('M11 Studio loaded');
 
@@ -161,6 +174,11 @@ export default function App() {
   const handleTemplateReferenceChange = (enabled: boolean) => {
     setTemplateReferenceEnabled(enabled);
     localStorage.setItem('m11-template-reference-enabled', enabled ? 'true' : 'false');
+  };
+
+  const handleStudyModelChange = (enabled: boolean) => {
+    setStudyModelEnabled(enabled);
+    localStorage.setItem('m11-study-model-enabled', enabled ? 'true' : 'false');
   };
 
   const handleSoACellClick = (visitId: string, assessmentId: string) => {
@@ -294,6 +312,20 @@ export default function App() {
         </div>
       ) : null}
 
+      {importCompleteBanner ? (
+        <div className="px-4 py-2 border-b border-border shrink-0 bg-green-500/10" data-testid="import-reconstruction-banner">
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex items-start gap-2 text-sm">
+              <CheckCircle2 className="h-4 w-4 text-green-600 mt-0.5 shrink-0" />
+              <p>{importCompleteBanner}</p>
+            </div>
+            <Button variant="ghost" size="sm" className="h-7 text-xs shrink-0" onClick={() => setImportCompleteBanner(null)}>
+              Dismiss
+            </Button>
+          </div>
+        </div>
+      ) : null}
+
       {/* Main IDE Layout */}
       <div className="flex-1 overflow-hidden min-h-0">
         {importReviewOpen ? (
@@ -350,9 +382,12 @@ export default function App() {
                 onSelectSection={handleSectionSelect}
                 templateReferenceEnabled={templateReferenceEnabled}
                 onTemplateReferenceChange={handleTemplateReferenceChange}
+                studyModelEnabled={studyModelEnabled}
+                onStudyModelChange={handleStudyModelChange}
                 sectionImportDrafts={importState.sectionDrafts}
                 sectionGenerationStates={buildState.sectionStates}
                 buildActive={buildActive || buildState.status === 'complete'}
+                visualizationPhase={buildState.visualizationPhase}
                 generationProgress={buildState.generationProgress}
               />
             </ResizablePanel>
@@ -363,6 +398,7 @@ export default function App() {
             <ResizablePanel id="document-viewport" order={2} defaultSize={50} minSize={30}>
               <SectionAuthoringCanvas
                 templateReferenceOpen={templateReferenceEnabled}
+                studyModelOpen={studyModelEnabled}
                 sectionId={selectedSectionId}
                 sectionTitle={selectedSection?.title ?? null}
               >
@@ -374,6 +410,8 @@ export default function App() {
                     fields={sectionFields}
                     onFieldChange={handleFieldChange}
                     importDraft={sectionImportDraft}
+                    sectionGenerationState={selectedSectionGenerationState}
+                    buildActive={buildActive || buildState.status === 'complete'}
                     onImportDraftTextChange={(text) => {
                       if (selectedSectionId) {
                         updateSectionImportDraft(selectedSectionId, {
@@ -426,6 +464,7 @@ export default function App() {
                       sectionImportDrafts={importState.sectionDrafts}
                       sectionGenerationStates={buildState.sectionStates}
                       buildActive={buildActive || buildState.status === 'complete'}
+                      visualizationPhase={buildState.visualizationPhase}
                       generationProgress={buildState.generationProgress}
                     />
                   </div>
@@ -480,10 +519,14 @@ export default function App() {
       <ImportProtocolDialog
         open={importDialogOpen}
         onOpenChange={setImportDialogOpen}
-        onImportComplete={() => {
-          setImportReviewOpen(true);
+        onImportComplete={({ sectionCount, failedSectionIds, partialGenerationFailure }) => {
           setTemplateReferenceEnabled(true);
           handleTemplateReferenceChange(true);
+          setImportCompleteBanner(
+            partialGenerationFailure
+              ? `Protocol reconstruction finished with ${sectionCount - failedSectionIds.length}/${sectionCount} sections generated. Review completed sections now — retry failed sections from Protocol Reconstruction Progress.`
+              : `Protocol reconstruction complete — ${sectionCount} M11 section proposals are ready for review while you continue working in the workspace.`,
+          );
         }}
       />
 

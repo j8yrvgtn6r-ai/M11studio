@@ -1,4 +1,5 @@
 import { computeEstimatedRemainingMs, formatBuildDurationMs } from '../../build/formatBuildDuration';
+import type { GeneratedSectionDraft } from '../types';
 import type { LlmProviderConfig } from './types';
 
 export interface M11GenerationProgressSnapshot {
@@ -22,6 +23,7 @@ export interface M11GenerationProgressSnapshot {
 
 export interface M11GenerationCallbacks {
   onProgress?: (progress: M11GenerationProgressSnapshot) => void;
+  onSectionDraft?: (draft: GeneratedSectionDraft) => void;
   signal?: AbortSignal;
 }
 

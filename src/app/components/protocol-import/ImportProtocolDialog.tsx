@@ -6,12 +6,16 @@ import {
   DocxExtractionError,
   ImportProcessingAbortedError,
   isDocxFile,
+  prepareProtocolImportOverwrite,
   retryFailedM11SectionGeneration,
   runProtocolImportProcessing,
   setProtocolImportArtifact,
   setProtocolImportExtractionFailed,
   setProtocolImportResult,
   storeUploadedDocxArtifact,
+  getImportedProtocolSource,
+  getProtocolImportState,
+  getProtocolKnowledgeModel,
 } from '../../domain/protocol/import';
 import {
   endProtocolBuildSession,
@@ -28,7 +32,6 @@ import type {
   ProtocolSourceArtifact,
 } from '../../domain/protocol/import';
 import type { ProtocolKnowledgeModel } from '../../domain/protocol/import/protocolKnowledgeTypes';
-import { ProtocolUnderstandingSummary } from './ProtocolUnderstandingSummary';
 import { Alert, AlertDescription, AlertTitle } from '../ui/alert';
 import { Button } from '../ui/button';
 import { Checkbox } from '../ui/checkbox';
@@ -42,15 +45,15 @@ import {
 } from '../ui/dialog';
 import { Label } from '../ui/label';
 import { ImportProtocolProviderBanner } from './ImportProtocolProviderBanner';
-import { ProtocolImportProcessingSteps } from './ProtocolImportProcessingSteps';
-import { useProtocolBuildConsole } from '../../domain/protocol/build/useProtocolBuildConsole';
-
-type ImportWizardStep = 'upload' | 'processing' | 'complete';
 
 interface ImportProtocolDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onImportComplete: () => void;
+  onImportComplete: (summary: {
+    sectionCount: number;
+    failedSectionIds: string[];
+    partialGenerationFailure: boolean;
+  }) => void;
 }
 
 interface CompletedImportContext {
@@ -68,32 +71,27 @@ export function ImportProtocolDialog({
 }: ImportProtocolDialogProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
-  const [wizardStep, setWizardStep] = useState<ImportWizardStep>('upload');
+  const reconstructionStartedRef = useRef(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [overwriteConfirmed, setOverwriteConfirmed] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [processingSteps, setProcessingSteps] = useState<ImportProcessingStep[]>(
-    createInitialProcessingSteps,
+    createInitialProcessingSteps(),
   );
   const [isDragging, setIsDragging] = useState(false);
-  const [completedKnowledge, setCompletedKnowledge] = useState<ProtocolKnowledgeModel | null>(null);
   const [completedContext, setCompletedContext] = useState<CompletedImportContext | null>(null);
-  const [isRetrying, setIsRetrying] = useState(false);
   const [processingActive, setProcessingActive] = useState(false);
-  const buildState = useProtocolBuildConsole();
 
   const resetWizard = useCallback(() => {
     abortControllerRef.current?.abort();
     abortControllerRef.current = null;
-    setWizardStep('upload');
+    reconstructionStartedRef.current = false;
     setSelectedFile(null);
     setOverwriteConfirmed(false);
     setUploadError(null);
     setProcessingSteps(createInitialProcessingSteps());
     setIsDragging(false);
-    setCompletedKnowledge(null);
     setCompletedContext(null);
-    setIsRetrying(false);
     setProcessingActive(false);
     endProtocolBuildSession('idle');
   }, []);
@@ -118,18 +116,31 @@ export function ImportProtocolDialog({
   }, []);
 
   const processingCallbacks = {
-    onStepsUpdate: setProcessingSteps,
+    onStepsUpdate: (steps: ImportProcessingStep[]) => {
+      setProcessingSteps(steps);
+      if (steps.some((step) => step.id === 'rewriting-m11' && step.state === 'active')) {
+        reconstructionStartedRef.current = true;
+      }
+    },
     onGenerationProgress: setProtocolBuildGenerationProgress,
   };
 
   const handleOpenChange = (nextOpen: boolean) => {
-    if (!nextOpen && processingActive) {
+    if (nextOpen) {
+      if (processingActive) {
+        return;
+      }
+      onOpenChange(true);
       return;
     }
-    if (!nextOpen) {
-      resetWizard();
+
+    if (processingActive) {
+      onOpenChange(false);
+      return;
     }
-    onOpenChange(nextOpen);
+
+    resetWizard();
+    onOpenChange(false);
   };
 
   const handleFile = (file: File | undefined) => {
@@ -153,9 +164,7 @@ export function ImportProtocolDialog({
       context.protocolKnowledgeModel,
       { isOverwrite: true },
     );
-    setCompletedKnowledge(context.protocolKnowledgeModel);
     setCompletedContext(context);
-    setWizardStep('complete');
   };
 
   const startProcessing = async () => {
@@ -163,11 +172,13 @@ export function ImportProtocolDialog({
       return;
     }
 
-    setWizardStep('processing');
     setUploadError(null);
     setProcessingActive(true);
     setProcessingSteps(createInitialProcessingSteps());
+    reconstructionStartedRef.current = false;
+    prepareProtocolImportOverwrite();
     startProtocolBuildSession({ mode: 'Full' });
+    onOpenChange(false);
 
     const abortController = new AbortController();
     abortControllerRef.current = abortController;
@@ -189,18 +200,27 @@ export function ImportProtocolDialog({
         },
       );
 
-      await persistImportResult({
+      const context: CompletedImportContext = {
         artifact: result.artifact,
         importedSource: result.importedSource,
         protocolKnowledgeModel: result.protocolKnowledgeModel,
         sectionDrafts: result.sectionDrafts,
         failedSectionIds: result.failedSectionIds,
+      };
+
+      await persistImportResult(context);
+      onImportComplete({
+        sectionCount: result.sectionDrafts.length,
+        failedSectionIds: result.failedSectionIds,
+        partialGenerationFailure: result.partialGenerationFailure,
       });
     } catch (error) {
       if (error instanceof ImportProcessingAbortedError) {
         endProtocolBuildSession('cancelled');
-        setUploadError('Import cancelled.');
-        setWizardStep('upload');
+        if (!reconstructionStartedRef.current) {
+          onOpenChange(true);
+          setUploadError('Import cancelled.');
+        }
         return;
       }
 
@@ -217,88 +237,79 @@ export function ImportProtocolDialog({
         setProtocolImportExtractionFailed(artifact, message);
       }
 
-      setUploadError(
-        error instanceof DocxExtractionError
-          ? `${message} The uploaded DOCX is saved — fix the file and try again.`
-          : message,
-      );
-      setWizardStep('upload');
+      if (!reconstructionStartedRef.current) {
+        onOpenChange(true);
+        setUploadError(
+          error instanceof DocxExtractionError
+            ? `${message} The uploaded DOCX is saved — fix the file and try again.`
+            : message,
+        );
+      }
     } finally {
       setProcessingActive(false);
       abortControllerRef.current = null;
     }
   };
 
-  const handleCancelProcessing = () => {
-    abortControllerRef.current?.abort();
-  };
-
   const handleRetryFailedSections = async () => {
-    if (!completedContext || (completedContext.failedSectionIds ?? []).length === 0) {
+    const importState = getProtocolImportState();
+    const source = getImportedProtocolSource();
+    const knowledge = getProtocolKnowledgeModel();
+    const artifact = importState.artifact ?? completedContext?.artifact;
+    const existingDrafts = Object.values(importState.sectionDrafts);
+    const failedSectionIds = completedContext?.failedSectionIds ?? existingDrafts
+      .filter((draft) => draft.generationStatus === 'failed')
+      .map((draft) => draft.sectionId);
+
+    if (!artifact || !source || !knowledge || failedSectionIds.length === 0) {
       return;
     }
 
-    setIsRetrying(true);
     setProcessingActive(true);
-    setWizardStep('processing');
-    setUploadError(null);
+    onOpenChange(false);
     startProtocolBuildSession({ mode: 'Selected' });
 
     const abortController = new AbortController();
     abortControllerRef.current = abortController;
+    reconstructionStartedRef.current = true;
 
     try {
       const retried = await retryFailedM11SectionGeneration(
-        completedContext.artifact,
-        completedContext.importedSource,
-        completedContext.protocolKnowledgeModel,
-        completedContext.sectionDrafts,
+        artifact,
+        source,
+        knowledge,
+        existingDrafts,
         {
           ...processingCallbacks,
           signal: abortController.signal,
         },
       );
 
-      await persistImportResult({
-        artifact: completedContext.artifact,
-        importedSource: completedContext.importedSource,
-        protocolKnowledgeModel: completedContext.protocolKnowledgeModel,
+      const context: CompletedImportContext = {
+        artifact,
+        importedSource: source,
+        protocolKnowledgeModel: knowledge,
         sectionDrafts: retried.sectionDrafts,
         failedSectionIds: retried.failedSectionIds,
+      };
+
+      await persistImportResult(context);
+      onImportComplete({
+        sectionCount: retried.sectionDrafts.length,
+        failedSectionIds: retried.failedSectionIds,
+        partialGenerationFailure: retried.partialGenerationFailure,
       });
     } catch (error) {
       if (error instanceof ImportProcessingAbortedError) {
-        setUploadError('Retry cancelled.');
-        setWizardStep('complete');
         return;
       }
-      setUploadError(error instanceof Error ? error.message : 'Retry failed.');
-      setWizardStep('complete');
     } finally {
-      setIsRetrying(false);
       setProcessingActive(false);
       abortControllerRef.current = null;
     }
   };
 
   handleRetryFailedSectionsRef.current = handleRetryFailedSections;
-
-  const handleFinish = () => {
-    onImportComplete();
-    onOpenChange(false);
-    setWizardStep('upload');
-    setSelectedFile(null);
-    setOverwriteConfirmed(false);
-    setUploadError(null);
-    setProcessingSteps(createInitialProcessingSteps());
-    setIsDragging(false);
-    setCompletedKnowledge(null);
-    setCompletedContext(null);
-    setIsRetrying(false);
-    setProcessingActive(false);
-  };
-
-  const hasFailedSections = (completedContext?.failedSectionIds?.length ?? 0) > 0;
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
@@ -311,165 +322,103 @@ export function ImportProtocolDialog({
           </DialogDescription>
         </DialogHeader>
 
-        {wizardStep === 'upload' ? (
-          <div className="space-y-4">
-            <ImportProtocolProviderBanner />
+        <div className="space-y-4">
+          <ImportProtocolProviderBanner />
 
-            <Alert variant="destructive" className="border-destructive/50 bg-destructive/5">
-              <AlertTriangle className="h-4 w-4" />
-              <AlertTitle>Overwrite warning</AlertTitle>
+          <Alert variant="destructive" className="border-destructive/50 bg-destructive/5">
+            <AlertTriangle className="h-4 w-4" />
+            <AlertTitle>Overwrite warning</AlertTitle>
+            <AlertDescription>
+              Importing a protocol will overwrite any draft protocol content currently created in M11 Studio.
+              The uploaded source document will be retained as a reference artifact, but generated M11 sections
+              will replace existing draft section content after processing.
+            </AlertDescription>
+          </Alert>
+
+          {processingActive ? (
+            <Alert data-testid="import-processing-background-notice">
+              <AlertTitle>Reconstruction running in workspace</AlertTitle>
               <AlertDescription>
-                Importing a protocol will overwrite any draft protocol content currently created in M11 Studio.
-                The uploaded source document will be retained as a reference artifact, but generated M11 sections
-                will replace existing draft section content after processing.
+                Protocol reconstruction continues in the background. Use Protocol Reconstruction Progress at the
+                bottom of the screen for live status and controls.
               </AlertDescription>
             </Alert>
+          ) : null}
 
-            <div
-              className={`rounded-lg border border-dashed p-8 text-center transition-colors ${
-                isDragging ? 'border-primary bg-primary/5' : 'border-border bg-muted/20'
-              }`}
-              data-testid="import-protocol-dropzone"
-              onDragOver={(event) => {
-                event.preventDefault();
-                setIsDragging(true);
-              }}
-              onDragLeave={() => setIsDragging(false)}
-              onDrop={(event) => {
-                event.preventDefault();
-                setIsDragging(false);
-                handleFile(event.dataTransfer.files[0]);
-              }}
+          <div
+            className={`rounded-lg border border-dashed p-8 text-center transition-colors ${
+              isDragging ? 'border-primary bg-primary/5' : 'border-border bg-muted/20'
+            }`}
+            data-testid="import-protocol-dropzone"
+            onDragOver={(event) => {
+              event.preventDefault();
+              setIsDragging(true);
+            }}
+            onDragLeave={() => setIsDragging(false)}
+            onDrop={(event) => {
+              event.preventDefault();
+              setIsDragging(false);
+              handleFile(event.dataTransfer.files[0]);
+            }}
+          >
+            <FileUp className="h-10 w-10 mx-auto mb-3 text-muted-foreground" />
+            <p className="text-sm font-medium">Drag and drop a protocol DOCX here</p>
+            <p className="text-xs text-muted-foreground mt-1">PDF support planned for a later release</p>
+            <Button
+              variant="outline"
+              size="sm"
+              className="mt-4 gap-1.5"
+              disabled={processingActive}
+              onClick={() => fileInputRef.current?.click()}
             >
-              <FileUp className="h-10 w-10 mx-auto mb-3 text-muted-foreground" />
-              <p className="text-sm font-medium">Drag and drop a protocol DOCX here</p>
-              <p className="text-xs text-muted-foreground mt-1">PDF support planned for a later release</p>
-              <Button
-                variant="outline"
-                size="sm"
-                className="mt-4 gap-1.5"
-                onClick={() => fileInputRef.current?.click()}
-              >
-                <Upload className="h-3.5 w-3.5" />
-                Choose file
-              </Button>
-              {selectedFile ? (
-                <p className="text-xs mt-3 font-mono text-foreground">{selectedFile.name}</p>
-              ) : null}
-            </div>
-
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-              className="hidden"
-              data-testid="import-protocol-file-input"
-              onChange={(event) => handleFile(event.target.files?.[0])}
-            />
-
-            <div className="flex items-start gap-2">
-              <Checkbox
-                id="import-overwrite-confirm"
-                checked={overwriteConfirmed}
-                onCheckedChange={(checked) => setOverwriteConfirmed(checked === true)}
-                data-testid="import-overwrite-confirm"
-              />
-              <Label htmlFor="import-overwrite-confirm" className="text-sm leading-snug cursor-pointer">
-                I understand this import will overwrite current generated protocol content.
-              </Label>
-            </div>
-
-            {uploadError ? (
-              <p className="text-sm text-destructive" data-testid="import-upload-error">
-                {uploadError}
-              </p>
+              <Upload className="h-3.5 w-3.5" />
+              Choose file
+            </Button>
+            {selectedFile ? (
+              <p className="text-xs mt-3 font-mono text-foreground">{selectedFile.name}</p>
             ) : null}
           </div>
-        ) : null}
 
-        {wizardStep === 'processing' ? (
-          <div className="space-y-4">
-            <ProtocolImportProcessingSteps steps={processingSteps} />
-            <div className="flex flex-wrap justify-end gap-2">
-              {buildState.status === 'paused' ? (
-                <Button
-                  variant="secondary"
-                  data-testid="import-resume-processing"
-                  onClick={() => resumeProtocolBuild()}
-                >
-                  Resume
-                </Button>
-              ) : (
-                <Button
-                  variant="outline"
-                  data-testid="import-pause-processing"
-                  onClick={() => requestPauseAfterCurrentSection()}
-                >
-                  Pause After Current Section
-                </Button>
-              )}
-              <Button
-                variant="outline"
-                data-testid="import-cancel-processing"
-                onClick={handleCancelProcessing}
-              >
-                Cancel Import
-              </Button>
-            </div>
-          </div>
-        ) : null}
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+            className="hidden"
+            data-testid="import-protocol-file-input"
+            onChange={(event) => handleFile(event.target.files?.[0])}
+          />
 
-        {wizardStep === 'complete' ? (
-          <div className="space-y-3">
-            <div className="rounded-lg border border-border bg-muted/20 p-4 text-sm space-y-2">
-              <p className="font-medium">Review package ready</p>
-              <p className="text-muted-foreground">
-                Protocol understanding and M11 draft generation completed. Human review is required before any
-                section becomes approved protocol content.
-              </p>
-              {hasFailedSections ? (
-                <p className="text-destructive text-xs" data-testid="import-partial-generation-warning">
-                  {completedContext?.failedSectionIds?.length ?? 0} section(s) failed to generate. Retry failed sections
-                  before opening review, or continue with partial drafts.
-                </p>
-              ) : null}
-            </div>
-            {completedKnowledge ? <ProtocolUnderstandingSummary knowledge={completedKnowledge} /> : null}
+          <div className="flex items-start gap-2">
+            <Checkbox
+              id="import-overwrite-confirm"
+              checked={overwriteConfirmed}
+              disabled={processingActive}
+              onCheckedChange={(checked) => setOverwriteConfirmed(checked === true)}
+              data-testid="import-overwrite-confirm"
+            />
+            <Label htmlFor="import-overwrite-confirm" className="text-sm leading-snug cursor-pointer">
+              I understand this import will overwrite current generated protocol content.
+            </Label>
           </div>
-        ) : null}
+
+          {uploadError ? (
+            <p className="text-sm text-destructive" data-testid="import-upload-error">
+              {uploadError}
+            </p>
+          ) : null}
+        </div>
 
         <DialogFooter>
-          {wizardStep === 'upload' ? (
-            <>
-              <Button variant="ghost" onClick={() => handleOpenChange(false)}>
-                Cancel
-              </Button>
-              <Button
-                data-testid="import-protocol-continue"
-                disabled={!selectedFile || !overwriteConfirmed}
-                onClick={() => void startProcessing()}
-              >
-                Continue
-              </Button>
-            </>
-          ) : null}
-          {wizardStep === 'complete' ? (
-            <>
-              {hasFailedSections ? (
-                <Button
-                  variant="secondary"
-                  data-testid="import-retry-failed-sections"
-                  disabled={isRetrying}
-                  onClick={() => void handleRetryFailedSections()}
-                >
-                  Retry Failed Sections
-                </Button>
-              ) : null}
-              <Button data-testid="import-protocol-open-review" onClick={handleFinish}>
-                Open review workspace
-              </Button>
-            </>
-          ) : null}
+          <Button variant="ghost" disabled={processingActive} onClick={() => handleOpenChange(false)}>
+            Cancel
+          </Button>
+          <Button
+            data-testid="import-protocol-continue"
+            disabled={!selectedFile || !overwriteConfirmed || processingActive}
+            onClick={() => void startProcessing()}
+          >
+            Continue
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

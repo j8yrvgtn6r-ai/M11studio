@@ -1,15 +1,17 @@
-import { Loader2, MessageSquare, AlertCircle } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 import type { GeneratedSectionDraft } from '../domain/protocol/import';
 import {
+  getImportVisualizationPhase,
   resolveSectionGenerationState,
+  type ImportVisualizationPhase,
   type SectionGenerationState,
 } from '../domain/protocol/build/protocolBuildConsoleStore';
 import type { ProtocolSection } from '../types/protocol';
-import { getStatusColor } from '../utils/statusColors';
 import {
   sectionGenerationOverlayClass,
   sectionGenerationStateLabel,
   SectionGenerationStateIndicator,
+  sectionGenerationDotClass,
 } from './SectionGenerationStateIndicator';
 import { formatBuildDurationMs } from '../domain/protocol/build/formatBuildDuration';
 import { ScrollArea } from './ui/scroll-area';
@@ -21,6 +23,7 @@ interface DocumentMinimapProps {
   sectionImportDrafts?: Record<string, GeneratedSectionDraft>;
   sectionGenerationStates?: Record<string, SectionGenerationState>;
   buildActive?: boolean;
+  visualizationPhase?: ImportVisualizationPhase;
   generationProgress?: {
     providerLabel?: string;
     model?: string;
@@ -36,6 +39,7 @@ export function DocumentMinimap({
   sectionImportDrafts = {},
   sectionGenerationStates = {},
   buildActive = false,
+  visualizationPhase = 'idle',
   generationProgress = null,
 }: DocumentMinimapProps) {
   const flattenSections = (items: ProtocolSection[]): ProtocolSection[] => {
@@ -50,6 +54,7 @@ export function DocumentMinimap({
   };
 
   const allSections = flattenSections(sections);
+  const phase = visualizationPhase === 'idle' ? getImportVisualizationPhase() : visualizationPhase;
 
   return (
     <div className="flex flex-col h-full bg-card border-l border-border w-16" data-testid="document-minimap">
@@ -59,7 +64,6 @@ export function DocumentMinimap({
       <ScrollArea className="flex-1">
         <div className="p-1.5 space-y-1">
           {allSections.map((section) => {
-            const statusColor = getStatusColor(section.status);
             const isSelected = selectedSectionId === section.id;
             const importDraft = sectionImportDrafts[section.id];
             const generationState = resolveSectionGenerationState(
@@ -68,7 +72,15 @@ export function DocumentMinimap({
               importDraft,
               buildActive,
             );
-            const overlayClass = buildActive || importDraft ? sectionGenerationOverlayClass(generationState) : '';
+            const neutralImportTile =
+              buildActive && (phase === 'reset' || (generationState === 'queued' && !importDraft));
+            const overlayClass =
+              buildActive || importDraft ? sectionGenerationOverlayClass(generationState) : '';
+            const tileBackground = neutralImportTile
+              ? 'bg-muted/80'
+              : buildActive || importDraft
+                ? sectionGenerationDotClass(generationState)
+                : 'bg-muted/40';
             const tooltipLines = [
               `Section: ${section.title}`,
               `Status: ${sectionGenerationStateLabel(generationState)}`,
@@ -87,26 +99,18 @@ export function DocumentMinimap({
                 onClick={() => onSelectSection(section.id)}
                 className={`w-full h-8 rounded flex items-center justify-center relative group transition-all ${
                   isSelected ? 'ring-2 ring-primary' : ''
-                } ${statusColor.bg} hover:brightness-110 ${overlayClass}`}
+                } ${tileBackground} hover:brightness-110 ${overlayClass}`}
                 title={tooltipLines.join('\n')}
                 data-testid={`map-section-${section.id}`}
                 data-generation-state={generationState}
               >
-                <div className="absolute inset-0 flex items-center justify-center gap-0.5">
-                  {section.validationCount && section.validationCount > 0 && (
-                    <AlertCircle className="h-2.5 w-2.5 text-red-500" />
-                  )}
-                  {section.commentCount && section.commentCount > 0 && (
-                    <MessageSquare className="h-2.5 w-2.5 text-blue-500" />
-                  )}
-                  {(buildActive || importDraft) && generationState === 'generating' ? (
-                    <Loader2 className="h-3 w-3 animate-spin text-primary" data-testid={`map-generating-${section.id}`} />
-                  ) : (buildActive || importDraft) && generationState !== 'notGenerated' ? (
+                <div className="absolute inset-0 flex items-center justify-center">
+                  {!neutralImportTile && generationState === 'generating' ? (
+                    <Loader2 className="h-3 w-3 animate-spin text-primary-foreground" data-testid={`map-generating-${section.id}`} />
+                  ) : !neutralImportTile && (buildActive || importDraft) && generationState !== 'queued' ? (
                     <SectionGenerationStateIndicator state={generationState} compact />
                   ) : null}
                 </div>
-
-                <div className={`absolute left-0 top-0 bottom-0 w-1 ${statusColor.dot}`} />
 
                 <div className="absolute right-full mr-2 px-2 py-1 bg-popover text-popover-foreground text-xs rounded shadow-lg opacity-0 group-hover:opacity-100 pointer-events-none whitespace-pre-line z-10 transition-opacity max-w-[220px]">
                   {tooltipLines.join('\n')}
