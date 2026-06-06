@@ -215,9 +215,9 @@ function providerDisplayLabel(providerId: LlmProviderId): string {
     case 'anthropic':
       return 'Anthropic';
     case 'local':
-      return 'Fixture';
+      return 'Simulation Mode';
     default:
-      return 'Fixture';
+      return 'Simulation Mode';
   }
 }
 
@@ -312,7 +312,7 @@ export function getLlmProviderStatus(): LlmProviderStatusSnapshot {
   const cards: LlmProviderCardInfo[] = [
     {
       providerId: 'fixture',
-      displayName: 'Fixture Provider',
+      displayName: 'Simulation Mode',
       status: cardStatus('fixture', activeProviderId, true),
       requiredEnvVars: [],
       modelName: 'fixture-m11-reconstruct-v1',
@@ -351,7 +351,7 @@ export function getLlmProviderStatus(): LlmProviderStatusSnapshot {
     activeProviderId,
     activeProviderLabel: providerDisplayLabel(activeProviderId),
     activeModel,
-    providerSource: fellBackToFixture ? 'fallback fixture' : source,
+    providerSource: fellBackToFixture ? 'Simulation Mode fallback' : source,
     requestedProviderId: requested,
     fellBackToFixture,
     apiKeyConfiguredForActive,

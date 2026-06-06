@@ -1,3 +1,5 @@
+import type { M11GenerationProgressSnapshot } from './llm/m11GenerationProgress';
+
 export type ProtocolSourceArtifactStatus =
   | 'uploaded'
   | 'processing'
@@ -59,7 +61,7 @@ export interface SectionStateHistoryEntry {
   note?: string;
 }
 
-export type GeneratedSectionGenerationStatus = 'generated';
+export type GeneratedSectionGenerationStatus = 'generated' | 'failed';
 
 export type GeneratedSectionValidationStatus =
   | 'not-run'
@@ -226,6 +228,7 @@ export interface ProtocolImportState {
   protocolId: string;
   sectionDrafts: Record<string, GeneratedSectionDraft>;
   lastImportCompletedAt: string | null;
+  storageWarnings: string[];
 }
 
 export type ImportProcessingStepId =
@@ -244,6 +247,7 @@ export interface ImportProcessingStep {
   label: string;
   state: ImportProcessingStepState;
   detail?: string;
+  generationProgress?: M11GenerationProgressSnapshot;
 }
 
 export interface DocxExtractionProgress {

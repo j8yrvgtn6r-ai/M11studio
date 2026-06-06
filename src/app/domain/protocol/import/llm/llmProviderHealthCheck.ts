@@ -21,7 +21,8 @@ function classifyHealthError(status: number, message: string): LlmHealthStatusKi
     status === 404 ||
     lower.includes('deployment') ||
     lower.includes('endpoint') ||
-    lower.includes('not found')
+    lower.includes('not found') ||
+    lower.includes('timed out')
   ) {
     return 'configuration-error';
   }
@@ -97,13 +98,10 @@ export async function testLlmProviderConnection(
     const result = await callOpenAiChat(
       config,
       [
-        {
-          role: 'system',
-          content: 'You are a connectivity health check. Reply with the single word OK.',
-        },
+        { role: 'system', content: 'You are a connectivity health check. Reply with the single word OK.' },
         { role: 'user', content: 'ping' },
       ],
-      { temperature: 0, jsonMode: false },
+      { temperature: 0, jsonMode: false, operation: 'healthCheck' },
     );
 
     const record = buildHealthRecord(providerId, true, Math.round(performance.now() - started), {

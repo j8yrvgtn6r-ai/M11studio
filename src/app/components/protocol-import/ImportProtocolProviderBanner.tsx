@@ -33,7 +33,7 @@ export function ImportProtocolProviderBanner() {
         </div>
         <p className="text-xs text-muted-foreground" data-testid="import-dialog-provider-source">
           Source: {status.providerSource}
-          {status.fellBackToFixture ? ' · using fixture fallback' : ''}
+          {status.fellBackToFixture ? ' · using Simulation Mode fallback' : ''}
         </p>
         {activeHealth ? (
           <p className="text-xs" data-testid="import-dialog-connection-status">
@@ -66,8 +66,7 @@ export function ImportProtocolProviderBanner() {
       <LlmSafetyNotice compact />
 
       <ul className="text-xs text-muted-foreground list-disc pl-4 space-y-1" data-testid="import-protocol-expectations">
-        <li>Large protocols may take several minutes.</li>
-        <li>Generation is section-by-section.</li>
+        <li>Large protocols may take several minutes. M11 Studio reconstructs the protocol section by section.</li>
         <li>You can review drafts after processing completes.</li>
         <li>For v1, SoA extraction is not yet included.</li>
       </ul>

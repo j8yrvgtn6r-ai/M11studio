@@ -2,8 +2,13 @@ import type { ProtocolKnowledgeModel } from '../protocolKnowledgeTypes';
 import { buildFixtureProtocolUnderstanding } from './fixtureUnderstanding';
 import { resolveLlmProviderConfig } from './llmConfig';
 import { callOpenAiChat } from './openAiClient';
+import { throwIfAborted } from './llmRequestTimeouts';
 import { parseLlmJson } from './parseLlmJson';
-import type { ProtocolUnderstandingInput, ProtocolUnderstandingProvider } from './types';
+import type {
+  ProtocolUnderstandingCallbacks,
+  ProtocolUnderstandingInput,
+  ProtocolUnderstandingProvider,
+} from './types';
 import { UNDERSTANDING_PROMPT_VERSION } from './types';
 
 function truncate(text: string, max = 14000): string {
@@ -76,7 +81,8 @@ const fixtureProvider: ProtocolUnderstandingProvider = {
 const openAiProvider: ProtocolUnderstandingProvider = {
   id: 'openai',
   displayName: 'OpenAI',
-  understand: async (input) => {
+  understand: async (input, callbacks) => {
+    throwIfAborted(callbacks?.signal);
     const config = resolveLlmProviderConfig();
     const templateOutline = input.m11TemplateSections
       .filter((spec) => spec.sectionType !== 'template-instruction')
@@ -129,7 +135,7 @@ const openAiProvider: ProtocolUnderstandingProvider = {
           }),
         },
       ],
-      { jsonMode: true, temperature: 0.1 },
+      { jsonMode: true, temperature: 0.1, signal: callbacks?.signal, operation: 'protocolUnderstanding' },
     );
 
     const parsed = parseLlmJson<Partial<ProtocolKnowledgeModel>>(result.content);
@@ -141,8 +147,8 @@ const azureProvider: ProtocolUnderstandingProvider = {
   ...openAiProvider,
   id: 'azure-openai',
   displayName: 'Azure OpenAI',
-  understand: async (input) => {
-    const model = await openAiProvider.understand(input);
+  understand: async (input, callbacks) => {
+    const model = await openAiProvider.understand(input, callbacks);
     return { ...model, knowledgeProvider: 'azure-openai' };
   },
 };
@@ -162,7 +168,8 @@ export function resolveProtocolUnderstandingProvider(): ProtocolUnderstandingPro
 
 export async function runProtocolUnderstanding(
   input: ProtocolUnderstandingInput,
+  callbacks?: ProtocolUnderstandingCallbacks,
 ): Promise<ProtocolKnowledgeModel> {
   const provider = resolveProtocolUnderstandingProvider();
-  return provider.understand(input);
+  return provider.understand(input, callbacks);
 }

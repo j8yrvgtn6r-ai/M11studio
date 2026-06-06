@@ -1,6 +1,6 @@
 /**
  * UI smoke: Protocol import v2 PR3 — LLM understanding + M11 generation scaffold.
- * Run: M11_BASE_URL=http://localhost:5175/ npm run smoke:protocol-import
+ * Run: M11_BASE_URL=http://localhost:5173/ npm run smoke:protocol-import
  */
 import { chromium } from 'playwright';
 import { dirname, join } from 'node:path';
@@ -22,6 +22,7 @@ async function main() {
     localStorage.setItem('theme', 'dark');
     localStorage.setItem('m11-template-reference-enabled', 'true');
     localStorage.setItem('m11-protocol-llm-provider', 'fixture');
+    localStorage.setItem('m11-smoke-show-generation-progress', 'true');
   });
 
   await page.goto(baseUrl, { waitUntil: 'domcontentloaded' });
@@ -36,6 +37,11 @@ async function main() {
   await page.getByTestId('import-protocol-dialog').waitFor();
 
   await page.getByTestId('import-protocol-provider-banner').waitFor();
+  const expectations = await page.getByTestId('import-protocol-expectations').textContent();
+  if (!expectations?.includes('section by section')) {
+    throw new Error('Expected updated import expectations copy about section-by-section reconstruction.');
+  }
+
   await page.getByTestId('import-protocol-file-input').setInputFiles(minimalDocx);
   await page.getByTestId('import-overwrite-confirm').click();
   const continueButton = page.getByTestId('import-protocol-continue');
@@ -43,6 +49,10 @@ async function main() {
   await continueButton.click();
 
   await page.getByTestId('protocol-import-processing-steps').waitFor();
+  await page.getByTestId('import-cancel-processing').waitFor();
+  await page.getByTestId('import-generation-progress').waitFor({ timeout: 120_000 });
+  await page.getByTestId('import-generation-completed-count').waitFor();
+
   await page.getByTestId('import-protocol-open-review').waitFor({ timeout: 120_000 });
   await page.getByTestId('protocol-understanding-summary').waitFor();
   await page.getByTestId('import-protocol-open-review').click();

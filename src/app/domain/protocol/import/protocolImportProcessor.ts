@@ -1,8 +1,18 @@
 import { applyApprovedSectionDraft, clearDraftProtocolContentForImport } from './applyImportToProtocol';
 import { DocxExtractionError, extractDocxProtocolSource } from './docxProtocolExtractor';
-import { runProtocolUnderstanding } from './llm/protocolUnderstandingProvider';
-import { runM11SectionGeneration } from './llm/m11GenerationProvider';
+import {
+  failedSectionIdsFromDrafts,
+  mergeRetriedSectionDrafts,
+  runM11SectionGeneration,
+} from './llm/m11GenerationProvider';
+import { formatGenerationProgressDetail, type M11GenerationProgressSnapshot } from './llm/m11GenerationProgress';
 import { getConfiguredLlmProviderId } from './llm/llmConfig';
+import { runProtocolUnderstanding } from './llm/protocolUnderstandingProvider';
+import {
+  formatLlmUserError,
+  ImportProcessingAbortedError,
+  throwIfAborted,
+} from './llm/llmRequestTimeouts';
 import { loadProtocolSourceDocument, saveProtocolSourceDocument } from './protocolImportStorage';
 import { applyPostGenerationValidationBatch } from './postGenerationValidation';
 import { ICH_M11_TEMPLATE_SECTION_SPECS } from '../ichM11/ichM11Template';
@@ -91,6 +101,17 @@ export async function storeUploadedDocxArtifact(file: File): Promise<ProtocolSou
 
 export interface ProcessImportCallbacks {
   onStepsUpdate: (steps: ImportProcessingStep[]) => void;
+  onGenerationProgress?: (progress: M11GenerationProgressSnapshot) => void;
+  signal?: AbortSignal;
+}
+
+export interface ProtocolImportProcessingResult {
+  artifact: ProtocolSourceArtifact;
+  importedSource: ImportedProtocolSource;
+  protocolKnowledgeModel: ProtocolKnowledgeModel;
+  sectionDrafts: GeneratedSectionDraft[];
+  failedSectionIds: string[];
+  partialGenerationFailure: boolean;
 }
 
 function formatExtractionDetail(progress: DocxExtractionProgress): string {
@@ -102,16 +123,31 @@ function formatExtractionDetail(progress: DocxExtractionProgress): string {
   return parts.join(' · ');
 }
 
+function buildGenerationInput(
+  artifact: ProtocolSourceArtifact,
+  importedSource: ImportedProtocolSource,
+  protocolKnowledgeModel: ProtocolKnowledgeModel,
+  sectionIds?: string[],
+) {
+  return {
+    sourceExtraction: importedSource,
+    protocolKnowledgeModel,
+    m11TemplateSections: ICH_M11_TEMPLATE_SECTION_SPECS,
+    m11TechnicalSpecification: ICH_M11_TECHNICAL_SPEC_SECTION_SPECS,
+    controlledTerminology: {
+      codelistCount: getM11CodelistCount(),
+      termCount: getM11TermCount(),
+    },
+    artifact,
+    sectionIds,
+  };
+}
+
 export async function runProtocolImportProcessing(
   artifact: ProtocolSourceArtifact,
   docxBlob: Blob,
   callbacks: ProcessImportCallbacks,
-): Promise<{
-  artifact: ProtocolSourceArtifact;
-  importedSource: ImportedProtocolSource;
-  protocolKnowledgeModel: ProtocolKnowledgeModel;
-  sectionDrafts: GeneratedSectionDraft[];
-}> {
+): Promise<ProtocolImportProcessingResult> {
   const steps = createInitialProcessingSteps();
   const providerId = getConfiguredLlmProviderId();
 
@@ -127,7 +163,18 @@ export async function runProtocolImportProcessing(
     callbacks.onStepsUpdate([...steps]);
   };
 
+  const updateGenerationProgress = (progress: M11GenerationProgressSnapshot) => {
+    callbacks.onGenerationProgress?.(progress);
+    updateStep('rewriting-m11', {
+      state: 'active',
+      detail: formatGenerationProgressDetail(progress),
+      generationProgress: progress,
+    });
+  };
+
   try {
+    throwIfAborted(callbacks.signal);
+
     updateStep('uploading', { state: 'active', detail: artifact.filename });
     await delay(200);
     updateStep('uploading', { state: 'complete' });
@@ -156,12 +203,15 @@ export async function runProtocolImportProcessing(
       state: 'active',
       detail: `Provider: ${providerId} · analyzing full protocol…`,
     });
-    const protocolKnowledgeModel = await runProtocolUnderstanding({
-      sourceExtraction: importedSource,
-      m11TemplateSections: ICH_M11_TEMPLATE_SECTION_SPECS,
-      m11TechnicalSpecification: ICH_M11_TECHNICAL_SPEC_SECTION_SPECS,
-      artifact,
-    });
+    const protocolKnowledgeModel = await runProtocolUnderstanding(
+      {
+        sourceExtraction: importedSource,
+        m11TemplateSections: ICH_M11_TEMPLATE_SECTION_SPECS,
+        m11TechnicalSpecification: ICH_M11_TECHNICAL_SPEC_SECTION_SPECS,
+        artifact,
+      },
+      { signal: callbacks.signal },
+    );
     updateStep('understanding-context', {
       state: 'complete',
       detail: `${protocolKnowledgeModel.knowledgeProvider}/${protocolKnowledgeModel.understandingModel} · confidence ${Math.round(protocolKnowledgeModel.confidence * 100)}%`,
@@ -169,22 +219,32 @@ export async function runProtocolImportProcessing(
 
     updateStep('rewriting-m11', {
       state: 'active',
-      detail: `Reconstructing M11 sections from protocol understanding…`,
+      detail: 'Reconstructing M11 sections one at a time…',
     });
-    let drafts = await runM11SectionGeneration({
-      sourceExtraction: importedSource,
-      protocolKnowledgeModel,
-      m11TemplateSections: ICH_M11_TEMPLATE_SECTION_SPECS,
-      m11TechnicalSpecification: ICH_M11_TECHNICAL_SPEC_SECTION_SPECS,
-      controlledTerminology: {
-        codelistCount: getM11CodelistCount(),
-        termCount: getM11TermCount(),
-      },
-      artifact,
+
+    let drafts = await runM11SectionGeneration(buildGenerationInput(artifact, importedSource, protocolKnowledgeModel), {
+      signal: callbacks.signal,
+      onProgress: updateGenerationProgress,
     });
+
+    const failedSectionIds = failedSectionIdsFromDrafts(drafts);
+    const partialGenerationFailure = failedSectionIds.length > 0;
+    const successfulDrafts = drafts.filter((draft) => draft.generationStatus !== 'failed');
+
+    if (successfulDrafts.length === 0) {
+      throw new Error(
+        failedSectionIds.length > 0
+          ? 'All M11 sections failed to generate. Retry failed sections or check your provider configuration.'
+          : 'No M11 sections were generated.',
+      );
+    }
+
     updateStep('rewriting-m11', {
       state: 'complete',
-      detail: `${drafts.length} proposals · ${drafts[0]?.provenance.generationProvider ?? providerId}/${drafts[0]?.provenance.generationModel ?? 'model'}`,
+      detail: partialGenerationFailure
+        ? `${successfulDrafts.length}/${drafts.length} sections generated · ${failedSectionIds.length} failed — use Retry Failed Sections`
+        : `${drafts.length} proposals · ${drafts[0]?.provenance.generationProvider ?? providerId}/${drafts[0]?.provenance.generationModel ?? 'model'}`,
+      generationProgress: steps[stepIndex('rewriting-m11')]?.generationProgress,
     });
 
     updateStep('structure-checks', { state: 'active', detail: 'Structural + terminology review artifacts…' });
@@ -200,7 +260,9 @@ export async function runProtocolImportProcessing(
     await delay(200);
     updateStep('preparing-workspace', {
       state: 'complete',
-      detail: 'Review package ready — human approval required for all proposals',
+      detail: partialGenerationFailure
+        ? 'Review package ready with partial generation — retry failed sections from the import dialog'
+        : 'Review package ready — human approval required for all proposals',
     });
 
     mutateProtocolDocument((document) => {
@@ -212,20 +274,93 @@ export async function runProtocolImportProcessing(
       importedSource,
       protocolKnowledgeModel,
       sectionDrafts: drafts,
+      failedSectionIds,
+      partialGenerationFailure,
     };
   } catch (error) {
+    if (error instanceof ImportProcessingAbortedError) {
+      const activeIndex = steps.findIndex((step) => step.state === 'active');
+      if (activeIndex >= 0) {
+        steps[activeIndex] = {
+          ...steps[activeIndex],
+          state: 'failed',
+          detail: 'Import cancelled.',
+        };
+        callbacks.onStepsUpdate([...steps]);
+      }
+      throw error;
+    }
+
     const activeIndex = steps.findIndex((step) => step.state === 'active');
     if (activeIndex >= 0) {
       steps[activeIndex] = {
         ...steps[activeIndex],
         state: 'failed',
-        detail: error instanceof Error ? error.message : 'Processing failed',
+        detail: formatLlmUserError(error),
       };
       callbacks.onStepsUpdate([...steps]);
     }
     if (error instanceof DocxExtractionError) throw error;
     throw error instanceof Error ? error : new Error('Import processing failed.');
   }
+}
+
+export async function retryFailedM11SectionGeneration(
+  artifact: ProtocolSourceArtifact,
+  importedSource: ImportedProtocolSource,
+  protocolKnowledgeModel: ProtocolKnowledgeModel,
+  existingDrafts: GeneratedSectionDraft[],
+  callbacks: ProcessImportCallbacks,
+): Promise<{
+  sectionDrafts: GeneratedSectionDraft[];
+  failedSectionIds: string[];
+  partialGenerationFailure: boolean;
+}> {
+  const failedSectionIds = failedSectionIdsFromDrafts(existingDrafts);
+  if (failedSectionIds.length === 0) {
+    return {
+      sectionDrafts: existingDrafts,
+      failedSectionIds: [],
+      partialGenerationFailure: false,
+    };
+  }
+
+  const retriedDrafts = await runM11SectionGeneration(
+    buildGenerationInput(artifact, importedSource, protocolKnowledgeModel, failedSectionIds),
+    {
+      signal: callbacks.signal,
+      onProgress: (progress) => {
+        callbacks.onGenerationProgress?.(progress);
+        callbacks.onStepsUpdate(
+          createInitialProcessingSteps().map((step) =>
+            step.id === 'rewriting-m11'
+              ? {
+                  ...step,
+                  state: 'active' as const,
+                  detail: formatGenerationProgressDetail(progress),
+                  generationProgress: progress,
+                }
+              : step.id === 'uploading' ||
+                  step.id === 'reading-docx' ||
+                  step.id === 'identifying-sections' ||
+                  step.id === 'understanding-context'
+                ? { ...step, state: 'complete' as const }
+                : step,
+          ),
+        );
+      },
+    },
+  );
+
+  const merged = mergeRetriedSectionDrafts(existingDrafts, retriedDrafts);
+  const validated = applyPostGenerationValidationBatch(merged);
+  const remainingFailures = failedSectionIdsFromDrafts(validated);
+
+  return {
+    sectionDrafts: validated,
+    failedSectionIds: remainingFailures,
+    partialGenerationFailure: remainingFailures.length > 0,
+  };
 }
 
 export async function loadDocxBlobForArtifact(artifactId: string): Promise<Blob | null> {

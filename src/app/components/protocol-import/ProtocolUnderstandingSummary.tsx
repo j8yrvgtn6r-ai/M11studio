@@ -8,7 +8,7 @@ interface ProtocolUnderstandingSummaryProps {
 export function ProtocolUnderstandingSummary({ knowledge }: ProtocolUnderstandingSummaryProps) {
   const providerLabel =
     knowledge.knowledgeProvider === 'fixture'
-      ? 'Fixture provider (smoke/dev)'
+      ? 'Simulation Mode (smoke/dev)'
       : `${knowledge.knowledgeProvider} · ${knowledge.understandingModel}`;
 
   return (

@@ -14,7 +14,7 @@ import {
 
 import { commitApprovedSectionToProtocol } from './protocolImportProcessor';
 
-import { normalizeProtocolKnowledgeModel, normalizeSectionDraft } from './draftMigration';
+import { normalizePersistedImportMetadata, normalizeProtocolKnowledgeModel, normalizeSectionDraft } from './draftMigration';
 
 import type { ProtocolKnowledgeModel } from './protocolKnowledgeTypes';
 
@@ -103,6 +103,8 @@ let state: ProtocolImportState = {
   sectionDrafts: {},
 
   lastImportCompletedAt: null,
+
+  storageWarnings: [],
 
 };
 
@@ -224,30 +226,7 @@ function loadPersistedMetadata(): void {
 
     };
 
-    const sectionDrafts = parsed.sectionDrafts ?? {};
-
-    const artifact = parsed.artifact ?? null;
-
-    const normalizedDrafts: Record<string, GeneratedSectionDraft> = {};
-
-    for (const [key, draft] of Object.entries(sectionDrafts)) {
-
-      try {
-
-        if (draft && typeof draft === 'object') {
-
-          normalizedDrafts[key] = normalizeSectionDraft(draft);
-
-        }
-
-      } catch {
-
-        // Skip malformed draft entries instead of failing app startup.
-
-      }
-
-    }
-
+    const normalized = normalizePersistedImportMetadata(parsed);
     const normalizedKnowledge = normalizeProtocolKnowledgeModel(parsed.protocolKnowledgeModel);
 
     if (normalizedKnowledge) {
@@ -256,25 +235,27 @@ function loadPersistedMetadata(): void {
 
     }
 
-
-
     state = {
 
-      artifact,
+      artifact: normalized.artifact,
 
-      importedSourceSummary: parsed.importedSourceSummary ?? null,
+      importedSourceSummary: normalized.importedSourceSummary,
 
       protocolKnowledgeModelId:
 
-        parsed.protocolKnowledgeModelId ?? normalizedKnowledge?.id ?? null,
+        normalized.protocolKnowledgeModelId ?? normalizedKnowledge?.id ?? null,
 
-      protocolId: parsed.protocolId ?? defaultProtocolId(),
+      protocolId: normalized.protocolId || defaultProtocolId(),
 
-      sectionDrafts: normalizedDrafts,
+      sectionDrafts: normalized.sectionDrafts,
 
-      lastImportCompletedAt: parsed.lastImportCompletedAt ?? null,
+      lastImportCompletedAt: normalized.lastImportCompletedAt,
+
+      storageWarnings: normalized.warnings,
 
     };
+
+    persistMetadata();
 
   } catch {
 
@@ -283,6 +264,14 @@ function loadPersistedMetadata(): void {
     localStorage.removeItem('m11-protocol-import-v2');
 
     localStorage.removeItem('m11-protocol-import-v1');
+
+    state = {
+
+      ...state,
+
+      storageWarnings: ['Import storage was corrupted and has been reset. Re-import your protocol to continue.'],
+
+    };
 
   }
 
@@ -569,6 +558,8 @@ export async function setProtocolImportResult(
   state.lastImportCompletedAt = new Date().toISOString();
 
   state.protocolId = defaultProtocolId();
+
+  state.storageWarnings = [];
 
 
 

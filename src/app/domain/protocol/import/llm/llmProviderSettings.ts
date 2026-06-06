@@ -4,7 +4,7 @@ const OPENAI_CONFIG_KEY = 'm11-protocol-openai-config-v1';
 const AZURE_CONFIG_KEY = 'm11-protocol-azure-openai-config-v1';
 const HEALTH_KEY = 'm11-protocol-llm-health-v1';
 
-export const DEFAULT_OPENAI_MODEL = 'gpt-4o-mini';
+export const DEFAULT_OPENAI_MODEL = 'gpt-5';
 export const DEFAULT_AZURE_API_VERSION = '2024-02-15-preview';
 
 export interface OpenAiStoredConfig {

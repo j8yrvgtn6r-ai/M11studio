@@ -58,9 +58,12 @@ export {
   IMPORT_PROCESSING_STEP_DEFS,
   isDocxFile,
   loadDocxBlobForArtifact,
+  retryFailedM11SectionGeneration,
   runProtocolImportProcessing,
   storeUploadedDocxArtifact,
 } from './protocolImportProcessor';
+export type { ProtocolImportProcessingResult, ProcessImportCallbacks } from './protocolImportProcessor';
+export { ImportProcessingAbortedError, LlmRequestTimeoutError } from './llm/llmRequestTimeouts';
 
 export { DocxExtractionError, extractDocxProtocolSource } from './docxProtocolExtractor';
 export { buildProtocolKnowledgeModel, buildLocalDeterministicKnowledgeModel } from './buildProtocolKnowledgeModel';
@@ -89,7 +92,12 @@ export {
   isSectionApproved,
   type SectionReviewEvent,
 } from './sectionReviewStateMachine';
-export { normalizeProtocolKnowledgeModel, normalizeSectionDraft } from './draftMigration';
+export {
+  normalizeImportedSourceSummary,
+  normalizePersistedImportMetadata,
+  normalizeProtocolKnowledgeModel,
+  normalizeSectionDraft,
+} from './draftMigration';
 export { applyPostGenerationValidation, applyPostGenerationValidationBatch } from './postGenerationValidation';
 export {
   getConfiguredLlmProviderId,
@@ -126,4 +134,6 @@ export type {
 } from './llm/llmConfig';
 export { runProtocolUnderstanding, resolveProtocolUnderstandingProvider } from './llm/protocolUnderstandingProvider';
 export { runM11SectionGeneration, runM11SectionRegeneration, resolveM11GenerationProvider } from './llm/m11GenerationProvider';
+export type { M11GenerationCallbacks, M11GenerationProgressSnapshot } from './llm/m11GenerationProgress';
+export type { ProtocolUnderstandingCallbacks } from './llm/types';
 export { GENERATION_PROMPT_VERSION, UNDERSTANDING_PROMPT_VERSION, type LlmProviderId } from './llm/types';

@@ -15,6 +15,7 @@ import { Button } from '../ui/button';
 import { ScrollArea } from '../ui/scroll-area';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
 import { HumanReviewNotice } from './HumanReviewNotice';
+import { ImportStorageRecoveryBanner } from './ImportStorageRecoveryBanner';
 import { ImportLlmProviderStatusPanel } from './ImportLlmProviderStatusPanel';
 import { ImportProtocolSourceActions } from './ImportProtocolSourceActions';
 import { ProtocolKnowledgePanel } from './ProtocolKnowledgePanel';
@@ -47,7 +48,7 @@ export function ProtocolImportReviewWorkspace({
   initialSectionId = null,
   templateReferenceEnabled,
 }: ProtocolImportReviewWorkspaceProps) {
-  const { state, summary } = useProtocolImport();
+  const { state, summary, storageWarnings } = useProtocolImport();
   const [activeSectionId, setActiveSectionId] = useState<string | null>(initialSectionId);
   const [activeTab, setActiveTab] = useState<'sections' | 'extraction' | 'knowledge' | 'versions'>('sections');
 
@@ -111,6 +112,7 @@ export function ProtocolImportReviewWorkspace({
       </header>
 
       <div className="px-4 pt-3 shrink-0 space-y-3">
+        <ImportStorageRecoveryBanner warnings={storageWarnings} />
         <ImportLlmProviderStatusPanel />
         <HumanReviewNotice compact />
       </div>

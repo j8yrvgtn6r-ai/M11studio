@@ -13,7 +13,7 @@ function providerLabel(providerId: string): string {
       return 'Azure OpenAI';
     case 'fixture':
     case 'local':
-      return 'Fixture';
+      return 'Simulation Mode';
     default:
       return providerId;
   }
@@ -59,7 +59,7 @@ export function ImportLlmProviderStatusPanel() {
           </Badge>
         ) : (
           <Badge variant="secondary" data-testid="import-fixture-provider-badge">
-            Fixture provider
+            Simulation Mode
           </Badge>
         )}
       </div>
@@ -102,7 +102,7 @@ export function ImportLlmProviderStatusPanel() {
 
       <p className="text-xs text-muted-foreground">
         Provider source: {configured.providerSource}
-        {configured.fellBackToFixture ? ' (requested provider unavailable — fixture fallback)' : ''}
+        {configured.fellBackToFixture ? ' (requested provider unavailable — Simulation Mode fallback)' : ''}
         {isRealLlmProvider(configured.activeProviderId) && !configured.providerTestedSuccessfully
           ? ' · Provider has not been tested successfully.'
           : ''}

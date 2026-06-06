@@ -6,9 +6,9 @@
  */
 import { chromium } from 'playwright';
 
-const baseUrl = process.env.M11_BASE_URL ?? 'http://localhost:5177/';
+const baseUrl = process.env.M11_BASE_URL ?? 'http://localhost:5173/';
 
-async function assertStartup(page, label) {
+async function assertStartup(page, label, options = {}) {
   const pageErrors = [];
   page.on('pageerror', (error) => pageErrors.push(error.message));
 
@@ -19,6 +19,14 @@ async function assertStartup(page, label) {
   if (rootLen < 1000) {
     throw new Error(`${label}: #root is empty (${rootLen} chars)`);
   }
+
+  if (options.openReviewImport) {
+    await page.getByTestId('app-review-import-button').click();
+    await page.getByTestId('protocol-import-review-workspace').waitFor({ timeout: 30_000 });
+    await page.getByTestId('import-tab-source-extraction').click();
+    await page.getByTestId('source-extraction-panel').waitFor({ timeout: 15_000 });
+  }
+
   if (pageErrors.length > 0) {
     throw new Error(`${label}: page errors: ${pageErrors.join(' | ')}`);
   }
@@ -74,7 +82,6 @@ async function main() {
           headingCount: 0,
           sectionCandidateCount: 1,
           tableCount: 0,
-          extractionWarnings: [],
           fullTextLength: 100,
         },
         protocolKnowledgeModelId: 'knowledge-x',
@@ -87,7 +94,7 @@ async function main() {
     localStorage.setItem('m11-studio-visited', 'true');
     localStorage.setItem('theme', 'dark');
   });
-  await assertStartup(legacyPage, 'Legacy import startup');
+  await assertStartup(legacyPage, 'Legacy import startup', { openReviewImport: true });
 
   await browser.close();
   console.log('Playwright app startup smoke: PASS');

@@ -56,9 +56,9 @@ export function SectionImportReviewScreen({
   }
 
   const relevantSource =
-    importedSource && draft.matchedSourceCandidateIds.length > 0
+    importedSource && (draft.matchedSourceCandidateIds ?? []).length > 0
       ? importedSource.sections.filter((section) =>
-          draft.matchedSourceCandidateIds.includes(section.id),
+          (draft.matchedSourceCandidateIds ?? []).includes(section.id),
         )
       : importedSource
         ? findRelevantSourceCandidates(sectionId, draft.title, importedSource.sections)

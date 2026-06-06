@@ -2,9 +2,16 @@ import { ICH_M11_TEMPLATE_SECTION_SPECS } from '../../ichM11/ichM11Template';
 import type { IchM11SectionSpec } from '../../ichM11/types';
 import { transitionSectionState } from '../sectionReviewStateMachine';
 import type { GeneratedSectionDraft, SectionGenerationProvenance } from '../types';
-import { generateFixtureM11Sections, regenerateFixtureM11Section } from './fixtureGeneration';
+import { generateFixtureSectionDraft, regenerateFixtureM11Section } from './fixtureGeneration';
 import { resolveLlmProviderConfig } from './llmConfig';
 import { callOpenAiChat } from './openAiClient';
+import {
+  logM11Generation,
+  providerProgressMeta,
+  type M11GenerationCallbacks,
+  type M11GenerationProgressSnapshot,
+} from './m11GenerationProgress';
+import { formatLlmUserError, ImportProcessingAbortedError, throwIfAborted } from './llmRequestTimeouts';
 import { parseLlmJson } from './parseLlmJson';
 import type { M11GenerationInput, M11GenerationProvider } from './types';
 import { GENERATION_PROMPT_VERSION } from './types';
@@ -20,11 +27,79 @@ function truncate(text: string, max = 6000): string {
   return `${text.slice(0, max)}\n[truncated]`;
 }
 
+function listTargetSpecs(input: M11GenerationInput): IchM11SectionSpec[] {
+  const specs = (input.m11TemplateSections ?? ICH_M11_TEMPLATE_SECTION_SPECS).filter(shouldGenerate);
+  const filterIds = input.sectionIds ? new Set(input.sectionIds) : null;
+  return specs.filter((spec) => !filterIds || filterIds.has(spec.id));
+}
+
+function emitProgress(
+  callbacks: M11GenerationCallbacks | undefined,
+  snapshot: M11GenerationProgressSnapshot,
+): void {
+  callbacks?.onProgress?.(snapshot);
+}
+
+function createFailedSectionDraft(
+  spec: IchM11SectionSpec,
+  input: M11GenerationInput,
+  draftVersion: number,
+  providerId: SectionGenerationProvenance['generationProvider'],
+  model: string,
+  errorMessage: string,
+): GeneratedSectionDraft {
+  const generatedAt = new Date().toISOString();
+  const provenance: SectionGenerationProvenance = {
+    generationProvider: providerId,
+    generationModel: model,
+    generationTimestamp: generatedAt,
+    generationPromptVersion: GENERATION_PROMPT_VERSION,
+    sourceUploadId: input.artifact.id,
+    knowledgeModelId: input.protocolKnowledgeModel.id,
+    sourceCandidateIds: [],
+    confidence: input.protocolKnowledgeModel.confidence,
+    generationNotes: [`Generation failed: ${errorMessage}`],
+    knowledgeElementsUsed: [],
+    draftVersion,
+  };
+
+  return {
+    sectionId: spec.id,
+    title: spec.title,
+    generatedText: '',
+    sourceUploadId: input.artifact.id,
+    sourceExtractionId: input.sourceExtraction.uploadId,
+    knowledgeModelId: input.protocolKnowledgeModel.id,
+    matchedSourceCandidateIds: [],
+    extractionStatus: 'real-docx-parsed',
+    generationStatus: 'failed',
+    generationProvider: providerId,
+    provenance,
+    draftVersion,
+    state: 'validationFailed',
+    stateChangedAt: generatedAt,
+    stateChangedBy: `${providerId}-generation-provider`,
+    stateHistory: [
+      {
+        state: 'validationFailed',
+        changedAt: generatedAt,
+        changedBy: `${providerId}-generation-provider`,
+        note: errorMessage,
+      },
+    ],
+    generatedAt,
+    validationStatus: 'failed',
+    validationMessages: [errorMessage],
+    validationFindings: [],
+  };
+}
+
 async function generateOpenAiSectionDraft(
   spec: IchM11SectionSpec,
   input: M11GenerationInput,
   draftVersion: number,
   providerId: SectionGenerationProvenance['generationProvider'],
+  callbacks?: M11GenerationCallbacks,
 ): Promise<GeneratedSectionDraft> {
   const config = resolveLlmProviderConfig();
   const techSpec = input.m11TechnicalSpecification.find((s) => s.id === spec.id);
@@ -58,7 +133,12 @@ async function generateOpenAiSectionDraft(
         }),
       },
     ],
-    { jsonMode: true, temperature: 0.25 },
+    {
+      jsonMode: true,
+      temperature: 0.25,
+      signal: callbacks?.signal,
+      operation: draftVersion > 1 ? 'sectionRegeneration' : 'sectionGeneration',
+    },
   );
 
   const parsed = parseLlmJson<{
@@ -110,24 +190,177 @@ async function generateOpenAiSectionDraft(
   return transitionSectionState(draft, 'importGenerated', `${providerId}-generation-provider`, 'LLM M11 draft generated');
 }
 
-async function generateOpenAiSections(input: M11GenerationInput): Promise<GeneratedSectionDraft[]> {
-  const specs = (input.m11TemplateSections ?? ICH_M11_TEMPLATE_SECTION_SPECS).filter(shouldGenerate);
-  const filterIds = input.sectionIds ? new Set(input.sectionIds) : null;
+async function generateSectionsWithProgress(
+  input: M11GenerationInput,
+  generateOne: (
+    spec: IchM11SectionSpec,
+    draftVersion: number,
+  ) => Promise<GeneratedSectionDraft>,
+  callbacks?: M11GenerationCallbacks,
+  providerId: SectionGenerationProvenance['generationProvider'] = 'openai',
+): Promise<GeneratedSectionDraft[]> {
+  const specs = listTargetSpecs(input);
+  const config = resolveLlmProviderConfig();
+  const { providerLabel, model } = providerProgressMeta(config);
+  const startedAt = performance.now();
+  let completedSections = 0;
+  let failedSections = 0;
+
+  logM11Generation('generation-started', {
+    totalSections: specs.length,
+    provider: providerLabel,
+    model,
+  });
+
+  const initialProgress: M11GenerationProgressSnapshot = {
+    totalSections: specs.length,
+    completedSections: 0,
+    failedSections: 0,
+    elapsedMs: 0,
+    providerLabel,
+    model,
+  };
+  emitProgress(callbacks, initialProgress);
+
+  const drafts: GeneratedSectionDraft[] = [];
+
+  for (const spec of specs) {
+    throwIfAborted(callbacks?.signal);
+
+    if (
+      typeof localStorage !== 'undefined' &&
+      localStorage.getItem('m11-smoke-simulate-section-generation-failure') === 'first' &&
+      providerId === 'fixture' &&
+      spec.id === specs[0]?.id
+    ) {
+      const errorMessage = 'Simulated section failure for smoke testing.';
+      drafts.push(createFailedSectionDraft(spec, input, 1, providerId, model, errorMessage));
+      emitProgress(callbacks, {
+        totalSections: specs.length,
+        completedSections,
+        failedSections: ++failedSections,
+        currentSectionId: spec.id,
+        currentSectionTitle: spec.title,
+        elapsedMs: performance.now() - startedAt,
+        providerLabel,
+        model,
+        lastError: errorMessage,
+      });
+      continue;
+    }
+
+    const requestStartedAt = performance.now();
+    logM11Generation('section-started', { sectionId: spec.id, title: spec.title });
+    emitProgress(callbacks, {
+      totalSections: specs.length,
+      completedSections,
+      failedSections,
+      currentSectionId: spec.id,
+      currentSectionTitle: spec.title,
+      elapsedMs: performance.now() - startedAt,
+      currentRequestDurationMs: 0,
+      providerLabel,
+      model,
+    });
+
+    try {
+      const draft = await generateOne(spec, 1);
+      completedSections += 1;
+      drafts.push(draft);
+      const requestDurationMs = performance.now() - requestStartedAt;
+      logM11Generation('section-completed', {
+        sectionId: spec.id,
+        durationMs: Math.round(requestDurationMs),
+      });
+      emitProgress(callbacks, {
+        totalSections: specs.length,
+        completedSections,
+        failedSections,
+        currentSectionId: spec.id,
+        currentSectionTitle: spec.title,
+        elapsedMs: performance.now() - startedAt,
+        currentRequestDurationMs: requestDurationMs,
+        providerLabel,
+        model,
+      });
+    } catch (error) {
+      const errorMessage = formatLlmUserError(error);
+      failedSections += 1;
+      logM11Generation('section-failed', { sectionId: spec.id, error: errorMessage });
+      drafts.push(createFailedSectionDraft(spec, input, 1, providerId, model, errorMessage));
+      emitProgress(callbacks, {
+        totalSections: specs.length,
+        completedSections,
+        failedSections,
+        currentSectionId: spec.id,
+        currentSectionTitle: spec.title,
+        elapsedMs: performance.now() - startedAt,
+        currentRequestDurationMs: performance.now() - requestStartedAt,
+        providerLabel,
+        model,
+        lastError: errorMessage,
+      });
+
+      if (error instanceof ImportProcessingAbortedError) {
+        throw error;
+      }
+    }
+  }
+
+  const totalDurationMs = Math.round(performance.now() - startedAt);
+  logM11Generation('generation-completed', {
+    totalSections: specs.length,
+    completedSections,
+    failedSections,
+    totalDurationMs,
+  });
+
+  emitProgress(callbacks, {
+    totalSections: specs.length,
+    completedSections,
+    failedSections,
+    elapsedMs: performance.now() - startedAt,
+    providerLabel,
+    model,
+    isComplete: true,
+  });
+
+  return drafts;
+}
+
+async function generateOpenAiSections(
+  input: M11GenerationInput,
+  callbacks?: M11GenerationCallbacks,
+): Promise<GeneratedSectionDraft[]> {
   const providerId = resolveLlmProviderConfig().providerId;
   const llmProvider = providerId === 'azure-openai' ? 'azure-openai' : 'openai';
 
-  const drafts: GeneratedSectionDraft[] = [];
-  for (const spec of specs) {
-    if (filterIds && !filterIds.has(spec.id)) continue;
-    drafts.push(await generateOpenAiSectionDraft(spec, input, 1, llmProvider));
-  }
-  return drafts;
+  return generateSectionsWithProgress(
+    input,
+    (spec, draftVersion) => generateOpenAiSectionDraft(spec, input, draftVersion, llmProvider, callbacks),
+    callbacks,
+    llmProvider,
+  );
 }
 
 const fixtureProvider: M11GenerationProvider = {
   id: 'fixture',
-  displayName: 'Fixture (development/smoke)',
-  generateSections: async (input) => generateFixtureM11Sections(input),
+  displayName: 'Simulation Mode',
+  generateSections: async (input, callbacks) =>
+    generateSectionsWithProgress(
+      input,
+      async (spec) => {
+        if (
+          typeof localStorage !== 'undefined' &&
+          localStorage.getItem('m11-smoke-show-generation-progress') === 'true'
+        ) {
+          await new Promise((resolve) => setTimeout(resolve, 120));
+        }
+        return generateFixtureSectionDraft(spec, input, 1);
+      },
+      callbacks,
+      'fixture',
+    ),
   regenerateSection: async (input, sectionId, priorDraft) =>
     regenerateFixtureM11Section(input, sectionId, priorDraft),
 };
@@ -136,11 +369,11 @@ const openAiProvider: M11GenerationProvider = {
   id: 'openai',
   displayName: 'OpenAI',
   generateSections: generateOpenAiSections,
-  regenerateSection: async (input, sectionId, priorDraft) => {
+  regenerateSection: async (input, sectionId, priorDraft, callbacks) => {
     const spec = (input.m11TemplateSections ?? ICH_M11_TEMPLATE_SECTION_SPECS).find((s) => s.id === sectionId);
     if (!spec) throw new Error(`Unknown section ${sectionId}`);
     const version = (priorDraft?.draftVersion ?? 0) + 1;
-    return generateOpenAiSectionDraft(spec, input, version, 'openai');
+    return generateOpenAiSectionDraft(spec, input, version, 'openai', callbacks);
   },
 };
 
@@ -148,11 +381,11 @@ const azureProvider: M11GenerationProvider = {
   ...openAiProvider,
   id: 'azure-openai',
   displayName: 'Azure OpenAI',
-  regenerateSection: async (input, sectionId, priorDraft) => {
+  regenerateSection: async (input, sectionId, priorDraft, callbacks) => {
     const spec = (input.m11TemplateSections ?? ICH_M11_TEMPLATE_SECTION_SPECS).find((s) => s.id === sectionId);
     if (!spec) throw new Error(`Unknown section ${sectionId}`);
     const version = (priorDraft?.draftVersion ?? 0) + 1;
-    return generateOpenAiSectionDraft(spec, input, version, 'azure-openai');
+    return generateOpenAiSectionDraft(spec, input, version, 'azure-openai', callbacks);
   },
 };
 
@@ -169,14 +402,35 @@ export function resolveM11GenerationProvider(): M11GenerationProvider {
   return PROVIDERS[providerId] ?? fixtureProvider;
 }
 
-export async function runM11SectionGeneration(input: M11GenerationInput): Promise<GeneratedSectionDraft[]> {
-  return resolveM11GenerationProvider().generateSections(input);
+export type { M11GenerationCallbacks } from './m11GenerationProgress';
+
+export async function runM11SectionGeneration(
+  input: M11GenerationInput,
+  callbacks?: M11GenerationCallbacks,
+): Promise<GeneratedSectionDraft[]> {
+  return resolveM11GenerationProvider().generateSections(input, callbacks);
 }
 
 export async function runM11SectionRegeneration(
   input: M11GenerationInput,
   sectionId: string,
   priorDraft?: GeneratedSectionDraft,
+  callbacks?: M11GenerationCallbacks,
 ): Promise<GeneratedSectionDraft> {
-  return resolveM11GenerationProvider().regenerateSection(input, sectionId, priorDraft);
+  return resolveM11GenerationProvider().regenerateSection(input, sectionId, priorDraft, callbacks);
+}
+
+export function mergeRetriedSectionDrafts(
+  existing: GeneratedSectionDraft[],
+  retried: GeneratedSectionDraft[],
+): GeneratedSectionDraft[] {
+  const byId = new Map(existing.map((draft) => [draft.sectionId, draft]));
+  for (const draft of retried) {
+    byId.set(draft.sectionId, draft);
+  }
+  return Array.from(byId.values());
+}
+
+export function failedSectionIdsFromDrafts(drafts: GeneratedSectionDraft[]): string[] {
+  return drafts.filter((draft) => draft.generationStatus === 'failed').map((draft) => draft.sectionId);
 }

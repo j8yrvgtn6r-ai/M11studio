@@ -1,6 +1,6 @@
 import { GENERATION_PROMPT_VERSION, UNDERSTANDING_PROMPT_VERSION } from './llm/types';
 import type { ProtocolKnowledgeModel } from './protocolKnowledgeTypes';
-import type { GeneratedSectionDraft, GeneratedSectionReviewStatus, SectionReviewState, SectionGenerationProvenance } from './types';
+import type { GeneratedSectionDraft, GeneratedSectionGenerationStatus, GeneratedSectionReviewStatus, ImportedProtocolSourceSummary, ProtocolImportState, SectionReviewState, SectionGenerationProvenance } from './types';
 
 function reviewStatusToState(reviewStatus?: GeneratedSectionReviewStatus): SectionReviewState {
   switch (reviewStatus) {
@@ -31,6 +31,93 @@ function defaultProvenance(draft: GeneratedSectionDraft): SectionGenerationProve
   };
 }
 
+function normalizeGenerationStatus(value: unknown): GeneratedSectionGenerationStatus {
+  return value === 'failed' ? 'failed' : 'generated';
+}
+
+/** Normalizes persisted import summaries (legacy PR3 and interrupted imports may omit arrays). */
+export function normalizeImportedSourceSummary(
+  raw: Partial<ImportedProtocolSourceSummary> | null | undefined,
+): ImportedProtocolSourceSummary | null {
+  if (!raw || typeof raw !== 'object' || typeof raw.uploadId !== 'string') {
+    return null;
+  }
+
+  return {
+    uploadId: raw.uploadId,
+    filename: typeof raw.filename === 'string' ? raw.filename : 'Unknown protocol',
+    extractedAt: typeof raw.extractedAt === 'string' ? raw.extractedAt : new Date().toISOString(),
+    paragraphCount: typeof raw.paragraphCount === 'number' ? raw.paragraphCount : 0,
+    headingCount: typeof raw.headingCount === 'number' ? raw.headingCount : 0,
+    sectionCandidateCount:
+      typeof raw.sectionCandidateCount === 'number' ? raw.sectionCandidateCount : 0,
+    tableCount: typeof raw.tableCount === 'number' ? raw.tableCount : 0,
+    extractionWarnings: Array.isArray(raw.extractionWarnings) ? raw.extractionWarnings : [],
+    fullTextLength: typeof raw.fullTextLength === 'number' ? raw.fullTextLength : 0,
+  };
+}
+
+/** Normalizes persisted import metadata after partial writes or interrupted live imports. */
+export function normalizePersistedImportMetadata(parsed: {
+  artifact?: ProtocolImportState['artifact'];
+  importedSourceSummary?: Partial<ImportedProtocolSourceSummary> | null;
+  protocolKnowledgeModelId?: string | null;
+  protocolKnowledgeModel?: Partial<ProtocolKnowledgeModel> | null;
+  protocolId?: string;
+  sectionDrafts?: Record<string, GeneratedSectionDraft>;
+  lastImportCompletedAt?: string | null;
+}): {
+  artifact: ProtocolImportState['artifact'];
+  importedSourceSummary: ImportedProtocolSourceSummary | null;
+  protocolKnowledgeModelId: string | null;
+  sectionDrafts: Record<string, GeneratedSectionDraft>;
+  lastImportCompletedAt: string | null;
+  protocolId: string;
+  warnings: string[];
+} {
+  const warnings: string[] = [];
+  const normalizedDrafts: Record<string, GeneratedSectionDraft> = {};
+
+  for (const [key, draft] of Object.entries(parsed.sectionDrafts ?? {})) {
+    try {
+      if (draft && typeof draft === 'object') {
+        normalizedDrafts[key] = normalizeSectionDraft(draft);
+      }
+    } catch {
+      warnings.push(`Skipped malformed section draft "${key}".`);
+    }
+  }
+
+  const normalizedKnowledge = normalizeProtocolKnowledgeModel(parsed.protocolKnowledgeModel);
+  const normalizedSummary = normalizeImportedSourceSummary(parsed.importedSourceSummary);
+  if (parsed.importedSourceSummary && !normalizedSummary) {
+    warnings.push('Import source summary was invalid and was cleared.');
+  }
+
+  let artifact = parsed.artifact ?? null;
+  if (artifact && typeof artifact !== 'object') {
+    warnings.push('Import artifact metadata was invalid and was cleared.');
+    artifact = null;
+  }
+
+  if (artifact?.status === 'processing') {
+    warnings.push('Recovered from an interrupted import — previous processing did not finish.');
+    artifact = { ...artifact, status: 'uploaded' };
+  }
+
+  return {
+    artifact,
+    importedSourceSummary: normalizedSummary,
+    protocolKnowledgeModelId:
+      parsed.protocolKnowledgeModelId ?? normalizedKnowledge?.id ?? null,
+    sectionDrafts: normalizedDrafts,
+    lastImportCompletedAt:
+      typeof parsed.lastImportCompletedAt === 'string' ? parsed.lastImportCompletedAt : null,
+    protocolId: typeof parsed.protocolId === 'string' ? parsed.protocolId : '',
+    warnings,
+  };
+}
+
 /** Normalizes legacy persisted drafts to current state machine + provenance shape. */
 export function normalizeSectionDraft(draft: GeneratedSectionDraft): GeneratedSectionDraft {
   const state = draft.state ?? reviewStatusToState(draft.reviewStatus);
@@ -47,6 +134,7 @@ export function normalizeSectionDraft(draft: GeneratedSectionDraft): GeneratedSe
     ...draft,
     knowledgeModelId: draft.knowledgeModelId ?? draft.sourceExtractionId ?? '',
     generationProvider: normalizedProvenance.generationProvider,
+    generationStatus: normalizeGenerationStatus(draft.generationStatus),
     provenance: normalizedProvenance,
     draftVersion,
     state,
@@ -57,8 +145,9 @@ export function normalizeSectionDraft(draft: GeneratedSectionDraft): GeneratedSe
         ? draft.stateHistory
         : [{ state, changedAt: now, changedBy: actor, note: 'Migrated draft record' }],
     matchedSourceCandidateIds: draft.matchedSourceCandidateIds ?? [],
-    validationMessages: draft.validationMessages ?? [],
-    validationFindings: draft.validationFindings ?? [],
+    validationMessages: Array.isArray(draft.validationMessages) ? draft.validationMessages : [],
+    validationFindings: Array.isArray(draft.validationFindings) ? draft.validationFindings : [],
+    generatedText: typeof draft.generatedText === 'string' ? draft.generatedText : '',
     reviewStatus: undefined,
   };
 }

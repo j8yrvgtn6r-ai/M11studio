@@ -28,6 +28,7 @@ interface ProtocolImportContextValue {
   versioning: { currentVersion: ProtocolVersion; commits: ProtocolCommit[] };
   summary: ProtocolImportReviewSummary;
   revision: number;
+  storageWarnings: string[];
 }
 
 const ProtocolImportContext = createContext<ProtocolImportContextValue | null>(null);
@@ -67,6 +68,7 @@ export function ProtocolImportProvider({ children }: { children: ReactNode }) {
       versioning,
       summary,
       revision,
+      storageWarnings: state.storageWarnings ?? [],
     }),
     [ready, state, importedSource, protocolKnowledge, versioning, summary, revision],
   );

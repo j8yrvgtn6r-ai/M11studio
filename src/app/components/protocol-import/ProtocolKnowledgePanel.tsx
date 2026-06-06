@@ -42,7 +42,7 @@ export function ProtocolKnowledgePanel() {
   const providerLabel = isRealLlmProvider(protocolKnowledge.knowledgeProvider)
     ? `LLM · ${protocolKnowledge.understandingModel}`
     : protocolKnowledge.knowledgeProvider === 'fixture'
-      ? 'Fixture provider (development/smoke)'
+      ? 'Simulation Mode (development/smoke)'
       : `${protocolKnowledge.knowledgeProvider} · ${protocolKnowledge.understandingModel}`;
 
   return (

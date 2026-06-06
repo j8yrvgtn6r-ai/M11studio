@@ -183,6 +183,14 @@ export function generateFixtureM11Sections(input: M11GenerationInput): Generated
     .map((spec) => createDraft(spec, input, generatedAt));
 }
 
+export function generateFixtureSectionDraft(
+  spec: IchM11SectionSpec,
+  input: M11GenerationInput,
+  draftVersion = 1,
+): GeneratedSectionDraft {
+  return createDraft(spec, input, new Date().toISOString(), draftVersion);
+}
+
 export function regenerateFixtureM11Section(
   input: M11GenerationInput,
   sectionId: string,

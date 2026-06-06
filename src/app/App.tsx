@@ -52,6 +52,7 @@ import { SoAAssessmentAuthoringProvider } from './components/soa-configuration/S
 import { SettingsWorkspace, type SettingsView } from './components/settings/SettingsWorkspace';
 import { SectionAuthoringCanvas } from './components/m11-template-reference/SectionAuthoringCanvas';
 import { ImportProtocolDialog } from './components/protocol-import/ImportProtocolDialog';
+import { ImportStorageRecoveryBanner } from './components/protocol-import/ImportStorageRecoveryBanner';
 import { ProtocolImportReviewWorkspace } from './components/protocol-import/ProtocolImportReviewWorkspace';
 import { updateSectionImportDraft } from './domain/protocol/import';
 import { useProtocolImport, useSectionImportDraft } from './domain/protocol/import/ProtocolImportContext';
@@ -79,7 +80,7 @@ export default function App() {
   });
   const [importDialogOpen, setImportDialogOpen] = useState(false);
   const [importReviewOpen, setImportReviewOpen] = useState(false);
-  const { state: importState } = useProtocolImport();
+  const { state: importState, storageWarnings } = useProtocolImport();
   const sectionImportDraft = useSectionImportDraft(selectedSectionId);
 
   console.log('M11 Studio loaded');
@@ -282,6 +283,12 @@ export default function App() {
           </Button>
         </div>
       </div>
+
+      {!importReviewOpen && storageWarnings.length > 0 ? (
+        <div className="px-4 py-2 border-b border-border shrink-0">
+          <ImportStorageRecoveryBanner warnings={storageWarnings} />
+        </div>
+      ) : null}
 
       {/* Main IDE Layout */}
       <div className="flex-1 overflow-hidden">

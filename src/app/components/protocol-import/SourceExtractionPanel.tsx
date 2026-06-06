@@ -49,14 +49,14 @@ export function SourceExtractionPanel() {
         </div>
       </div>
 
-      {summary.extractionWarnings.length > 0 ? (
+      {summary.extractionWarnings?.length ? (
         <div className="px-4 pt-3 shrink-0">
           <Alert>
             <AlertTriangle className="h-4 w-4" />
             <AlertTitle>Extraction warnings</AlertTitle>
             <AlertDescription>
               <ul className="list-disc pl-5 mt-2 space-y-1 text-xs">
-                {summary.extractionWarnings.map((warning) => (
+                {summary.extractionWarnings?.map((warning) => (
                   <li key={warning}>{warning}</li>
                 ))}
               </ul>

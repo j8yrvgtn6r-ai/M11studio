@@ -1,6 +1,7 @@
 import type { IchM11SectionSpec } from '../../ichM11/types';
 import type { ProtocolKnowledgeModel } from '../protocolKnowledgeTypes';
 import type { GeneratedSectionDraft, ImportedProtocolSource, ProtocolSourceArtifact } from '../types';
+import type { M11GenerationCallbacks } from './m11GenerationProgress';
 
 export type LlmProviderId = 'openai' | 'azure-openai' | 'anthropic' | 'local' | 'fixture';
 
@@ -35,20 +36,31 @@ export interface M11GenerationInput {
   sectionIds?: string[];
 }
 
+export interface ProtocolUnderstandingCallbacks {
+  signal?: AbortSignal;
+}
+
 export interface ProtocolUnderstandingProvider {
   readonly id: LlmProviderId;
   readonly displayName: string;
-  understand(input: ProtocolUnderstandingInput): Promise<ProtocolKnowledgeModel>;
+  understand(
+    input: ProtocolUnderstandingInput,
+    callbacks?: ProtocolUnderstandingCallbacks,
+  ): Promise<ProtocolKnowledgeModel>;
 }
 
 export interface M11GenerationProvider {
   readonly id: LlmProviderId;
   readonly displayName: string;
-  generateSections(input: M11GenerationInput): Promise<GeneratedSectionDraft[]>;
+  generateSections(
+    input: M11GenerationInput,
+    callbacks?: M11GenerationCallbacks,
+  ): Promise<GeneratedSectionDraft[]>;
   regenerateSection(
     input: M11GenerationInput,
     sectionId: string,
     priorDraft?: GeneratedSectionDraft,
+    callbacks?: M11GenerationCallbacks,
   ): Promise<GeneratedSectionDraft>;
 }
 
