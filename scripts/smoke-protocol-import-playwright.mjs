@@ -49,9 +49,21 @@ async function main() {
   await continueButton.click();
 
   await page.getByTestId('protocol-import-processing-steps').waitFor();
-  await page.getByTestId('import-cancel-processing').waitFor();
   await page.getByTestId('import-generation-progress').waitFor({ timeout: 120_000 });
-  await page.getByTestId('import-generation-completed-count').waitFor();
+  await page.getByTestId('protocol-build-console').waitFor({ timeout: 30_000 });
+  await page.getByTestId('protocol-build-progress-summary').waitFor({ timeout: 30_000 });
+  await page.getByTestId('protocol-build-event').first().waitFor({ timeout: 30_000 });
+  await page.getByTestId('import-pause-processing').waitFor();
+  await page.getByTestId('import-pause-processing').click();
+  await page.getByTestId('protocol-build-paused-badge').waitFor({ timeout: 30_000 });
+  await page.getByTestId('import-resume-processing').click();
+  await page.locator('[data-generation-state="queued"], [data-generation-state="generating"]').first().waitFor({
+    timeout: 30_000,
+  });
+  await page.locator('[data-testid^="map-section-"][data-generation-state="queued"], [data-testid^="map-section-"][data-generation-state="generating"]').first().waitFor({
+    timeout: 30_000,
+  });
+  await page.getByTestId('import-generation-completed-count').waitFor({ timeout: 120_000 });
 
   await page.getByTestId('import-protocol-open-review').waitFor({ timeout: 120_000 });
   await page.getByTestId('protocol-understanding-summary').waitFor();
@@ -60,8 +72,8 @@ async function main() {
   await page.getByTestId('import-llm-provider-status').waitFor();
   await page.getByTestId('import-generation-provider').waitFor();
 
-  await page.getByTestId('import-tab-protocol-knowledge').click();
-  await page.getByTestId('protocol-knowledge-panel').waitFor();
+  await page.getByRole('tab', { name: 'Protocol knowledge' }).click();
+  await page.getByTestId('knowledge-provider-badge').waitFor({ timeout: 30_000 });
 
   await page.getByRole('tab', { name: 'Section review' }).click();
   const firstReviewRow = page.locator('[data-testid^="import-review-row-"]').first();
@@ -92,7 +104,7 @@ async function main() {
 
   await page.getByRole('button', { name: 'Back' }).click();
   await page.getByTestId('import-tab-version-history').click();
-  await page.getByTestId('version-history-panel').waitFor();
+  await page.locator('[data-testid="version-history-panel"]:visible').waitFor({ timeout: 30_000 });
   const commitCount = await page.locator('[data-testid^="protocol-commit-"]').count();
   if (commitCount < 3) {
     throw new Error(`Expected understanding + generation + regeneration commits, got ${commitCount}`);

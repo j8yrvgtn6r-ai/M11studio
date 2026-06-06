@@ -1,4 +1,13 @@
 import { applyApprovedSectionDraft, clearDraftProtocolContentForImport } from './applyImportToProtocol';
+import {
+  appendProtocolBuildEvent,
+  completeProtocolBuildSession,
+  mergeSectionGenerationStatesFromDrafts,
+  setProtocolBuildFailedSectionIds,
+  setProtocolBuildGenerationProgress,
+  startProtocolBuildSession,
+  getProtocolBuildConsoleState,
+} from '../build/protocolBuildConsoleStore';
 import { DocxExtractionError, extractDocxProtocolSource } from './docxProtocolExtractor';
 import {
   failedSectionIdsFromDrafts,
@@ -164,11 +173,13 @@ export async function runProtocolImportProcessing(
   };
 
   const updateGenerationProgress = (progress: M11GenerationProgressSnapshot) => {
-    callbacks.onGenerationProgress?.(progress);
+    const enriched = { ...progress, mode: 'Full' };
+    callbacks.onGenerationProgress?.(enriched);
+    setProtocolBuildGenerationProgress(enriched);
     updateStep('rewriting-m11', {
       state: 'active',
-      detail: formatGenerationProgressDetail(progress),
-      generationProgress: progress,
+      detail: formatGenerationProgressDetail(enriched),
+      generationProgress: enriched,
     });
   };
 
@@ -176,11 +187,20 @@ export async function runProtocolImportProcessing(
     throwIfAborted(callbacks.signal);
 
     updateStep('uploading', { state: 'active', detail: artifact.filename });
+    appendProtocolBuildEvent({ type: 'info', message: `DOCX uploaded: ${artifact.filename}` });
     await delay(200);
     updateStep('uploading', { state: 'complete' });
 
     updateStep('reading-docx', { state: 'active', detail: 'Extracting paragraphs and tables…' });
     const importedSource = await extractDocxProtocolSource(docxBlob, artifact.id, artifact.filename);
+    appendProtocolBuildEvent({
+      type: 'success',
+      message: `Extracted ${importedSource.paragraphs.length} paragraphs and ${importedSource.headings.length} headings`,
+      metadata: {
+        paragraphCount: importedSource.paragraphs.length,
+        headingCount: importedSource.headings.length,
+      },
+    });
     updateStep('reading-docx', {
       state: 'complete',
       detail: formatExtractionDetail({
@@ -191,6 +211,11 @@ export async function runProtocolImportProcessing(
 
     updateStep('identifying-sections', { state: 'active' });
     await delay(100);
+    appendProtocolBuildEvent({
+      type: 'success',
+      message: `Detected ${importedSource.sections.length} source sections`,
+      metadata: { sectionCandidateCount: importedSource.sections.length },
+    });
     updateStep('identifying-sections', {
       state: 'complete',
       detail: formatExtractionDetail({
@@ -203,6 +228,12 @@ export async function runProtocolImportProcessing(
       state: 'active',
       detail: `Provider: ${providerId} · analyzing full protocol…`,
     });
+    appendProtocolBuildEvent({
+      type: 'progress',
+      message: `Building protocol understanding using ${providerId}`,
+      provider: providerId,
+    });
+    const understandingStartedAt = performance.now();
     const protocolKnowledgeModel = await runProtocolUnderstanding(
       {
         sourceExtraction: importedSource,
@@ -212,6 +243,13 @@ export async function runProtocolImportProcessing(
       },
       { signal: callbacks.signal },
     );
+    appendProtocolBuildEvent({
+      type: 'success',
+      message: `Protocol understanding completed · confidence ${Math.round(protocolKnowledgeModel.confidence * 100)}%`,
+      provider: protocolKnowledgeModel.knowledgeProvider,
+      model: protocolKnowledgeModel.understandingModel,
+      durationMs: Math.round(performance.now() - understandingStartedAt),
+    });
     updateStep('understanding-context', {
       state: 'complete',
       detail: `${protocolKnowledgeModel.knowledgeProvider}/${protocolKnowledgeModel.understandingModel} · confidence ${Math.round(protocolKnowledgeModel.confidence * 100)}%`,
@@ -220,6 +258,11 @@ export async function runProtocolImportProcessing(
     updateStep('rewriting-m11', {
       state: 'active',
       detail: 'Reconstructing M11 sections one at a time…',
+    });
+    appendProtocolBuildEvent({
+      type: 'progress',
+      message: 'M11 section generation started',
+      provider: providerId,
     });
 
     let drafts = await runM11SectionGeneration(buildGenerationInput(artifact, importedSource, protocolKnowledgeModel), {
@@ -248,9 +291,16 @@ export async function runProtocolImportProcessing(
     });
 
     updateStep('structure-checks', { state: 'active', detail: 'Structural + terminology review artifacts…' });
+    appendProtocolBuildEvent({ type: 'progress', message: 'Running post-generation validation' });
     drafts = applyPostGenerationValidationBatch(drafts);
     const warningCount = drafts.filter((d) => d.validationStatus === 'warnings').length;
     const errorCount = drafts.filter((d) => d.validationStatus === 'failed').length;
+    if (warningCount > 0) {
+      appendProtocolBuildEvent({
+        type: 'warning',
+        message: `${warningCount} section validation warning(s) generated`,
+      });
+    }
     updateStep('structure-checks', {
       state: 'complete',
       detail: `${drafts.length} sections validated · ${warningCount} warnings · ${errorCount} errors`,
@@ -258,6 +308,7 @@ export async function runProtocolImportProcessing(
 
     updateStep('preparing-workspace', { state: 'active' });
     await delay(200);
+    appendProtocolBuildEvent({ type: 'success', message: 'Review package created' });
     updateStep('preparing-workspace', {
       state: 'complete',
       detail: partialGenerationFailure
@@ -267,6 +318,28 @@ export async function runProtocolImportProcessing(
 
     mutateProtocolDocument((document) => {
       clearDraftProtocolContentForImport(document);
+    });
+
+    mergeSectionGenerationStatesFromDrafts(drafts);
+    setProtocolBuildFailedSectionIds(failedSectionIds);
+    completeProtocolBuildSession({
+      sectionsGenerated: successfulDrafts.length,
+      sectionsFailed: failedSectionIds.length,
+      sectionsNeedingReview: drafts.filter((draft) => draft.generationStatus !== 'failed').length,
+      totalDurationMs: steps[stepIndex('rewriting-m11')]?.generationProgress?.elapsedMs ?? 0,
+      provider: drafts[0]?.provenance.generationProvider ?? providerId,
+      model: drafts[0]?.provenance.generationModel,
+      failedSectionIds,
+    });
+    appendProtocolBuildEvent({
+      type: 'success',
+      message: 'Protocol reconstruction completed',
+      provider: drafts[0]?.provenance.generationProvider ?? providerId,
+      model: drafts[0]?.provenance.generationModel,
+      metadata: {
+        sectionsGenerated: successfulDrafts.length,
+        sectionsFailed: failedSectionIds.length,
+      },
     });
 
     return {
@@ -279,6 +352,7 @@ export async function runProtocolImportProcessing(
     };
   } catch (error) {
     if (error instanceof ImportProcessingAbortedError) {
+      appendProtocolBuildEvent({ type: 'warning', message: 'Import cancelled.' });
       const activeIndex = steps.findIndex((step) => step.state === 'active');
       if (activeIndex >= 0) {
         steps[activeIndex] = {
@@ -293,6 +367,10 @@ export async function runProtocolImportProcessing(
 
     const activeIndex = steps.findIndex((step) => step.state === 'active');
     if (activeIndex >= 0) {
+      appendProtocolBuildEvent({
+        type: 'error',
+        message: formatLlmUserError(error),
+      });
       steps[activeIndex] = {
         ...steps[activeIndex],
         state: 'failed',
@@ -330,15 +408,17 @@ export async function retryFailedM11SectionGeneration(
     {
       signal: callbacks.signal,
       onProgress: (progress) => {
-        callbacks.onGenerationProgress?.(progress);
+        const enriched = { ...progress, mode: 'Selected' };
+        callbacks.onGenerationProgress?.(enriched);
+        setProtocolBuildGenerationProgress(enriched);
         callbacks.onStepsUpdate(
           createInitialProcessingSteps().map((step) =>
             step.id === 'rewriting-m11'
               ? {
                   ...step,
                   state: 'active' as const,
-                  detail: formatGenerationProgressDetail(progress),
-                  generationProgress: progress,
+                  detail: formatGenerationProgressDetail(enriched),
+                  generationProgress: enriched,
                 }
               : step.id === 'uploading' ||
                   step.id === 'reading-docx' ||
@@ -352,12 +432,31 @@ export async function retryFailedM11SectionGeneration(
     },
   );
 
-  const merged = mergeRetriedSectionDrafts(existingDrafts, retriedDrafts);
-  const validated = applyPostGenerationValidationBatch(merged);
-  const remainingFailures = failedSectionIdsFromDrafts(validated);
+  const merged = applyPostGenerationValidationBatch(mergeRetriedSectionDrafts(existingDrafts, retriedDrafts));
+  const remainingFailures = failedSectionIdsFromDrafts(merged);
+  const successfulDrafts = merged.filter((draft) => draft.generationStatus !== 'failed');
+
+  mergeSectionGenerationStatesFromDrafts(merged);
+  setProtocolBuildFailedSectionIds(remainingFailures);
+  completeProtocolBuildSession({
+    sectionsGenerated: successfulDrafts.length,
+    sectionsFailed: remainingFailures.length,
+    sectionsNeedingReview: merged.filter((draft) => draft.generationStatus !== 'failed').length,
+    totalDurationMs: getProtocolBuildConsoleState().generationProgress?.elapsedMs ?? 0,
+    provider: merged[0]?.provenance.generationProvider,
+    model: merged[0]?.provenance.generationModel,
+    failedSectionIds: remainingFailures,
+  });
+  appendProtocolBuildEvent({
+    type: remainingFailures.length > 0 ? 'warning' : 'success',
+    message:
+      remainingFailures.length > 0
+        ? `Retry completed with ${remainingFailures.length} remaining failure(s)`
+        : 'Retry completed — all failed sections regenerated',
+  });
 
   return {
-    sectionDrafts: validated,
+    sectionDrafts: merged,
     failedSectionIds: remainingFailures,
     partialGenerationFailure: remainingFailures.length > 0,
   };

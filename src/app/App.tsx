@@ -9,6 +9,8 @@ import { ScheduleOfActivities } from './components/ScheduleOfActivities';
 import { DependencyGraphContainer } from './components/DependencyGraphContainer';
 import { DependencyInspector } from './components/DependencyInspector';
 import { ThemeToggle } from './components/ThemeToggle';
+import { ProtocolBuildConsole } from './components/ProtocolBuildConsole';
+import { useProtocolBuildConsole } from './domain/protocol/build/useProtocolBuildConsole';
 import { WelcomeDialog } from './components/WelcomeDialog';
 import { StatusBar } from './components/StatusBar';
 import { Button } from './components/ui/button';
@@ -81,6 +83,8 @@ export default function App() {
   const [importDialogOpen, setImportDialogOpen] = useState(false);
   const [importReviewOpen, setImportReviewOpen] = useState(false);
   const { state: importState, storageWarnings } = useProtocolImport();
+  const buildState = useProtocolBuildConsole();
+  const buildActive = buildState.status === 'running' || buildState.status === 'paused';
   const sectionImportDraft = useSectionImportDraft(selectedSectionId);
 
   console.log('M11 Studio loaded');
@@ -291,7 +295,7 @@ export default function App() {
       ) : null}
 
       {/* Main IDE Layout */}
-      <div className="flex-1 overflow-hidden">
+      <div className="flex-1 overflow-hidden min-h-0">
         {importReviewOpen ? (
           <ProtocolImportReviewWorkspace
             templateReferenceEnabled={templateReferenceEnabled}
@@ -347,6 +351,9 @@ export default function App() {
                 templateReferenceEnabled={templateReferenceEnabled}
                 onTemplateReferenceChange={handleTemplateReferenceChange}
                 sectionImportDrafts={importState.sectionDrafts}
+                sectionGenerationStates={buildState.sectionStates}
+                buildActive={buildActive || buildState.status === 'complete'}
+                generationProgress={buildState.generationProgress}
               />
             </ResizablePanel>
 
@@ -416,6 +423,10 @@ export default function App() {
                       sections={protocolSections}
                       selectedSectionId={selectedSectionId}
                       onSelectSection={handleSectionSelect}
+                      sectionImportDrafts={importState.sectionDrafts}
+                      sectionGenerationStates={buildState.sectionStates}
+                      buildActive={buildActive || buildState.status === 'complete'}
+                      generationProgress={buildState.generationProgress}
                     />
                   </div>
                 </ResizablePanel>
@@ -479,7 +490,8 @@ export default function App() {
       {/* Welcome Dialog */}
       <WelcomeDialog open={welcomeOpen} onOpenChange={setWelcomeOpen} />
 
-      {/* Status Bar */}
+      {/* Build Console + Status Bar */}
+      <ProtocolBuildConsole />
       <StatusBar
         protocolId="PROTO-XYZ-301"
         currentUser="Dr. Sarah Chen"

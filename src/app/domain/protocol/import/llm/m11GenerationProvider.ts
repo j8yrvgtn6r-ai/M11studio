@@ -1,4 +1,12 @@
 import { ICH_M11_TEMPLATE_SECTION_SPECS } from '../../ichM11/ichM11Template';
+import {
+  appendProtocolBuildEvent,
+  initializeSectionGenerationQueue,
+  isProtocolBuildPauseRequested,
+  markProtocolBuildPaused,
+  updateSectionGenerationState,
+  waitForProtocolBuildResume,
+} from '../../build/protocolBuildConsoleStore';
 import type { IchM11SectionSpec } from '../../ichM11/types';
 import { transitionSectionState } from '../sectionReviewStateMachine';
 import type { GeneratedSectionDraft, SectionGenerationProvenance } from '../types';
@@ -6,6 +14,7 @@ import { generateFixtureSectionDraft, regenerateFixtureM11Section } from './fixt
 import { resolveLlmProviderConfig } from './llmConfig';
 import { callOpenAiChat } from './openAiClient';
 import {
+  enrichGenerationProgressSnapshot,
   logM11Generation,
   providerProgressMeta,
   type M11GenerationCallbacks,
@@ -36,8 +45,9 @@ function listTargetSpecs(input: M11GenerationInput): IchM11SectionSpec[] {
 function emitProgress(
   callbacks: M11GenerationCallbacks | undefined,
   snapshot: M11GenerationProgressSnapshot,
+  sectionDurations: number[],
 ): void {
-  callbacks?.onProgress?.(snapshot);
+  callbacks?.onProgress?.(enrichGenerationProgressSnapshot(snapshot, sectionDurations));
 }
 
 function createFailedSectionDraft(
@@ -205,11 +215,21 @@ async function generateSectionsWithProgress(
   const startedAt = performance.now();
   let completedSections = 0;
   let failedSections = 0;
+  const sectionDurations: number[] = [];
 
   logM11Generation('generation-started', {
     totalSections: specs.length,
     provider: providerLabel,
     model,
+  });
+
+  initializeSectionGenerationQueue(specs.map((spec) => spec.id));
+  appendProtocolBuildEvent({
+    type: 'progress',
+    message: `Generating ${specs.length} M11 section draft${specs.length === 1 ? '' : 's'}`,
+    provider: providerLabel,
+    model,
+    metadata: { totalSections: specs.length },
   });
 
   const initialProgress: M11GenerationProgressSnapshot = {
@@ -220,11 +240,12 @@ async function generateSectionsWithProgress(
     providerLabel,
     model,
   };
-  emitProgress(callbacks, initialProgress);
+  emitProgress(callbacks, initialProgress, sectionDurations);
 
   const drafts: GeneratedSectionDraft[] = [];
 
   for (const spec of specs) {
+    await waitForProtocolBuildResume();
     throwIfAborted(callbacks?.signal);
 
     if (
@@ -235,6 +256,16 @@ async function generateSectionsWithProgress(
     ) {
       const errorMessage = 'Simulated section failure for smoke testing.';
       drafts.push(createFailedSectionDraft(spec, input, 1, providerId, model, errorMessage));
+      updateSectionGenerationState(spec.id, 'failed');
+      appendProtocolBuildEvent({
+        type: 'error',
+        message: `Section ${spec.id} failed; retry available`,
+        sectionId: spec.id,
+        sectionTitle: spec.title,
+        provider: providerLabel,
+        model,
+        metadata: { error: errorMessage },
+      });
       emitProgress(callbacks, {
         totalSections: specs.length,
         completedSections,
@@ -245,12 +276,26 @@ async function generateSectionsWithProgress(
         providerLabel,
         model,
         lastError: errorMessage,
-      });
+      }, sectionDurations);
+      if (isProtocolBuildPauseRequested()) {
+        markProtocolBuildPaused();
+        appendProtocolBuildEvent({ type: 'info', message: 'Import paused after current section.' });
+        await waitForProtocolBuildResume();
+      }
       continue;
     }
 
     const requestStartedAt = performance.now();
     logM11Generation('section-started', { sectionId: spec.id, title: spec.title });
+    updateSectionGenerationState(spec.id, 'generating');
+    appendProtocolBuildEvent({
+      type: 'progress',
+      message: `Generating ${spec.title}`,
+      sectionId: spec.id,
+      sectionTitle: spec.title,
+      provider: providerLabel,
+      model,
+    });
     emitProgress(callbacks, {
       totalSections: specs.length,
       completedSections,
@@ -261,15 +306,26 @@ async function generateSectionsWithProgress(
       currentRequestDurationMs: 0,
       providerLabel,
       model,
-    });
+    }, sectionDurations);
 
     try {
       const draft = await generateOne(spec, 1);
       completedSections += 1;
       drafts.push(draft);
       const requestDurationMs = performance.now() - requestStartedAt;
+      sectionDurations.push(requestDurationMs);
+      updateSectionGenerationState(spec.id, 'needsReview');
       logM11Generation('section-completed', {
         sectionId: spec.id,
+        durationMs: Math.round(requestDurationMs),
+      });
+      appendProtocolBuildEvent({
+        type: 'success',
+        message: `Completed ${spec.title} · ${Math.round(requestDurationMs / 1000)} sec`,
+        sectionId: spec.id,
+        sectionTitle: spec.title,
+        provider: providerLabel,
+        model,
         durationMs: Math.round(requestDurationMs),
       });
       emitProgress(callbacks, {
@@ -282,12 +338,22 @@ async function generateSectionsWithProgress(
         currentRequestDurationMs: requestDurationMs,
         providerLabel,
         model,
-      });
+      }, sectionDurations);
     } catch (error) {
       const errorMessage = formatLlmUserError(error);
       failedSections += 1;
+      updateSectionGenerationState(spec.id, 'failed');
       logM11Generation('section-failed', { sectionId: spec.id, error: errorMessage });
       drafts.push(createFailedSectionDraft(spec, input, 1, providerId, model, errorMessage));
+      appendProtocolBuildEvent({
+        type: 'error',
+        message: `Section ${spec.id} failed; retry available`,
+        sectionId: spec.id,
+        sectionTitle: spec.title,
+        provider: providerLabel,
+        model,
+        metadata: { error: errorMessage },
+      });
       emitProgress(callbacks, {
         totalSections: specs.length,
         completedSections,
@@ -299,11 +365,17 @@ async function generateSectionsWithProgress(
         providerLabel,
         model,
         lastError: errorMessage,
-      });
+      }, sectionDurations);
 
       if (error instanceof ImportProcessingAbortedError) {
         throw error;
       }
+    }
+
+    if (isProtocolBuildPauseRequested()) {
+      markProtocolBuildPaused();
+      appendProtocolBuildEvent({ type: 'info', message: 'Import paused after current section.' });
+      await waitForProtocolBuildResume();
     }
   }
 
@@ -323,7 +395,7 @@ async function generateSectionsWithProgress(
     providerLabel,
     model,
     isComplete: true,
-  });
+  }, sectionDurations);
 
   return drafts;
 }

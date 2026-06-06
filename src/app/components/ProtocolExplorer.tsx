@@ -1,6 +1,14 @@
 import { ChevronRight, ChevronDown, FileText, AlertCircle, MessageSquare, FileEdit, BookOpen } from 'lucide-react';
 import { useState } from 'react';
 import type { GeneratedSectionDraft } from '../domain/protocol/import';
+import {
+  resolveSectionGenerationState,
+  type SectionGenerationState,
+} from '../domain/protocol/build/protocolBuildConsoleStore';
+import {
+  SectionGenerationStateIndicator,
+  sectionGenerationStateLabel,
+} from './SectionGenerationStateIndicator';
 import type { ProtocolSection } from '../types/protocol';
 import { getStatusColor } from '../utils/statusColors';
 import { ScrollArea } from './ui/scroll-area';
@@ -15,6 +23,13 @@ interface ProtocolExplorerProps {
   templateReferenceEnabled: boolean;
   onTemplateReferenceChange: (enabled: boolean) => void;
   sectionImportDrafts?: Record<string, GeneratedSectionDraft>;
+  sectionGenerationStates?: Record<string, SectionGenerationState>;
+  buildActive?: boolean;
+  generationProgress?: {
+    providerLabel?: string;
+    model?: string;
+    currentRequestDurationMs?: number;
+  } | null;
 }
 
 export function ProtocolExplorer({
@@ -24,6 +39,9 @@ export function ProtocolExplorer({
   templateReferenceEnabled,
   onTemplateReferenceChange,
   sectionImportDrafts = {},
+  sectionGenerationStates = {},
+  buildActive = false,
+  generationProgress = null,
 }: ProtocolExplorerProps) {
   return (
     <div className="flex flex-col h-full bg-sidebar border-r border-sidebar-border">
@@ -54,6 +72,9 @@ export function ProtocolExplorer({
               selectedSectionId={selectedSectionId}
               onSelectSection={onSelectSection}
               sectionImportDrafts={sectionImportDrafts}
+              sectionGenerationStates={sectionGenerationStates}
+              buildActive={buildActive}
+              generationProgress={generationProgress}
             />
           ))}
         </div>
@@ -62,34 +83,30 @@ export function ProtocolExplorer({
   );
 }
 
-function importDraftIndicatorClass(draft: GeneratedSectionDraft | undefined): string {
-  if (!draft) {
-    return '';
-  }
-  if (draft.validationStatus === 'failed') {
-    return 'bg-destructive';
-  }
-  if (draft.validationStatus === 'warnings' || draft.state === 'changesRequested') {
-    return 'bg-amber-500';
-  }
-  if (draft.state === 'validationPassed' || draft.state === 'approved') {
-    return 'bg-green-500';
-  }
-  return 'bg-sky-500';
-}
-
 function SectionTreeNode({
   section,
   selectedSectionId,
   onSelectSection,
   sectionImportDrafts,
+  sectionGenerationStates,
+  buildActive,
+  generationProgress,
 }: {
   section: ProtocolSection;
   selectedSectionId: string | null;
   onSelectSection: (sectionId: string) => void;
   sectionImportDrafts: Record<string, GeneratedSectionDraft>;
+  sectionGenerationStates: Record<string, SectionGenerationState>;
+  buildActive: boolean;
+  generationProgress: ProtocolExplorerProps['generationProgress'];
 }) {
   const importDraft = sectionImportDrafts[section.id];
+  const generationState = resolveSectionGenerationState(
+    section.id,
+    sectionGenerationStates,
+    importDraft,
+    buildActive,
+  );
   const [expanded, setExpanded] = useState(true);
   const hasChildren = section.children && section.children.length > 0;
   const isSelected = selectedSectionId === section.id;
@@ -151,12 +168,25 @@ function SectionTreeNode({
               {section.validationCount}
             </Badge>
           )}
-          {importDraft ? (
+          {importDraft || buildActive ? (
             <div
-              className={`w-2 h-2 rounded-full ${importDraftIndicatorClass(importDraft)}`}
-              title={`Import ${importDraft.state} · ${importDraft.validationStatus}`}
+              className="flex items-center"
+              title={[
+                section.title,
+                `Generation: ${sectionGenerationStateLabel(generationState)}`,
+                generationProgress?.providerLabel
+                  ? `Provider: ${generationProgress.providerLabel}${generationProgress.model ? ` / ${generationProgress.model}` : ''}`
+                  : null,
+                importDraft?.generatedAt ? `Updated: ${new Date(importDraft.generatedAt).toLocaleString()}` : null,
+                importDraft?.validationMessages?.[0] ? `Error: ${importDraft.validationMessages[0]}` : null,
+              ]
+                .filter(Boolean)
+                .join('\n')}
               data-testid={`import-section-indicator-${section.id}`}
-            />
+              data-generation-state={generationState}
+            >
+              <SectionGenerationStateIndicator state={generationState} compact />
+            </div>
           ) : (
             <div className={`w-2 h-2 rounded-full ${statusColor.dot}`} title={section.status} />
           )}
@@ -172,6 +202,9 @@ function SectionTreeNode({
               selectedSectionId={selectedSectionId}
               onSelectSection={onSelectSection}
               sectionImportDrafts={sectionImportDrafts}
+              sectionGenerationStates={sectionGenerationStates}
+              buildActive={buildActive}
+              generationProgress={generationProgress}
             />
           ))}
         </div>

@@ -13,6 +13,14 @@ import {
   setProtocolImportResult,
   storeUploadedDocxArtifact,
 } from '../../domain/protocol/import';
+import {
+  endProtocolBuildSession,
+  registerProtocolBuildControls,
+  requestPauseAfterCurrentSection,
+  resumeProtocolBuild,
+  setProtocolBuildGenerationProgress,
+  startProtocolBuildSession,
+} from '../../domain/protocol/build/protocolBuildConsoleStore';
 import type {
   GeneratedSectionDraft,
   ImportProcessingStep,
@@ -35,6 +43,7 @@ import {
 import { Label } from '../ui/label';
 import { ImportProtocolProviderBanner } from './ImportProtocolProviderBanner';
 import { ProtocolImportProcessingSteps } from './ProtocolImportProcessingSteps';
+import { useProtocolBuildConsole } from '../../domain/protocol/build/useProtocolBuildConsole';
 
 type ImportWizardStep = 'upload' | 'processing' | 'complete';
 
@@ -71,6 +80,7 @@ export function ImportProtocolDialog({
   const [completedContext, setCompletedContext] = useState<CompletedImportContext | null>(null);
   const [isRetrying, setIsRetrying] = useState(false);
   const [processingActive, setProcessingActive] = useState(false);
+  const buildState = useProtocolBuildConsole();
 
   const resetWizard = useCallback(() => {
     abortControllerRef.current?.abort();
@@ -85,13 +95,32 @@ export function ImportProtocolDialog({
     setCompletedContext(null);
     setIsRetrying(false);
     setProcessingActive(false);
+    endProtocolBuildSession('idle');
   }, []);
+
+  useEffect(() => {
+    registerProtocolBuildControls({
+      cancel: () => abortControllerRef.current?.abort(),
+      pauseAfterCurrent: () => requestPauseAfterCurrentSection(),
+      resume: () => resumeProtocolBuild(),
+      retryFailed: () => {
+        void handleRetryFailedSectionsRef.current?.();
+      },
+    });
+  }, []);
+
+  const handleRetryFailedSectionsRef = useRef<(() => Promise<void>) | null>(null);
 
   useEffect(() => {
     return () => {
       abortControllerRef.current?.abort();
     };
   }, []);
+
+  const processingCallbacks = {
+    onStepsUpdate: setProcessingSteps,
+    onGenerationProgress: setProtocolBuildGenerationProgress,
+  };
 
   const handleOpenChange = (nextOpen: boolean) => {
     if (!nextOpen && processingActive) {
@@ -138,6 +167,7 @@ export function ImportProtocolDialog({
     setUploadError(null);
     setProcessingActive(true);
     setProcessingSteps(createInitialProcessingSteps());
+    startProtocolBuildSession({ mode: 'Full' });
 
     const abortController = new AbortController();
     abortControllerRef.current = abortController;
@@ -154,7 +184,7 @@ export function ImportProtocolDialog({
         { ...artifact, status: 'processing' },
         blob,
         {
-          onStepsUpdate: setProcessingSteps,
+          ...processingCallbacks,
           signal: abortController.signal,
         },
       );
@@ -168,10 +198,13 @@ export function ImportProtocolDialog({
       });
     } catch (error) {
       if (error instanceof ImportProcessingAbortedError) {
+        endProtocolBuildSession('cancelled');
         setUploadError('Import cancelled.');
         setWizardStep('upload');
         return;
       }
+
+      endProtocolBuildSession('failed');
 
       const message =
         error instanceof DocxExtractionError
@@ -209,6 +242,7 @@ export function ImportProtocolDialog({
     setProcessingActive(true);
     setWizardStep('processing');
     setUploadError(null);
+    startProtocolBuildSession({ mode: 'Selected' });
 
     const abortController = new AbortController();
     abortControllerRef.current = abortController;
@@ -220,7 +254,7 @@ export function ImportProtocolDialog({
         completedContext.protocolKnowledgeModel,
         completedContext.sectionDrafts,
         {
-          onStepsUpdate: setProcessingSteps,
+          ...processingCallbacks,
           signal: abortController.signal,
         },
       );
@@ -247,10 +281,21 @@ export function ImportProtocolDialog({
     }
   };
 
+  handleRetryFailedSectionsRef.current = handleRetryFailedSections;
+
   const handleFinish = () => {
     onImportComplete();
-    handleOpenChange(false);
-    resetWizard();
+    onOpenChange(false);
+    setWizardStep('upload');
+    setSelectedFile(null);
+    setOverwriteConfirmed(false);
+    setUploadError(null);
+    setProcessingSteps(createInitialProcessingSteps());
+    setIsDragging(false);
+    setCompletedKnowledge(null);
+    setCompletedContext(null);
+    setIsRetrying(false);
+    setProcessingActive(false);
   };
 
   const hasFailedSections = (completedContext?.failedSectionIds?.length ?? 0) > 0;
@@ -345,7 +390,24 @@ export function ImportProtocolDialog({
         {wizardStep === 'processing' ? (
           <div className="space-y-4">
             <ProtocolImportProcessingSteps steps={processingSteps} />
-            <div className="flex justify-end">
+            <div className="flex flex-wrap justify-end gap-2">
+              {buildState.status === 'paused' ? (
+                <Button
+                  variant="secondary"
+                  data-testid="import-resume-processing"
+                  onClick={() => resumeProtocolBuild()}
+                >
+                  Resume
+                </Button>
+              ) : (
+                <Button
+                  variant="outline"
+                  data-testid="import-pause-processing"
+                  onClick={() => requestPauseAfterCurrentSection()}
+                >
+                  Pause After Current Section
+                </Button>
+              )}
               <Button
                 variant="outline"
                 data-testid="import-cancel-processing"
