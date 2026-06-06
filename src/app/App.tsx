@@ -209,7 +209,7 @@ export default function App() {
 
   return (
     <SoAAssessmentAuthoringProvider>
-    <div className="h-screen w-screen flex flex-col bg-background" key="app-root">
+    <div className="h-screen w-screen flex flex-col bg-background overflow-hidden" key="app-root">
       {/* Top Toolbar */}
       <div className="h-12 border-b border-border bg-card flex items-center px-4 gap-3 shrink-0">
         <div className="flex items-center gap-2">
@@ -327,7 +327,7 @@ export default function App() {
       ) : null}
 
       {/* Main IDE Layout */}
-      <div className="flex-1 overflow-hidden min-h-0">
+      <div className="flex flex-1 min-h-0 overflow-hidden">
         {importReviewOpen ? (
           <ProtocolImportReviewWorkspace
             templateReferenceEnabled={templateReferenceEnabled}
@@ -340,43 +340,50 @@ export default function App() {
             onClose={() => setSettingsOpen(false)}
           />
         ) : showDependencyGraph ? (
-          <ResizablePanelGroup direction="horizontal">
+          <ResizablePanelGroup direction="horizontal" className="h-full min-h-0">
             {/* Dependency Graph */}
             <ResizablePanel id="dependency-graph-main" order={1} defaultSize={70} minSize={50}>
-              <DependencyGraphContainer
-                graphRevision={dependencyGraphRevision}
-                onNodeDoubleClick={(nodeId, sectionId) => {
-                  if (sectionId) {
-                    setShowDependencyGraph(false);
-                    setSelectedSectionId(sectionId);
-                  }
-                }}
-                onNodeSelect={setSelectedDependencyNode}
-              />
+              <div className="h-full min-h-0 overflow-hidden">
+                <DependencyGraphContainer
+                  graphRevision={dependencyGraphRevision}
+                  onNodeDoubleClick={(nodeId, sectionId) => {
+                    if (sectionId) {
+                      setShowDependencyGraph(false);
+                      setSelectedSectionId(sectionId);
+                    }
+                  }}
+                  onNodeSelect={setSelectedDependencyNode}
+                />
+              </div>
             </ResizablePanel>
 
             <ResizableHandle />
 
             {/* Right: Dependency Inspector + AI Copilot */}
             <ResizablePanel id="dependency-graph-sidebar" order={2} defaultSize={30} minSize={25} maxSize={40}>
-              <ResizablePanelGroup direction="vertical">
+              <ResizablePanelGroup direction="vertical" className="h-full min-h-0">
                 <ResizablePanel id="dependency-inspector" order={1} defaultSize={60} minSize={40}>
-                  <DependencyInspector selectedNode={selectedDependencyNode} />
+                  <div className="h-full min-h-0 overflow-hidden">
+                    <DependencyInspector selectedNode={selectedDependencyNode} />
+                  </div>
                 </ResizablePanel>
 
                 <ResizableHandle />
 
                 <ResizablePanel id="dependency-copilot" order={2} defaultSize={40} minSize={30}>
-                  <ProtocolCopilot />
+                  <div className="h-full min-h-0 overflow-hidden">
+                    <ProtocolCopilot />
+                  </div>
                 </ResizablePanel>
               </ResizablePanelGroup>
             </ResizablePanel>
           </ResizablePanelGroup>
         ) : (
-          <ResizablePanelGroup direction="horizontal">
+          <ResizablePanelGroup direction="horizontal" className="h-full min-h-0">
             {/* Left: Protocol Explorer */}
             <ResizablePanel id="protocol-explorer" order={1} defaultSize={20} minSize={15} maxSize={30}>
-              <ProtocolExplorer
+              <div className="h-full min-h-0 overflow-hidden">
+                <ProtocolExplorer
                 sections={protocolSections}
                 selectedSectionId={selectedSectionId}
                 onSelectSection={handleSectionSelect}
@@ -390,12 +397,14 @@ export default function App() {
                 visualizationPhase={buildState.visualizationPhase}
                 generationProgress={buildState.generationProgress}
               />
+              </div>
             </ResizablePanel>
 
             <ResizableHandle />
 
             {/* Center: Document Viewport */}
             <ResizablePanel id="document-viewport" order={2} defaultSize={50} minSize={30}>
+              <div className="h-full min-h-0 overflow-hidden">
               <SectionAuthoringCanvas
                 templateReferenceOpen={templateReferenceEnabled}
                 studyModelOpen={studyModelEnabled}
@@ -423,20 +432,19 @@ export default function App() {
                   />
                 )}
               </SectionAuthoringCanvas>
+              </div>
             </ResizablePanel>
 
             <ResizableHandle />
 
             {/* Right: Minimap + Detail Inspector + AI Copilot */}
             <ResizablePanel id="right-sidebar" order={3} defaultSize={30} minSize={25} maxSize={40}>
-              <ResizablePanelGroup direction="vertical">
-                {/* Top Right: Minimap */}
-                <ResizablePanel id="right-sidebar-main" order={1} defaultSize={100} minSize={80}>
-                  <div className="flex h-full">
-                    <div className="flex-1">
-                      <ResizablePanelGroup direction="vertical">
+              <div className="flex h-full min-h-0 overflow-hidden">
+                <div className="flex-1 min-h-0 overflow-hidden">
+                  <ResizablePanelGroup direction="vertical" className="h-full min-h-0">
                         {/* Detail Inspector */}
                         <ResizablePanel id="detail-inspector" order={1} defaultSize={50} minSize={30}>
+                          <div className="h-full min-h-0 overflow-hidden">
                           <DetailInspector
                             selectedField={selectedField}
                             selectedSectionId={selectedSectionId}
@@ -445,16 +453,19 @@ export default function App() {
                             comments={comments}
                             isScheduleOfActivitiesView={isScheduleOfActivities}
                           />
+                          </div>
                         </ResizablePanel>
 
                         <ResizableHandle />
 
                         {/* AI Copilot */}
                         <ResizablePanel id="protocol-copilot" order={2} defaultSize={50} minSize={30}>
+                          <div className="h-full min-h-0 overflow-hidden">
                           <ProtocolCopilot />
+                          </div>
                         </ResizablePanel>
                       </ResizablePanelGroup>
-                    </div>
+                </div>
 
                     {/* Minimap */}
                     <DocumentMinimap
@@ -467,9 +478,7 @@ export default function App() {
                       visualizationPhase={buildState.visualizationPhase}
                       generationProgress={buildState.generationProgress}
                     />
-                  </div>
-                </ResizablePanel>
-              </ResizablePanelGroup>
+              </div>
             </ResizablePanel>
           </ResizablePanelGroup>
         )}

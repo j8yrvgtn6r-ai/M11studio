@@ -218,3 +218,9 @@ export function listUnmappedTemplateSectionIds(): string[] {
 }
 
 export const ICH_M11_TEMPLATE_SECTION_REFERENCE_COUNT = REFERENCE_BY_SECTION_ID.size;
+
+export function listForewordTemplateReferenceSections(): IchM11TemplateSectionReference[] {
+  return ['0', '0.1', '0.2', '0.3', '0.4']
+    .map((sectionId) => getTemplateSectionReference(sectionId))
+    .filter((ref): ref is IchM11TemplateSectionReference => ref !== null);
+}

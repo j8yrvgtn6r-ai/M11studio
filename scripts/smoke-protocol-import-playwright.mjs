@@ -1,10 +1,11 @@
 /**
- * UI smoke: Protocol import v2 PR3 — Quick Reconstruction default path + non-blocking review.
+ * UI smoke: Hybrid mapping-first import — structural mapping, imported sections, validation review.
  * Run: M11_BASE_URL=http://localhost:5173/ npm run smoke:protocol-import
  */
 import { chromium } from 'playwright';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { assertScrollContainerScrolls, assertWorkspacePaneScrolling } from './playwright-scroll-helpers.mjs';
 
 const baseUrl = process.env.M11_BASE_URL ?? 'http://localhost:5175/';
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -98,11 +99,13 @@ async function main() {
     .catch(() => false);
 
   if (sawPreReadyImportContext) {
-    const earlyNotGenerated = page
-      .locator('[data-testid^="map-section-"][data-generation-state="notGenerated"]')
+    const earlyNeedsGeneration = page
+      .locator(
+        '[data-testid^="map-section-"][data-generation-state="needsGeneration"], [data-testid^="map-section-"][data-generation-state="notGenerated"]',
+      )
       .first();
-    if (await earlyNotGenerated.isVisible().catch(() => false)) {
-      await earlyNotGenerated.click();
+    if (await earlyNeedsGeneration.isVisible().catch(() => false)) {
+      await earlyNeedsGeneration.click();
       const generateSection = page.getByTestId('viewport-generate-section');
       if (await generateSection.isVisible().catch(() => false)) {
         if (!(await generateSection.isDisabled())) {
@@ -129,6 +132,27 @@ async function main() {
   if (!buildConsoleText.includes('Core Study Model complete')) {
     throw new Error('Expected Core Study Model complete in build console.');
   }
+  if (!buildConsoleText.includes('sections mapped')) {
+    throw new Error('Expected structural mapping summary in build console.');
+  }
+
+  const buildConsoleScroll = page.getByTestId('protocol-build-console-scroll');
+  if (await buildConsoleScroll.isVisible().catch(() => false)) {
+    await buildConsoleScroll.evaluate((el) => {
+      if (!(el instanceof HTMLElement)) {
+        return;
+      }
+      const filler = document.createElement('div');
+      filler.style.height = '1200px';
+      el.appendChild(filler);
+    });
+    await assertScrollContainerScrolls(page, {
+      scrollTestId: 'protocol-build-console-scroll',
+      label: 'Protocol Build Console',
+    });
+  }
+  await assertWorkspacePaneScrolling(page);
+
   await page.getByTestId('protocol-build-toggle').click();
 
   // Non-blocking workspace: explorer visible, modal stays closed during reconstruction
@@ -139,6 +163,8 @@ async function main() {
 
   await page.waitForFunction(() => {
     const status = document.querySelector('[data-testid="protocol-build-console"]')?.getAttribute('data-status');
+    const importedCount = document.querySelectorAll('[data-generation-state="imported"]').length;
+    const generatedCount = document.querySelectorAll('[data-generation-state="generated"]').length;
     const reviewCount = document.querySelectorAll('[data-generation-state="needsReview"]').length;
     const summary =
       document.querySelector('[data-testid="protocol-build-console-summary"]')?.textContent?.toLowerCase() ?? '';
@@ -146,9 +172,10 @@ async function main() {
       .querySelector('[data-testid="protocol-build-console"]')
       ?.getAttribute('data-import-context-phase');
     return (
+      importedCount > 0 ||
+      generatedCount > 0 ||
       reviewCount > 0 ||
       summary.includes('generating') ||
-      summary.includes('reconstructing') ||
       summary.includes('complete') ||
       status === 'running' ||
       phase === 'enriching'
@@ -163,15 +190,31 @@ async function main() {
     await page.getByTestId('protocol-build-cancel').waitFor();
   }
 
-  // Review while generation continues: open a completed section before import finishes
-  const needsReviewIndicator = page
-    .locator('[data-testid^="import-section-indicator-"][data-generation-state="needsReview"]')
+  const importedIndicator = page
+    .locator('[data-testid^="import-section-indicator-"][data-generation-state="imported"]')
     .first();
-  await needsReviewIndicator.waitFor({ timeout: 120_000 });
+  const generatedIndicator = page
+    .locator(
+      '[data-testid^="import-section-indicator-"][data-generation-state="generated"], [data-testid^="import-section-indicator-"][data-generation-state="needsReview"]',
+    )
+    .first();
+  const contentIndicator = (await importedIndicator.count()) > 0 ? importedIndicator : generatedIndicator;
+  await contentIndicator.waitFor({ timeout: 120_000 });
   const reviewSectionId =
-    (await needsReviewIndicator.getAttribute('data-testid'))?.replace('import-section-indicator-', '') ?? '1.1';
+    (await contentIndicator.getAttribute('data-testid'))?.replace('import-section-indicator-', '') ?? '1';
   await page.locator(`[data-testid="map-section-${reviewSectionId}"]`).click();
   await page.getByTestId('viewport-import-generated-text').waitFor({ timeout: 15_000 });
+
+  const validateButton = page.getByTestId('viewport-validate-section');
+  if (await validateButton.isVisible().catch(() => false)) {
+    await validateButton.click();
+    await page.getByTestId('section-validation-review-panel').waitFor({ timeout: 15_000 });
+    await page.getByTestId('validation-view-track-changes').click();
+    await page.getByTestId('validation-track-changes-view').waitFor({ timeout: 15_000 });
+    await page.getByTestId('validation-view-side-by-side').click();
+    await page.getByTestId('validation-side-by-side-view').waitFor({ timeout: 15_000 });
+    await page.getByTestId('validation-accept-button').click();
+  }
 
   const pendingTile = page
     .locator(
@@ -188,24 +231,12 @@ async function main() {
     await page.getByTestId('viewport-import-generated-text').waitFor({ timeout: 15_000 });
   }
 
-  await page.locator('[data-testid^="map-section-"][data-generation-state="notGenerated"]').first().waitFor({
-    timeout: 120_000,
-  });
-
-  const generatedIndicator = page
-    .locator(
-      '[data-testid^="import-section-indicator-"][data-generation-state="needsReview"], [data-testid^="import-section-indicator-"][data-generation-state="generating"], [data-testid^="import-section-indicator-"][data-generation-state="queued"]',
-    )
+  const needsGenerationTile = page
+    .locator('[data-testid^="map-section-"][data-generation-state="needsGeneration"]')
     .first();
-  await generatedIndicator.waitFor({ timeout: 120_000 });
-
-  const summaryText = await page.getByTestId('protocol-build-console-summary').textContent();
-  const progressMatch = summaryText?.match(/(\d+)\/(\d+)/);
-  if (progressMatch) {
-    const total = Number(progressMatch[2]);
-    if (total >= 100) {
-      throw new Error(`Quick Reconstruction should generate fewer than full template sections, got total=${total}`);
-    }
+  if (await needsGenerationTile.isVisible().catch(() => false)) {
+    await needsGenerationTile.click();
+    await page.getByTestId('viewport-section-not-generated').waitFor({ timeout: 15_000 });
   }
 
   await page.getByTestId('import-reconstruction-banner').waitFor({ timeout: 180_000 });
@@ -218,22 +249,31 @@ async function main() {
   if (!buildConsoleText.includes('Deep Study Model enrichment started')) {
     throw new Error('Expected Deep Study Model enrichment started in build console.');
   }
-  if (!buildConsoleText.includes('Priority reconstruction complete')) {
-    throw new Error('Expected Priority reconstruction complete in build console.');
+  if (
+    !buildConsoleText.includes('Priority generation complete') &&
+    !buildConsoleText.includes('Hybrid import workspace ready')
+  ) {
+    throw new Error('Expected Priority generation complete or Hybrid import workspace ready in build console.');
   }
-  if (!buildConsoleText.includes('Continuing background generation')) {
-    throw new Error('Expected Continuing background generation in build console.');
+  if (!buildConsoleText.includes('Mapping content into M11 hierarchy')) {
+    throw new Error('Expected structural mapping progress in build console.');
   }
-  assertNoImportFailures('During Quick Reconstruction');
+  assertNoImportFailures('During hybrid import');
   await page.getByTestId('protocol-build-toggle').click();
 
-  const notGeneratedTile = page.locator('[data-testid^="map-section-"][data-generation-state="notGenerated"]').first();
-  await notGeneratedTile.click();
-  await page.getByTestId('viewport-section-not-generated').waitFor({ timeout: 15_000 });
-  const viewportGenerate = page.getByTestId('viewport-generate-section');
-  await viewportGenerate.waitFor();
-  if (await viewportGenerate.isDisabled()) {
-    throw new Error('Generate Section should enable once import context is ready.');
+  const notGeneratedTile = page
+    .locator(
+      '[data-testid^="map-section-"][data-generation-state="needsGeneration"], [data-testid^="map-section-"][data-generation-state="notGenerated"]',
+    )
+    .first();
+  if (await notGeneratedTile.isVisible().catch(() => false)) {
+    await notGeneratedTile.click();
+    await page.getByTestId('viewport-section-not-generated').waitFor({ timeout: 15_000 });
+    const viewportGenerate = page.getByTestId('viewport-generate-section');
+    await viewportGenerate.waitFor({ timeout: 15_000 });
+    if (await viewportGenerate.isDisabled()) {
+      throw new Error('Generate Section should enable once import context is ready.');
+    }
   }
 
   const buildGenerateRemaining = page.getByTestId('protocol-build-generate-remaining');
@@ -275,7 +315,7 @@ async function main() {
   }
   assertNoImportFailures('Final');
 
-  console.log('Protocol import workflow smoke passed (Quick Reconstruction + non-blocking review).');
+  console.log('Protocol import workflow smoke passed (hybrid mapping-first import + validation).');
   await browser.close();
 }
 

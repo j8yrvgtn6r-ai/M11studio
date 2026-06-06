@@ -11,26 +11,32 @@ export type {
   ImportProcessingStep,
   ImportProcessingStepId,
   ImportProcessingStepState,
+  MappedProtocolSection,
+  MappingMethod,
   ProtocolCommit,
   ProtocolCommitSource,
   ProtocolImportReviewSummary,
   ProtocolImportState,
+  ProtocolSectionWorkflowState,
   ProtocolSourceArtifact,
   ProtocolSourceArtifactStatus,
   ProtocolVersion,
   ProtocolVersionLifecycleStatus,
+  SectionContentOrigin,
   SectionGenerationProvider,
   SectionGenerationProvenance,
   SectionReviewState,
   SectionStateHistoryEntry,
   SectionValidationFinding,
   SourceSectionCandidate,
+  StructuralMappingResult,
 } from './types';
 
 export type { ProtocolKnowledgeModel, ProtocolKnowledgeProvider, ProtocolKnowledgeProviderId } from './protocolKnowledgeTypes';
 
 export {
   approveSectionImportDraft,
+  acceptSectionValidation,
   downloadProtocolSourceArtifact,
   getImportedProtocolSource,
   getProtocolImportReviewSummary,
@@ -39,6 +45,7 @@ export {
   getProtocolSourceBlobUrl,
   getProtocolVersioningForImport,
   getSectionImportDraft,
+  getStructuralMappings,
   initProtocolImportStore,
   openSectionForReview,
   openProtocolSourceArtifact,
@@ -47,9 +54,12 @@ export {
   generateRemainingSectionImportDraftsAsync,
   regenerateSectionImportDraft,
   regenerateSectionImportDraftAsync,
+  rejectSectionValidation,
+  runSectionValidation,
   stageProtocolImportExtraction,
   stageProtocolImportCoreUnderstanding,
   stageProtocolImportUnderstanding,
+  stageProtocolImportMappings,
   markProtocolImportUnderstandingPhase,
   mergeProtocolKnowledgeEnrichment,
   syncSectionImportDrafts,
@@ -89,6 +99,16 @@ export {
 
 export { buildCoreStudyModel, coreStudyModelToProtocolKnowledgeModel } from './coreStudyModel';
 export type { CoreStudyModel } from './coreStudyModel';
+
+export { runStructuralMappingEngine } from './structuralMappingEngine';
+export { createImportedSectionDraft, markDraftAsGenerated } from './importedSectionBuilder';
+export { buildValidatedTarget } from './sectionValidationTargetEngine';
+export {
+  contentOriginLabel,
+  inferWorkflowState,
+  resolveWorkflowGenerationState,
+  workflowStateLabel,
+} from './sectionWorkflowState';
 
 export { DocxExtractionError, extractDocxProtocolSource } from './docxProtocolExtractor';
 export { buildProtocolKnowledgeModel, buildLocalDeterministicKnowledgeModel } from './buildProtocolKnowledgeModel';

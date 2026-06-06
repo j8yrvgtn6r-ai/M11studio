@@ -57,6 +57,7 @@ import {
 } from './sectionReviewStateMachine';
 
 import { validateGeneratedSectionDraft } from './sectionDraftValidation';
+import { buildValidatedTarget } from './sectionValidationTargetEngine';
 
 import type {
 
@@ -65,6 +66,8 @@ import type {
   ImportedProtocolSource,
 
   ImportedProtocolSourceSummary,
+
+  MappedProtocolSection,
 
   ProtocolImportReviewSummary,
 
@@ -187,6 +190,8 @@ function persistMetadata(): void {
       protocolId: state.protocolId,
 
       sectionDrafts: state.sectionDrafts,
+
+      structuralMappings: state.structuralMappings,
 
       lastImportCompletedAt: state.lastImportCompletedAt,
 
@@ -541,6 +546,17 @@ export function prepareProtocolImportOverwrite(): void {
   notify();
 }
 
+/** Persists structural mapping results for the active import session. */
+export async function stageProtocolImportMappings(mappings: MappedProtocolSection[]): Promise<void> {
+  state.structuralMappings = mappings;
+  persistMetadata();
+  notify();
+}
+
+export function getStructuralMappings(): MappedProtocolSection[] {
+  return state.structuralMappings ?? [];
+}
+
 /** Stages extraction + artifact immediately after DOCX parse — before protocol understanding. */
 export async function stageProtocolImportExtraction(
   artifact: ProtocolSourceArtifact,
@@ -813,6 +829,97 @@ export function updateSectionImportDraft(
 }
 
 
+
+export function runSectionValidation(sectionId: string, actor = 'Current user'): void {
+  const draft = state.sectionDrafts[sectionId];
+  if (!draft) {
+    return;
+  }
+
+  const result = buildValidatedTarget(draft);
+  const now = new Date().toISOString();
+  state.sectionDrafts[sectionId] = {
+    ...draft,
+    validatedTargetText: result.validatedTargetText,
+    validationMessages: result.messages,
+    validationFindings: result.findings,
+    validationStatus: result.messages.some((message) => message.includes('failed')) ? 'failed' : 'warnings',
+    workflowState: 'unvalidated',
+    state: 'validationPending',
+    stateChangedAt: now,
+    stateChangedBy: actor,
+    stateHistory: [
+      ...draft.stateHistory,
+      { state: 'validationPending', changedAt: now, changedBy: actor, note: 'Validation target prepared' },
+    ],
+  };
+  updateSectionGenerationState(sectionId, 'unvalidated');
+  persistMetadata();
+  notify();
+}
+
+export function acceptSectionValidation(sectionId: string, reviewer = 'Current user'): void {
+  const draft = state.sectionDrafts[sectionId];
+  if (!draft?.validatedTargetText) {
+    return;
+  }
+
+  const now = new Date().toISOString();
+  const finalized: GeneratedSectionDraft = {
+    ...draft,
+    generatedText: draft.validatedTargetText,
+    workflowState: 'validated',
+    state: 'validationPassed',
+    validationStatus: 'passed',
+    lastValidatedAt: now,
+    reviewer,
+    stateChangedAt: now,
+    stateChangedBy: reviewer,
+    stateHistory: [
+      ...draft.stateHistory,
+      { state: 'validationPassed', changedAt: now, changedBy: reviewer, note: 'Validation accepted' },
+    ],
+  };
+
+  state.sectionDrafts[sectionId] = finalized;
+  commitApprovedSectionToProtocol(finalized);
+  createSectionApprovalCommit(
+    state.protocolId,
+    finalized,
+    finalized.validationMessages.join(' ') || 'Section validated against M11 guidance.',
+  );
+  updateSectionGenerationState(sectionId, 'validated');
+  refreshStudyModelFromContext();
+  persistMetadata();
+  notify();
+}
+
+export function rejectSectionValidation(sectionId: string, reviewer = 'Current user'): void {
+  const draft = state.sectionDrafts[sectionId];
+  if (!draft) {
+    return;
+  }
+
+  const now = new Date().toISOString();
+  state.sectionDrafts[sectionId] = {
+    ...draft,
+    validatedTargetText: undefined,
+    workflowState: 'imported',
+    state: 'pendingReview',
+    validationStatus: 'not-run',
+    validationMessages: [],
+    validationFindings: [],
+    stateChangedAt: now,
+    stateChangedBy: reviewer,
+    stateHistory: [
+      ...draft.stateHistory,
+      { state: 'pendingReview', changedAt: now, changedBy: reviewer, note: 'Validation rejected — restored imported text' },
+    ],
+  };
+  updateSectionGenerationState(sectionId, 'imported');
+  persistMetadata();
+  notify();
+}
 
 export function approveSectionImportDraft(sectionId: string, reviewer = 'Current user'): void {
 

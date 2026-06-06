@@ -299,7 +299,7 @@ export function ProtocolBuildConsole() {
             </div>
           ) : null}
 
-          <div ref={scrollRef} className="flex-1 min-h-0 overflow-y-auto px-3 py-2 space-y-1">
+          <div ref={scrollRef} className="flex-1 min-h-0 overflow-y-auto px-3 py-2 space-y-1" data-testid="protocol-build-console-scroll">
             {build.events.map((event) => (
               <BuildEventLine key={event.id} event={event} />
             ))}

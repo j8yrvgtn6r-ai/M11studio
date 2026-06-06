@@ -1,6 +1,7 @@
 import type { ProtocolSection } from '../../../types/protocol';
 import type { ProtocolDocument, SectionNode } from '../types';
 import { resolveSectionCommentCount, resolveSectionValidationCount } from './computeSectionCounts';
+import { filterWorkingProtocolSectionNodes } from './sectionVisibility';
 
 function toProtocolSection(section: SectionNode, document: ProtocolDocument): ProtocolSection {
   const validationCount = resolveSectionValidationCount(section, document);
@@ -43,5 +44,6 @@ function toProtocolSection(section: SectionNode, document: ProtocolDocument): Pr
 }
 
 export function selectProtocolSections(document: ProtocolDocument): ProtocolSection[] {
-  return document.sections.map((section) => toProtocolSection(section, document));
+  const workingSections = filterWorkingProtocolSectionNodes(document.sections);
+  return workingSections.map((section) => toProtocolSection(section, document));
 }

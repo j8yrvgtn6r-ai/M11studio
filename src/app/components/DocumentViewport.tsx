@@ -16,6 +16,8 @@ import type { GeneratedSectionDraft } from '../domain/protocol/import';
 
 import {
 
+  acceptSectionValidation,
+
   approveSectionImportDraft,
 
   isSectionActionable,
@@ -28,7 +30,15 @@ import {
 
   isPriorityGenerationContextReady,
 
+  rejectSectionValidation,
+
+  runSectionValidation,
+
 } from '../domain/protocol/import';
+
+import { inferWorkflowState } from '../domain/protocol/import/sectionWorkflowState';
+
+import { SectionValidationReviewPanel } from './protocol-import/SectionValidationReviewPanel';
 
 import { useProtocolImport } from '../domain/protocol/import/ProtocolImportContext';
 
@@ -125,15 +135,25 @@ export function DocumentViewport({
 
   const showGeneratingState = buildActive && !importDraft && sectionGenerationState === 'generating';
 
-  const showNotGeneratedState = !importDraft && sectionGenerationState === 'notGenerated';
+  const showNotGeneratedState =
+    !importDraft &&
+    (sectionGenerationState === 'notGenerated' || sectionGenerationState === 'needsGeneration');
+
+  const workflowState = importDraft ? inferWorkflowState(importDraft) : null;
+
+  const isImportedSection = workflowState === 'imported';
+
+  const isUnvalidatedSection = workflowState === 'unvalidated';
+
+  const isGeneratedSection = importDraft?.contentOrigin === 'generated' || workflowState === 'generated';
 
   return (
 
-    <div className="flex flex-col h-full bg-background">
+    <div className="flex flex-col h-full min-h-0 bg-background">
 
       {/* Breadcrumb and Status Bar */}
 
-      <div className="px-4 py-3 border-b border-border bg-card">
+      <div className="px-4 py-3 border-b border-border bg-card shrink-0">
 
         <div className="flex items-center justify-between">
 
@@ -179,6 +199,30 @@ export function DocumentViewport({
 
                 </Badge>
 
+                <Badge variant="outline" className="text-xs" data-testid="import-draft-workflow-badge">
+
+                  {importDraft.workflowState ?? importDraft.contentOrigin ?? importDraft.state}
+
+                </Badge>
+
+                {isImportedSection && !importDraft.validatedTargetText ? (
+
+                  <Button
+
+                    size="sm"
+
+                    data-testid="viewport-validate-section"
+
+                    onClick={() => runSectionValidation(section.id)}
+
+                  >
+
+                    Validate
+
+                  </Button>
+
+                ) : isGeneratedSection ? (
+
                 <Button
 
                   size="sm"
@@ -196,6 +240,10 @@ export function DocumentViewport({
                   Approve
 
                 </Button>
+
+                ) : null}
+
+                {isGeneratedSection ? (
 
                 <Button
 
@@ -220,6 +268,8 @@ export function DocumentViewport({
                   {regenerating ? 'Regenerating…' : 'Regenerate'}
 
                 </Button>
+
+                ) : null}
 
                 {onOpenImportReview ? (
 
@@ -251,13 +301,15 @@ export function DocumentViewport({
 
       {/* Document Content */}
 
-      <ScrollArea className="flex-1">
+      <ScrollArea className="flex-1 min-h-0" data-testid="document-viewport-scroll">
 
         <div className="p-6 max-w-5xl">
 
           {showNotGeneratedState ? (
             <Alert data-testid="viewport-section-not-generated">
-              <AlertTitle>Not generated yet</AlertTitle>
+              <AlertTitle>
+                {sectionGenerationState === 'needsGeneration' ? 'Needs generation' : 'Not generated yet'}
+              </AlertTitle>
               <AlertDescription className="space-y-3">
                 <p>
                   {generationContextReady
@@ -324,7 +376,49 @@ export function DocumentViewport({
 
 
 
-          {importDraft && !section.ichM11InstructionOnly ? (
+          {importDraft && isUnvalidatedSection && importDraft.validatedTargetText ? (
+
+            <SectionValidationReviewPanel
+
+              draft={importDraft}
+
+              onAccept={() => acceptSectionValidation(section.id)}
+
+              onReject={() => rejectSectionValidation(section.id)}
+
+            />
+
+          ) : null}
+
+
+
+          {importDraft && isImportedSection && !importDraft.validatedTargetText ? (
+
+            <div className="space-y-3 mb-8">
+
+              <Label htmlFor="viewport-imported-text">Imported protocol text (pending validation)</Label>
+
+              <Textarea
+
+                id="viewport-imported-text"
+
+                className="min-h-[240px] text-sm"
+
+                value={importDraft.generatedText}
+
+                data-testid="viewport-import-generated-text"
+
+                onChange={(event) => onImportDraftTextChange?.(event.target.value)}
+
+              />
+
+            </div>
+
+          ) : null}
+
+
+
+          {importDraft && isGeneratedSection && !isUnvalidatedSection ? (
 
             <div className="space-y-3 mb-8">
 

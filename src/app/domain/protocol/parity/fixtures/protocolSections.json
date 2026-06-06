@@ -1,52 +1,5 @@
 [
   {
-    "id": "0",
-    "title": "0 Foreword",
-    "level": 0,
-    "conformance": "optional",
-    "status": "conditionalMissing",
-    "validationCount": 0,
-    "ichM11InstructionOnly": true,
-    "children": [
-      {
-        "id": "0.1",
-        "title": "0.1 Template Revision History",
-        "level": 1,
-        "conformance": "optional",
-        "status": "conditionalMissing",
-        "validationCount": 0,
-        "ichM11InstructionOnly": true
-      },
-      {
-        "id": "0.2",
-        "title": "0.2 Intended Use of Template",
-        "level": 1,
-        "conformance": "optional",
-        "status": "conditionalMissing",
-        "validationCount": 0,
-        "ichM11InstructionOnly": true
-      },
-      {
-        "id": "0.3",
-        "title": "0.3 Template Conventions and General Instructions",
-        "level": 1,
-        "conformance": "optional",
-        "status": "conditionalMissing",
-        "validationCount": 0,
-        "ichM11InstructionOnly": true
-      },
-      {
-        "id": "0.4",
-        "title": "0.4 Abbreviations Used in This Template",
-        "level": 1,
-        "conformance": "optional",
-        "status": "conditionalMissing",
-        "validationCount": 0,
-        "ichM11InstructionOnly": true
-      }
-    ]
-  },
-  {
     "id": "title",
     "title": "Title Page",
     "level": 0,

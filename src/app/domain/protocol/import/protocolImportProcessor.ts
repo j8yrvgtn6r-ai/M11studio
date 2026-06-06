@@ -40,6 +40,7 @@ import {
   stageProtocolImportCoreUnderstanding,
   stageProtocolImportUnderstanding,
   stageProtocolImportExtraction,
+  stageProtocolImportMappings,
   markProtocolImportUnderstandingPhase,
   mergeProtocolKnowledgeEnrichment,
   upsertLiveSectionImportDraft,
@@ -71,12 +72,9 @@ import {
 import {
   listNotGeneratedM11SectionIds,
   listQuickReconstructionSectionIds,
-  listSectionsEligibleForGeneration,
 } from './quickReconstructionSections';
-import {
-  listAutoBackgroundGenerationSectionIds,
-  listPersistentNotGeneratedSectionIds,
-} from './sectionGenerationEligibility';
+import { createImportedSectionDraft, markDraftAsGenerated } from './importedSectionBuilder';
+import { runStructuralMappingEngine } from './structuralMappingEngine';
 import { rebuildStudyModel, setStudyModelPhase } from '../../study-model/studyModelStore';
 import { createSectionRegeneratedCommit } from './protocolVersioning';
 import {
@@ -89,11 +87,11 @@ import {
 export const IMPORT_PROCESSING_STEP_DEFS: Array<{ id: ImportProcessingStepId; label: string }> = [
   { id: 'uploading', label: 'Upload' },
   { id: 'reading-docx', label: 'Extract DOCX' },
-  { id: 'identifying-sections', label: 'Detect Sections' },
+  { id: 'identifying-sections', label: 'Detect & Map Structure' },
   { id: 'understanding-context', label: 'Build Core Study Model' },
-  { id: 'rewriting-m11', label: 'Generate M11 Drafts' },
+  { id: 'rewriting-m11', label: 'Generate Missing Sections' },
   { id: 'structure-checks', label: 'Run Validation' },
-  { id: 'preparing-workspace', label: 'Create Review Package' },
+  { id: 'preparing-workspace', label: 'Prepare Workspace' },
 ];
 
 export function createInitialProcessingSteps(): ImportProcessingStep[] {
@@ -281,22 +279,41 @@ export async function runProtocolImportProcessing(
     });
 
     updateStep('identifying-sections', { state: 'active' });
-    await delay(100);
+    appendProtocolBuildEvent({ type: 'progress', message: 'Detecting protocol structure...' });
+    appendProtocolBuildEvent({ type: 'progress', message: 'Matching protocol headings...' });
+    const structuralMapping = runStructuralMappingEngine(importedSource);
+    appendProtocolBuildEvent({ type: 'progress', message: 'Mapping content into M11 hierarchy...' });
     appendProtocolBuildEvent({
       type: 'success',
-      message: `Detected ${importedSource.sections.length} source sections`,
-      metadata: { sectionCandidateCount: importedSource.sections.length },
+      message: `${structuralMapping.mappedSectionIds.length} sections mapped.`,
+      metadata: { mappedSections: structuralMapping.mappedSectionIds.length },
     });
-    updateStep('identifying-sections', {
-      state: 'complete',
-      detail: formatExtractionDetail({
-        sectionCandidateCount: importedSource.sections.length,
-        warnings: importedSource.extractionWarnings,
-      }),
+    appendProtocolBuildEvent({
+      type: 'info',
+      message: `${structuralMapping.needsGenerationSectionIds.length} sections require generation.`,
+      metadata: { needsGenerationSections: structuralMapping.needsGenerationSectionIds.length },
     });
 
+    const importedDrafts = structuralMapping.mappings.map((mapping) =>
+      createImportedSectionDraft(mapping, artifact, importedSource),
+    );
     await stageProtocolImportExtraction({ ...artifact, status: 'processing' }, importedSource);
+    await stageProtocolImportMappings(structuralMapping.mappings);
     appendProtocolBuildEvent({ type: 'success', message: 'Import extraction staged for generation context' });
+
+    for (const draft of importedDrafts) {
+      upsertLiveSectionImportDraft(draft);
+      updateSectionGenerationState(draft.sectionId, 'imported');
+      callbacks.onSectionDraftGenerated?.(draft);
+    }
+    if (importedDrafts.length > 0) {
+      appendProtocolBuildEvent({ type: 'success', message: 'First draft available' });
+    }
+
+    updateStep('identifying-sections', {
+      state: 'complete',
+      detail: `${structuralMapping.mappedSectionIds.length} mapped · ${structuralMapping.needsGenerationSectionIds.length} need generation`,
+    });
 
     updateStep('understanding-context', {
       state: 'active',
@@ -379,48 +396,64 @@ export async function runProtocolImportProcessing(
 
     updateStep('rewriting-m11', {
       state: 'active',
-      detail: 'Generating priority M11 sections…',
+      detail: 'Generating missing M11 sections…',
     });
     appendProtocolBuildEvent({
       type: 'progress',
-      message: 'Generating priority M11 sections',
+      message: 'Generating missing M11 sections',
       provider: providerId,
     });
     markProtocolImportGenerationPhase();
 
+    const needsGenerationIds = structuralMapping.needsGenerationSectionIds;
+    const priorityNeedsGeneration = prioritySectionIds.filter((sectionId) =>
+      needsGenerationIds.includes(sectionId),
+    );
+    markSectionsNotGenerated(
+      needsGenerationIds.filter((sectionId) => !priorityNeedsGeneration.includes(sectionId)),
+    );
+    if (priorityNeedsGeneration.length > 0) {
+      markSectionsQueued(priorityNeedsGeneration);
+    }
+
     const onSectionDraft = createLiveSectionDraftHandler(callbacks, {
       onFirstDraft: () => {
-        appendProtocolBuildEvent({ type: 'success', message: 'First draft available' });
+        if (importedDrafts.length === 0) {
+          appendProtocolBuildEvent({ type: 'success', message: 'First draft available' });
+        }
       },
     });
-    let drafts = await runM11SectionGeneration(
-      buildGenerationInput(artifact, importedSource, protocolKnowledgeModel, prioritySectionIds),
-      {
-        signal: callbacks.signal,
-        onProgress: updateGenerationProgress,
-        onSectionDraft,
-      },
-    );
 
-    appendProtocolBuildEvent({
-      type: 'success',
-      message: 'Priority reconstruction complete',
-      metadata: { prioritySections: prioritySectionIds.length },
-    });
+    let generatedDrafts: GeneratedSectionDraft[] = [];
+    if (priorityNeedsGeneration.length > 0) {
+      generatedDrafts = await runM11SectionGeneration(
+        buildGenerationInput(artifact, importedSource, protocolKnowledgeModel, priorityNeedsGeneration),
+        {
+          signal: callbacks.signal,
+          onProgress: updateGenerationProgress,
+          onSectionDraft: (draft) => {
+            onSectionDraft(markDraftAsGenerated(draft));
+          },
+        },
+      );
+      generatedDrafts = generatedDrafts.map((draft) => markDraftAsGenerated(draft));
+    }
+
+    let drafts = [...importedDrafts, ...generatedDrafts];
+
+    if (generatedDrafts.length > 0) {
+      appendProtocolBuildEvent({
+        type: 'success',
+        message: 'Priority generation complete',
+        metadata: { generatedSections: generatedDrafts.length },
+      });
+    }
 
     const draftRecord = Object.fromEntries(drafts.map((draft) => [draft.sectionId, draft]));
-    const backgroundSectionIds = listAutoBackgroundGenerationSectionIds(
-      importedSource,
-      protocolKnowledgeModel,
-      draftRecord,
+    const backgroundSectionIds = needsGenerationIds.filter(
+      (sectionId) =>
+        !prioritySectionIds.includes(sectionId) && !draftRecord[sectionId],
     );
-    const persistentNotGeneratedIds = listPersistentNotGeneratedSectionIds(
-      importedSource,
-      protocolKnowledgeModel,
-      draftRecord,
-    );
-
-    markSectionsNotGenerated(persistentNotGeneratedIds);
 
     if (backgroundSectionIds.length > 0) {
       markSectionsQueued(backgroundSectionIds);
@@ -437,34 +470,34 @@ export async function runProtocolImportProcessing(
         {
           signal: callbacks.signal,
           onProgress: updateGenerationProgress,
-          onSectionDraft,
+          onSectionDraft: (draft) => {
+            onSectionDraft(markDraftAsGenerated(draft));
+          },
         },
       );
-      drafts = mergeRetriedSectionDrafts(drafts, backgroundDrafts);
+      drafts = mergeRetriedSectionDrafts(drafts, backgroundDrafts.map((draft) => markDraftAsGenerated(draft)));
     } else {
-      markSectionsNotGenerated(listNotGeneratedM11SectionIds());
+      markSectionsNotGenerated(needsGenerationIds.filter((sectionId) => !draftRecord[sectionId]));
     }
 
     await enrichmentPromise.catch(() => null);
     protocolKnowledgeModel = getProtocolKnowledgeModel() ?? protocolKnowledgeModel;
 
-    const failedSectionIds = failedSectionIdsFromDrafts(drafts);
+    const failedSectionIds = failedSectionIdsFromDrafts(
+      drafts.filter((draft) => draft.contentOrigin === 'generated'),
+    );
     const partialGenerationFailure = failedSectionIds.length > 0;
     const successfulDrafts = drafts.filter((draft) => draft.generationStatus !== 'failed');
 
     if (successfulDrafts.length === 0) {
-      throw new Error(
-        failedSectionIds.length > 0
-          ? 'All M11 sections failed to generate. Retry failed sections or check your provider configuration.'
-          : 'No M11 sections were generated.',
-      );
+      throw new Error('No sections were mapped or generated from the uploaded protocol.');
     }
 
     updateStep('rewriting-m11', {
       state: 'complete',
       detail: partialGenerationFailure
-        ? `${successfulDrafts.length}/${drafts.length} sections generated · ${failedSectionIds.length} failed — use Retry Failed Sections`
-        : `${drafts.length} proposals · ${drafts[0]?.provenance.generationProvider ?? providerId}/${drafts[0]?.provenance.generationModel ?? 'model'}`,
+        ? `${successfulDrafts.length}/${drafts.length} sections ready · ${failedSectionIds.length} generation failures`
+        : `${structuralMapping.mappedSectionIds.length} imported · ${generatedDrafts.length} generated`,
       generationProgress: steps[stepIndex('rewriting-m11')]?.generationProgress,
     });
 
@@ -486,12 +519,12 @@ export async function runProtocolImportProcessing(
 
     updateStep('preparing-workspace', { state: 'active' });
     await delay(200);
-    appendProtocolBuildEvent({ type: 'success', message: 'Review package created' });
+    appendProtocolBuildEvent({ type: 'success', message: 'Hybrid import workspace ready' });
     updateStep('preparing-workspace', {
       state: 'complete',
       detail: partialGenerationFailure
-        ? 'Review package ready with partial generation — retry failed sections from the import dialog'
-        : 'Review package ready — human approval required for all proposals',
+        ? 'Hybrid workspace ready with partial generation — retry failed sections from the import dialog'
+        : 'Hybrid workspace ready — validate imported sections and review generated content',
     });
 
     mutateProtocolDocument((document) => {
@@ -511,7 +544,7 @@ export async function runProtocolImportProcessing(
     });
     appendProtocolBuildEvent({
       type: 'success',
-      message: 'Protocol reconstruction completed',
+      message: 'Protocol import completed',
       provider: drafts[0]?.provenance.generationProvider ?? providerId,
       model: drafts[0]?.provenance.generationModel,
       metadata: {

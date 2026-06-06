@@ -71,6 +71,18 @@ import { shouldUseGeneratedSchedule, type ScheduleSelectorOptions } from './sche
 
 export { selectProtocolSections } from './toProtocolSections';
 
+export {
+  classifySectionKind,
+  filterWorkingProtocolSectionNodes,
+  filterWorkingProtocolSections,
+  isTemplateInstructionNode,
+  isWorkingProtocolSection,
+  isWorkingProtocolSectionNode,
+  listForewordTemplateReferenceSectionIds,
+  TEMPLATE_INSTRUCTION_SECTION_IDS,
+  type WorkingProtocolSectionKind,
+} from './sectionVisibility';
+
 export { selectFieldDefinitions } from './toFieldDefinitions';
 
 export { selectVisits, selectAssessments, selectSoACells } from './toSchedule';

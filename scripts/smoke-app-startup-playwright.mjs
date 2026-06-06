@@ -5,6 +5,7 @@
  * Run: M11_BASE_URL=http://localhost:5177/ npm run smoke:app-startup
  */
 import { chromium } from 'playwright';
+import { assertWorkspacePaneScrolling } from './playwright-scroll-helpers.mjs';
 
 const baseUrl = process.env.M11_BASE_URL ?? 'http://localhost:5173/';
 
@@ -20,6 +21,17 @@ async function assertStartup(page, label, options = {}) {
     throw new Error(`${label}: #root is empty (${rootLen} chars)`);
   }
 
+  const explorerPanel = page.getByTestId('protocol-explorer-panel');
+  await explorerPanel.waitFor({ timeout: 15_000 });
+  const forewordInExplorer = explorerPanel.getByText(/^0(\.| Foreword)/);
+  if ((await forewordInExplorer.count()) > 0) {
+    throw new Error(`${label}: Foreword / template instruction nodes must not appear in Protocol Explorer`);
+  }
+
+  if (!options.openReviewImport) {
+    await assertWorkspacePaneScrolling(page);
+  }
+
   if (options.openReviewImport) {
     await page.getByTestId('app-review-import-button').click();
     await page.getByTestId('protocol-import-review-workspace').waitFor({ timeout: 30_000 });
@@ -31,7 +43,7 @@ async function assertStartup(page, label, options = {}) {
     throw new Error(`${label}: page errors: ${pageErrors.join(' | ')}`);
   }
 
-  console.log(`${label}: PASS (root ${rootLen} chars, 0 page errors)`);
+  console.log(`${label}: PASS (root ${rootLen} chars, 0 page errors, no foreword in explorer, pane scrolling ok)`);
 }
 
 async function main() {

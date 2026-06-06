@@ -20,7 +20,7 @@ export function StatusBar({
   validationIssues,
 }: StatusBarProps) {
   return (
-    <div className="h-6 bg-card border-t border-border flex items-center px-4 text-xs text-muted-foreground gap-4">
+    <div className="h-6 bg-card border-t border-border flex items-center px-4 text-xs text-muted-foreground gap-4 shrink-0">
       <div className="flex items-center gap-1.5">
         <FileText className="h-3 w-3" />
         <span>{protocolId}</span>

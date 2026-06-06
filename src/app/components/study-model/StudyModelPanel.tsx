@@ -44,11 +44,13 @@ export function StudyModelPanel({ sectionId, sectionTitle }: StudyModelPanelProp
 
   if (!model) {
     return (
-      <div className="flex flex-col h-full bg-card border-l border-border" data-testid="study-model-panel">
+      <div className="flex flex-col h-full min-h-0 bg-card border-l border-border" data-testid="study-model-panel">
         <Header phase={phase} />
-        <div className="p-4 text-sm text-muted-foreground">
-          Core Study Model will appear shortly after DOCX extraction during import.
-        </div>
+        <ScrollArea className="flex-1 min-h-0" data-testid="study-model-scroll">
+          <div className="p-4 text-sm text-muted-foreground">
+            Core Study Model will appear shortly after DOCX extraction during import.
+          </div>
+        </ScrollArea>
       </div>
     );
   }
@@ -58,9 +60,9 @@ export function StudyModelPanel({ sectionId, sectionTitle }: StudyModelPanelProp
   const focusedItems = focusedKey ? model[focusedKey] : [];
 
   return (
-    <div className="flex flex-col h-full bg-card border-l border-border" data-testid="study-model-panel">
+    <div className="flex flex-col h-full min-h-0 bg-card border-l border-border" data-testid="study-model-panel">
       <Header phase={phase} subtitle={model.studyMetadata.title ?? 'Structured study understanding'} />
-      <ScrollArea className="flex-1">
+      <ScrollArea className="flex-1 min-h-0" data-testid="study-model-scroll">
         <div className="p-4 space-y-4">
           {sectionId ? (
             <div className="rounded-md border border-border bg-muted/20 p-3">

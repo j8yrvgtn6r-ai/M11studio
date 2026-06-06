@@ -147,6 +147,40 @@ export interface ImportedProtocolSourceSummary {
   fullTextLength: number;
 }
 
+export type MappingMethod =
+  | 'heading-number'
+  | 'heading-title'
+  | 'semantic-similarity'
+  | 'content-context';
+
+export type ProtocolSectionWorkflowState =
+  | 'imported'
+  | 'unvalidated'
+  | 'validated'
+  | 'generated'
+  | 'reviewed'
+  | 'outOfSync'
+  | 'needsGeneration';
+
+export type SectionContentOrigin = 'imported' | 'generated';
+
+export interface MappedProtocolSection {
+  mappedM11SectionId: string;
+  mappedM11SectionTitle: string;
+  sourceHeading: string;
+  sourceText: string;
+  sourceCandidateId: string;
+  mappingConfidence: number;
+  mappingMethod: MappingMethod;
+  needsValidation: boolean;
+}
+
+export interface StructuralMappingResult {
+  mappings: MappedProtocolSection[];
+  mappedSectionIds: string[];
+  needsGenerationSectionIds: string[];
+}
+
 export interface GeneratedSectionDraft {
   sectionId: string;
   title: string;
@@ -172,6 +206,15 @@ export interface GeneratedSectionDraft {
   validationStatus: GeneratedSectionValidationStatus;
   validationMessages: string[];
   validationFindings: SectionValidationFinding[];
+  /** Hybrid import workflow state (mapping-first). */
+  workflowState?: ProtocolSectionWorkflowState;
+  contentOrigin?: SectionContentOrigin;
+  sourceText?: string;
+  sourceHeading?: string;
+  validatedTargetText?: string;
+  mappingConfidence?: number;
+  mappingMethod?: MappingMethod;
+  lastValidatedAt?: string;
 }
 
 export type ProtocolCommitSource =
@@ -227,6 +270,7 @@ export interface ProtocolImportState {
   protocolKnowledgeModelId: string | null;
   protocolId: string;
   sectionDrafts: Record<string, GeneratedSectionDraft>;
+  structuralMappings?: MappedProtocolSection[];
   lastImportCompletedAt: string | null;
   storageWarnings: string[];
   /** In-memory staging phase for the active import session. */

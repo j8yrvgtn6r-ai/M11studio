@@ -2,8 +2,10 @@ import {
   AlertCircle,
   AlertTriangle,
   Check,
+  CheckCircle2,
   Circle,
   Loader2,
+  Sparkles,
 } from 'lucide-react';
 
 import type { SectionGenerationState } from '../domain/protocol/build/protocolBuildConsoleStore';
@@ -12,18 +14,30 @@ export function sectionGenerationStateLabel(state: SectionGenerationState): stri
   switch (state) {
     case 'notGenerated':
       return 'Not generated';
+    case 'needsGeneration':
+      return 'Needs generation';
     case 'queued':
       return 'Queued';
     case 'generating':
       return 'Generating';
     case 'generated':
       return 'Generated';
+    case 'imported':
+      return 'Imported';
+    case 'unvalidated':
+      return 'Unvalidated';
+    case 'validated':
+      return 'Validated';
+    case 'reviewed':
+      return 'Reviewed';
+    case 'outOfSync':
+      return 'Out of sync';
     case 'needsReview':
       return 'Needs review';
     case 'approved':
       return 'Approved';
     case 'failed':
-      return 'Failed';
+      return 'Validation error';
     case 'outOfDate':
       return 'Out of date';
     default:
@@ -45,12 +59,24 @@ export function SectionGenerationStateIndicator({
       return <Circle className={`${className} text-muted-foreground/70`} />;
     case 'generating':
       return <Loader2 className={`${className} animate-spin text-primary`} />;
+    case 'imported':
+      return <Circle className={`${className} text-muted-foreground`} />;
+    case 'unvalidated':
+      return <AlertTriangle className={`${className} text-slate-500`} />;
+    case 'validated':
+      return <Check className={`${className} text-green-600`} />;
+    case 'reviewed':
+      return <CheckCircle2 className={`${className} text-green-600`} />;
     case 'generated':
-      return <Check className={`${className} text-sky-500`} />;
+      return <Sparkles className={`${className} text-sky-500`} />;
     case 'approved':
       return <Check className={`${className} text-green-600`} />;
     case 'needsReview':
       return <AlertTriangle className={`${className} text-amber-500`} />;
+    case 'outOfSync':
+      return <AlertTriangle className={`${className} text-amber-500`} />;
+    case 'needsGeneration':
+      return <Circle className={`${className} text-muted-foreground/40`} />;
     case 'failed':
       return <AlertCircle className={`${className} text-destructive`} />;
     case 'outOfDate':
@@ -67,12 +93,22 @@ export function sectionGenerationOverlayClass(state: SectionGenerationState): st
       return 'ring-1 ring-muted-foreground/20';
     case 'generating':
       return 'ring-2 ring-primary/60 animate-pulse';
+    case 'imported':
+      return 'ring-1 ring-muted-foreground/40';
+    case 'unvalidated':
+      return 'ring-1 ring-slate-400/50';
+    case 'validated':
+    case 'reviewed':
+    case 'approved':
+      return 'ring-1 ring-green-500/50';
     case 'generated':
       return 'ring-1 ring-sky-500/50';
     case 'needsReview':
       return 'ring-1 ring-amber-500/50';
-    case 'approved':
-      return 'ring-1 ring-green-500/50';
+    case 'outOfSync':
+      return 'ring-1 ring-amber-500/60';
+    case 'needsGeneration':
+      return 'ring-1 ring-muted-foreground/20';
     case 'failed':
       return 'ring-2 ring-destructive/60';
     case 'outOfDate':
@@ -88,12 +124,22 @@ export function sectionGenerationDotClass(state: SectionGenerationState): string
       return 'bg-muted-foreground/30';
     case 'generating':
       return 'bg-primary/40';
+    case 'imported':
+      return 'bg-muted-foreground/60';
+    case 'unvalidated':
+      return 'bg-slate-400';
+    case 'validated':
+    case 'reviewed':
+    case 'approved':
+      return 'bg-green-500';
     case 'generated':
       return 'bg-sky-500';
     case 'needsReview':
       return 'bg-amber-500';
-    case 'approved':
-      return 'bg-green-500';
+    case 'outOfSync':
+      return 'bg-amber-500';
+    case 'needsGeneration':
+      return 'bg-muted-foreground/25';
     case 'failed':
       return 'bg-destructive';
     case 'outOfDate':

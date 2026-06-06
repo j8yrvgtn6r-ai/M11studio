@@ -1,9 +1,10 @@
 import { ICH_M11_TEMPLATE_SECTION_SPECS } from '../ichM11/ichM11Template';
+import { isTemplateInstructionNode } from '../selectors/sectionVisibility';
 
 export function listM11GenerationTargetSectionIds(sectionIds?: string[]): string[] {
   const specs = ICH_M11_TEMPLATE_SECTION_SPECS.filter((spec) => {
     if (spec.sectionType === 'template-instruction') return false;
-    if (spec.id === '0' || spec.id.startsWith('0.')) return false;
+    if (isTemplateInstructionNode(spec.id)) return false;
     return true;
   });
   if (!sectionIds) {
@@ -18,6 +19,9 @@ export function flattenProtocolSectionIds(
 ): string[] {
   const result: string[] = [];
   for (const section of sections) {
+    if (isTemplateInstructionNode(section.id)) {
+      continue;
+    }
     result.push(section.id);
     if (section.children) {
       result.push(...flattenProtocolSectionIds(section.children as typeof sections));

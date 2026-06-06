@@ -51,8 +51,8 @@ export function ProtocolExplorer({
   generationProgress = null,
 }: ProtocolExplorerProps) {
   return (
-    <div className="flex flex-col h-full bg-sidebar border-r border-sidebar-border">
-      <div className="px-3 py-2 border-b border-sidebar-border space-y-2">
+    <div className="flex flex-col h-full min-h-0 bg-sidebar border-r border-sidebar-border" data-testid="protocol-explorer-panel">
+      <div className="px-3 py-2 border-b border-sidebar-border space-y-2 shrink-0">
         <div>
           <h2 className="font-semibold text-sm text-sidebar-foreground">Protocol Explorer</h2>
           <p className="text-xs text-muted-foreground mt-0.5">PROTO-XYZ-301</p>
@@ -83,7 +83,7 @@ export function ProtocolExplorer({
           />
         </div>
       </div>
-      <ScrollArea className="flex-1">
+      <ScrollArea className="flex-1 min-h-0" data-testid="protocol-explorer-scroll">
         <div className="p-2">
           {sections.map((section) => (
             <SectionTreeNode

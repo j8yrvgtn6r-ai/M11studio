@@ -1,4 +1,5 @@
 import type { M11GenerationProgressSnapshot } from '../import/llm/m11GenerationProgress';
+import { resolveWorkflowGenerationState } from '../import/sectionWorkflowState';
 import type { GeneratedSectionDraft } from '../import/types';
 
 export type ProtocolBuildEventType = 'info' | 'success' | 'warning' | 'error' | 'progress';
@@ -24,7 +25,13 @@ export type SectionGenerationState =
   | 'needsReview'
   | 'approved'
   | 'failed'
-  | 'outOfDate';
+  | 'outOfDate'
+  | 'imported'
+  | 'unvalidated'
+  | 'validated'
+  | 'reviewed'
+  | 'outOfSync'
+  | 'needsGeneration';
 
 export type ProtocolBuildStatus = 'idle' | 'running' | 'paused' | 'complete' | 'failed' | 'cancelled';
 
@@ -121,6 +128,12 @@ export function normalizeSectionGenerationState(value: unknown): SectionGenerati
     'approved',
     'failed',
     'outOfDate',
+    'imported',
+    'unvalidated',
+    'validated',
+    'reviewed',
+    'outOfSync',
+    'needsGeneration',
   ];
   return allowed.includes(value as SectionGenerationState) ? (value as SectionGenerationState) : 'notGenerated';
 }
@@ -152,21 +165,15 @@ export function resolveSectionGenerationState(
     return 'notGenerated';
   }
   if (!importDraft) {
-    return 'notGenerated';
+    return live ?? 'notGenerated';
   }
   if (importDraft.generationStatus === 'failed') {
     return 'failed';
   }
-  if (importDraft.state === 'approved' || importDraft.state === 'validationPassed') {
-    return 'approved';
+  if (live && (live === 'queued' || live === 'generating')) {
+    return live;
   }
-  if (importDraft.state === 'changesRequested') {
-    return 'outOfDate';
-  }
-  if (importDraft.state === 'generated' || importDraft.state === 'pendingReview' || importDraft.state === 'inReview') {
-    return 'needsReview';
-  }
-  return 'needsReview';
+  return resolveWorkflowGenerationState(importDraft);
 }
 
 export function appendProtocolBuildEvent(
@@ -411,10 +418,21 @@ export function hasPendingInjectedSections(): boolean {
   return injectedSectionQueue.length > 0 || prioritySectionQueue.length > 0;
 }
 
+const PROTECTED_SECTION_STATES: SectionGenerationState[] = [
+  'needsReview',
+  'approved',
+  'generating',
+  'imported',
+  'unvalidated',
+  'validated',
+  'reviewed',
+];
+
 export function markSectionsQueued(sectionIds: string[]): void {
   const next = { ...state.sectionStates };
   for (const sectionId of sectionIds) {
-    if (next[sectionId] !== 'needsReview' && next[sectionId] !== 'approved' && next[sectionId] !== 'generating') {
+    const current = next[sectionId];
+    if (!current || !PROTECTED_SECTION_STATES.includes(current)) {
       next[sectionId] = 'queued';
     }
   }
@@ -441,18 +459,16 @@ export function mergeSectionGenerationStatesFromDrafts(
   for (const draft of drafts) {
     if (draft.generationStatus === 'failed') {
       next[draft.sectionId] = 'failed';
-    } else if (draft.state === 'approved' || draft.state === 'validationPassed') {
-      next[draft.sectionId] = 'approved';
-    } else {
-      next[draft.sectionId] = 'needsReview';
+      continue;
     }
+    next[draft.sectionId] = resolveWorkflowGenerationState(draft);
   }
 
   if (options?.allM11SectionIds) {
     const draftIds = new Set(drafts.map((draft) => draft.sectionId));
     for (const sectionId of options.allM11SectionIds) {
       if (!draftIds.has(sectionId) && next[sectionId] !== 'failed') {
-        next[sectionId] = 'notGenerated';
+        next[sectionId] = 'needsGeneration';
       }
     }
   }
@@ -464,8 +480,8 @@ export function mergeSectionGenerationStatesFromDrafts(
 export function markSectionsNotGenerated(sectionIds: string[]): void {
   const next = { ...state.sectionStates };
   for (const sectionId of sectionIds) {
-    if (next[sectionId] !== 'generating' && next[sectionId] !== 'needsReview' && next[sectionId] !== 'approved') {
-      next[sectionId] = 'notGenerated';
+    if (next[sectionId] !== 'generating' && next[sectionId] !== 'needsReview' && next[sectionId] !== 'approved' && next[sectionId] !== 'imported' && next[sectionId] !== 'validated') {
+      next[sectionId] = 'needsGeneration';
     }
   }
   state = { ...state, sectionStates: next };

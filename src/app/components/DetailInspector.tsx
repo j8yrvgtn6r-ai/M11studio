@@ -32,9 +32,9 @@ export function DetailInspector({
   const sectionComments = comments.filter((comment) => comment.sectionId === selectedSectionId);
 
   return (
-    <div className="flex flex-col h-full bg-card border-t border-border">
-      <Tabs defaultValue="metadata" className="flex-1 flex flex-col">
-        <div className="px-3 py-2 border-b border-border">
+    <div className="flex flex-col h-full min-h-0 bg-card border-t border-border" data-testid="detail-inspector-panel">
+      <Tabs defaultValue="metadata" className="flex-1 flex flex-col min-h-0">
+        <div className="px-3 py-2 border-b border-border shrink-0">
           <TabsList className="h-8 w-full justify-start">
             <TabsTrigger value="metadata" className="text-xs">
               Metadata
@@ -64,7 +64,7 @@ export function DetailInspector({
           </TabsList>
         </div>
 
-        <ScrollArea className="flex-1">
+        <ScrollArea className="flex-1 min-h-0" data-testid="detail-inspector-scroll">
           <TabsContent value="metadata" className="p-3 mt-0">
             {isScheduleOfActivitiesView ? (
               <SoAAssessmentMetadataPanel />

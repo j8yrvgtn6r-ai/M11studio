@@ -57,11 +57,11 @@ export function DocumentMinimap({
   const phase = visualizationPhase === 'idle' ? getImportVisualizationPhase() : visualizationPhase;
 
   return (
-    <div className="flex flex-col h-full bg-card border-l border-border w-16" data-testid="document-minimap">
-      <div className="px-2 py-2 border-b border-border">
+    <div className="flex flex-col h-full min-h-0 bg-card border-l border-border w-16" data-testid="document-minimap">
+      <div className="px-2 py-2 border-b border-border shrink-0">
         <p className="text-[10px] font-semibold text-muted-foreground text-center">MAP</p>
       </div>
-      <ScrollArea className="flex-1">
+      <ScrollArea className="flex-1 min-h-0">
         <div className="p-1.5 space-y-1">
           {allSections.map((section) => {
             const isSelected = selectedSectionId === section.id;

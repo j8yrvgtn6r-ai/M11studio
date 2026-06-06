@@ -53,8 +53,8 @@ export function ProtocolCopilot() {
   };
 
   return (
-    <div className="flex flex-col h-full bg-card border-t border-border">
-      <div className="px-3 py-2 border-b border-border flex items-center gap-2">
+    <div className="flex flex-col h-full min-h-0 bg-card border-t border-border" data-testid="protocol-copilot-panel">
+      <div className="px-3 py-2 border-b border-border flex items-center gap-2 shrink-0">
         <Sparkles className="h-4 w-4 text-violet-500" />
         <h3 className="font-semibold text-sm">Protocol Copilot</h3>
         <Badge variant="secondary" className="ml-auto text-xs">
@@ -62,7 +62,7 @@ export function ProtocolCopilot() {
         </Badge>
       </div>
 
-      <ScrollArea className="flex-1">
+      <ScrollArea className="flex-1 min-h-0" data-testid="protocol-copilot-scroll">
         <div className="p-3 space-y-4">
           {messages.map((message) => (
             <div key={message.id} className={`flex gap-2 ${message.role === 'user' ? 'justify-end' : ''}`}>
@@ -102,7 +102,7 @@ export function ProtocolCopilot() {
         </div>
       </ScrollArea>
 
-      <div className="p-3 border-t border-border">
+      <div className="p-3 border-t border-border shrink-0">
         <div className="flex gap-2">
           <Input
             value={inputValue}
