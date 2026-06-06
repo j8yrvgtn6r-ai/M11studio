@@ -6,6 +6,7 @@ import {
   matchStudyModelSectionFocus,
 } from '../../domain/study-model/studyModelSelectors';
 import { useStudyModel } from '../../domain/study-model/useStudyModel';
+import { useKnowledgeGraphSummary } from '../../domain/knowledge-graph/useKnowledgeGraph';
 import type { StudyModelCollectionKey, StudyModelPhase } from '../../domain/study-model/studyModelTypes';
 import { ScrollArea } from '../ui/scroll-area';
 
@@ -40,6 +41,7 @@ function CollectionBlock({
 
 export function StudyModelPanel({ sectionId, sectionTitle }: StudyModelPanelProps) {
   const { model, dependencies, phase } = useStudyModel();
+  const graphSummary = useKnowledgeGraphSummary();
   const focus = matchStudyModelSectionFocus(model, sectionId, sectionTitle ?? null);
 
   if (!model) {
@@ -64,6 +66,24 @@ export function StudyModelPanel({ sectionId, sectionTitle }: StudyModelPanelProp
       <Header phase={phase} subtitle={model.studyMetadata.title ?? 'Structured study understanding'} />
       <ScrollArea className="flex-1 min-h-0" data-testid="study-model-scroll">
         <div className="p-4 space-y-4">
+          <div className="rounded-md border border-border/70 bg-muted/10 p-3" data-testid="knowledge-graph-summary">
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Knowledge Graph</p>
+            <div className="mt-2 grid grid-cols-2 gap-2 text-xs">
+              <div>
+                <span className="text-muted-foreground">Entities</span>
+                <p className="font-medium">{graphSummary.entityCount}</p>
+              </div>
+              <div>
+                <span className="text-muted-foreground">Relationships</span>
+                <p className="font-medium">{graphSummary.relationshipCount}</p>
+              </div>
+            </div>
+            <p className="text-[11px] text-muted-foreground mt-2">
+              Last updated:{' '}
+              {graphSummary.updatedAt ? new Date(graphSummary.updatedAt).toLocaleString() : 'Not built yet'}
+            </p>
+          </div>
+
           {sectionId ? (
             <div className="rounded-md border border-border bg-muted/20 p-3">
               <p className="text-xs text-muted-foreground uppercase tracking-wide">Selected section</p>

@@ -5,7 +5,8 @@ import { createAgentResult, type AgentResult } from './AgentResult';
 import type { KnowledgeExtractedItem } from './knowledgeAgentHeuristics';
 import type { StudyModelPatch } from '../domain/study-model/studyModelPatch';
 import type { StudyModel } from '../domain/study-model/studyModelTypes';
-import { evaluateConsistencyImpacts } from './consistencyRules';
+import { evaluateConsistencyImpacts, augmentConsistencyImpactsWithKnowledgeGraph } from './consistencyRules';
+import { getDownstreamSectionIdsFromGraph } from '../domain/knowledge-graph/knowledgeGraphQueries';
 
 export const CONSISTENCY_AGENT_ID = 'consistency-agent';
 
@@ -109,11 +110,41 @@ export const consistencyAgent: Agent<ConsistencyAgentInput, ConsistencyAgentOutp
         });
       }
 
-      const sectionImpacts = evaluateConsistencyImpacts({
+      const deterministicImpacts = evaluateConsistencyImpacts({
         sourceSectionId: input.sourceSectionId,
         changedItems: input.changedItems,
         availableSectionIds: input.availableSectionIds,
       });
+
+      const graphSectionIds = getDownstreamSectionIdsFromGraph(input.changedItems.map((item) => item.name));
+      const { impacts: sectionImpacts, usedKnowledgeGraph } = augmentConsistencyImpactsWithKnowledgeGraph({
+        impacts: deterministicImpacts,
+        changedItems: input.changedItems,
+        availableSectionIds: input.availableSectionIds,
+        sourceSectionId: input.sourceSectionId,
+        graphSectionIds,
+      });
+
+      events.push(
+        createAgentEvent(CONSISTENCY_AGENT_ID, {
+          type: 'info',
+          message: usedKnowledgeGraph
+            ? 'Consistency Agent used Knowledge Graph relationships'
+            : 'Consistency Agent used deterministic dependency rules',
+          sectionId: input.sourceSectionId,
+        }),
+      );
+
+      if (usedKnowledgeGraph) {
+        events.push(
+          createAgentEvent(CONSISTENCY_AGENT_ID, {
+            type: 'info',
+            message: 'Knowledge Graph query used by Consistency Agent',
+            sectionId: input.sourceSectionId,
+            metadata: { graphSectionCount: graphSectionIds.length },
+          }),
+        );
+      }
 
       const affectedSectionIds = sectionImpacts.map((impact) => impact.sectionId);
       const reasons = sectionImpacts.flatMap((impact) => impact.reasons.map((reason) => reason.reason));

@@ -5,6 +5,7 @@ import {
   browserStorageProvider,
   getStorageProvider,
   isSupabaseConfigured,
+  knowledgeEntityRepository,
   RepositoryUnavailableError,
   protocolRepository,
   resetStorageProviderForTests,
@@ -36,6 +37,14 @@ async function main(): Promise<void> {
     threw = error instanceof RepositoryUnavailableError;
   }
   assert(threw, 'repository should throw RepositoryUnavailableError when unconfigured');
+
+  let entityThrew = false;
+  try {
+    await knowledgeEntityRepository.listByProtocol('00000000-0000-0000-0000-000000000001');
+  } catch (error) {
+    entityThrew = error instanceof RepositoryUnavailableError;
+  }
+  assert(entityThrew, 'knowledge entity repository should throw when unconfigured');
 
   console.log('test:backend — all scaffold checks passed');
 }

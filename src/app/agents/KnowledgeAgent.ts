@@ -41,6 +41,8 @@ export const knowledgeAgent: Agent<KnowledgeAgentInput, KnowledgeAgentOutput> = 
             changedItems: [],
             affectedSectionIds: [],
             studyModelPatch: {},
+            knowledgeEntities: [],
+            knowledgeRelationships: [],
             notes: ['Empty section text'],
           },
           warnings: ['Empty section text'],
@@ -104,6 +106,27 @@ export const knowledgeAgent: Agent<KnowledgeAgentInput, KnowledgeAgentOutput> = 
             type: 'info',
             message: `Knowledge Agent updated ${output.changedItems.length} structured item(s)`,
             sectionId: context.input.sectionId,
+          }),
+        );
+      }
+
+      if (output.knowledgeEntities.length > 0 || output.knowledgeRelationships.length > 0) {
+        events.push(
+          createAgentEvent(KNOWLEDGE_AGENT_ID, {
+            type: 'progress',
+            message: 'Knowledge Graph update started',
+            sectionId: context.input.sectionId,
+          }),
+        );
+        events.push(
+          createAgentEvent(KNOWLEDGE_AGENT_ID, {
+            type: 'success',
+            message: `Knowledge Graph updated (${output.knowledgeEntities.length} entities, ${output.knowledgeRelationships.length} relationships)`,
+            sectionId: context.input.sectionId,
+            metadata: {
+              entityCount: output.knowledgeEntities.length,
+              relationshipCount: output.knowledgeRelationships.length,
+            },
           }),
         );
       }

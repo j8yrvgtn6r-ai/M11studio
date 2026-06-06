@@ -152,3 +152,52 @@ export type SourceDocumentUpdate = Partial<Omit<SourceDocumentRow, 'id' | 'proto
 export interface ListByProtocolFilter {
   protocolId?: string;
 }
+
+export interface KnowledgeEntityRow {
+  id: string;
+  protocol_id: string;
+  entity_type: string;
+  name: string;
+  normalized_name: string;
+  description: string | null;
+  aliases: string[];
+  source_section_ids: string[];
+  source_document_ids: string[];
+  metadata: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+}
+
+export type KnowledgeEntityInsert = Pick<
+  KnowledgeEntityRow,
+  'protocol_id' | 'entity_type' | 'name' | 'normalized_name'
+> &
+  Partial<
+    Omit<KnowledgeEntityRow, 'id' | 'created_at' | 'updated_at' | 'protocol_id' | 'entity_type' | 'name' | 'normalized_name'>
+  >;
+
+export type KnowledgeEntityUpdate = Partial<
+  Omit<KnowledgeEntityRow, 'id' | 'protocol_id' | 'created_at'>
+>;
+
+export interface KnowledgeRelationshipRow {
+  id: string;
+  protocol_id: string;
+  source_entity_id: string;
+  target_entity_id: string;
+  relationship_type: string;
+  source_section_ids: string[];
+  metadata: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+}
+
+export type KnowledgeRelationshipInsert = Pick<
+  KnowledgeRelationshipRow,
+  'protocol_id' | 'source_entity_id' | 'target_entity_id' | 'relationship_type'
+> &
+  Partial<Omit<KnowledgeRelationshipRow, 'id' | 'created_at' | 'updated_at'>>;
+
+export type KnowledgeRelationshipUpdate = Partial<
+  Omit<KnowledgeRelationshipRow, 'id' | 'protocol_id' | 'created_at'>
+>;

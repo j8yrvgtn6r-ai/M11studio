@@ -41,6 +41,17 @@ import {
 } from '../src/app/domain/protocol/import/sectionWorkflowState';
 import { applyStudyModelPatch } from '../src/app/domain/study-model/studyModelPatch';
 import { buildStudyModelFromSources } from '../src/app/domain/study-model/studyModelBuilder';
+import {
+  applyKnowledgeGraphPatch,
+  buildKnowledgeGraphFromStudyModel,
+  createEmptyKnowledgeGraph,
+  findKnowledgeEntityByName,
+  getEntitiesMeasuredBy,
+  getKnowledgeGraphSummary,
+  patchKnowledgeGraph,
+  resetKnowledgeGraphForTests,
+} from '../src/app/domain/knowledge-graph';
+import { augmentConsistencyImpactsWithKnowledgeGraph } from '../src/app/agents/consistencyRules';
 
 function buildDraft(sectionId: string, overrides: Partial<GeneratedSectionDraft> = {}): GeneratedSectionDraft {
   return {
@@ -682,6 +693,232 @@ async function testGenerationAgentExecute() {
   assert.ok(Array.isArray(output.queue));
 }
 
+function buildSampleStudyModel() {
+  return buildStudyModelFromSources({
+    sourceUploadId: 'upload-kg-1',
+    knowledge: {
+      id: 'knowledge-kg-1',
+      studyTitle: 'Example Study',
+      primaryObjectives: ['Radiographic Progression Free Survival'],
+      endpoints: ['rPFS'],
+    } as never,
+  });
+}
+
+function testKnowledgeGraphBuildsObjectiveEndpointEntities() {
+  resetKnowledgeGraphForTests();
+  const studyModel = buildSampleStudyModel();
+  const graph = buildKnowledgeGraphFromStudyModel(studyModel);
+  assert.ok(graph.entities.some((entity) => entity.entityType === 'objective'));
+  assert.ok(graph.entities.some((entity) => entity.entityType === 'endpoint'));
+}
+
+function testKnowledgeGraphMeasuredByRelationship() {
+  resetKnowledgeGraphForTests();
+  const graph = buildKnowledgeGraphFromStudyModel(buildSampleStudyModel());
+  assert.ok(graph.relationships.some((relationship) => relationship.relationshipType === 'measured_by'));
+}
+
+function testKnowledgeGraphUpsertsDuplicateEntities() {
+  resetKnowledgeGraphForTests();
+  let graph = createEmptyKnowledgeGraph('protocol-1');
+  const entity = {
+    id: 'objective_rpfs',
+    protocolId: 'protocol-1',
+    entityType: 'objective' as const,
+    name: 'Radiographic Progression Free Survival',
+    normalizedName: 'radiographic progression free survival',
+    aliases: [],
+    sourceSectionIds: ['3.1'],
+    sourceDocumentIds: [],
+    metadata: {},
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  };
+  graph = applyKnowledgeGraphPatch(graph, { entities: [entity] });
+  graph = applyKnowledgeGraphPatch(graph, {
+    entities: [{ ...entity, aliases: ['Primary rPFS objective'], sourceSectionIds: ['3.2'] }],
+  });
+  const objectives = graph.entities.filter((entry) => entry.entityType === 'objective');
+  assert.equal(objectives.length, 1);
+  assert.ok(objectives[0].sourceSectionIds.includes('3.1'));
+  assert.ok(objectives[0].sourceSectionIds.includes('3.2'));
+}
+
+function testKnowledgeGraphMergesSourceSectionIds() {
+  resetKnowledgeGraphForTests();
+  patchKnowledgeGraph({
+    entities: [
+      {
+        id: 'endpoint_rpfs',
+        entityType: 'endpoint',
+        name: 'rPFS',
+        normalizedName: 'rpfs',
+        aliases: [],
+        sourceSectionIds: ['3.1'],
+        sourceDocumentIds: [],
+        metadata: {},
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      },
+    ],
+  });
+  patchKnowledgeGraph({
+    entities: [
+      {
+        id: 'endpoint_rpfs',
+        entityType: 'endpoint',
+        name: 'rPFS',
+        normalizedName: 'rpfs',
+        aliases: [],
+        sourceSectionIds: ['3.2'],
+        sourceDocumentIds: [],
+        metadata: {},
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      },
+    ],
+  });
+  const endpoint = findKnowledgeEntityByName('endpoint', 'rPFS');
+  assert.ok(endpoint?.sourceSectionIds.includes('3.1'));
+  assert.ok(endpoint?.sourceSectionIds.includes('3.2'));
+}
+
+function testKnowledgeGraphDoesNotWipeUnrelatedData() {
+  resetKnowledgeGraphForTests();
+  patchKnowledgeGraph({
+    entities: [
+      {
+        id: 'population_primary',
+        entityType: 'population',
+        name: 'Adult participants',
+        normalizedName: 'adult participants',
+        aliases: [],
+        sourceSectionIds: ['5.1'],
+        sourceDocumentIds: [],
+        metadata: {},
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      },
+    ],
+  });
+  patchKnowledgeGraph({
+    entities: [
+      {
+        id: 'endpoint_os',
+        entityType: 'endpoint',
+        name: 'Overall Survival',
+        normalizedName: 'overall survival',
+        aliases: [],
+        sourceSectionIds: ['3.1'],
+        sourceDocumentIds: [],
+        metadata: {},
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      },
+    ],
+  });
+  const summary = getKnowledgeGraphSummary();
+  assert.equal(summary.entityCount, 2);
+}
+
+function testKnowledgeGraphQueryHelpers() {
+  resetKnowledgeGraphForTests();
+  patchKnowledgeGraph({
+    entities: [
+      {
+        id: 'obj_primary_rpfs',
+        entityType: 'objective',
+        name: 'Radiographic Progression Free Survival',
+        normalizedName: 'radiographic progression free survival',
+        aliases: [],
+        sourceSectionIds: ['3.1'],
+        sourceDocumentIds: [],
+        metadata: {},
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      },
+      {
+        id: 'endpoint_rpfs',
+        entityType: 'endpoint',
+        name: 'rPFS',
+        normalizedName: 'rpfs',
+        aliases: [],
+        sourceSectionIds: ['3.1'],
+        sourceDocumentIds: [],
+        metadata: {},
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      },
+    ],
+    relationships: [
+      {
+        id: 'measured_by_obj_endpoint',
+        sourceEntityId: 'obj_primary_rpfs',
+        targetEntityId: 'endpoint_rpfs',
+        relationshipType: 'measured_by',
+        sourceSectionIds: ['3.1'],
+        metadata: {},
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      },
+    ],
+  });
+  const measuredBy = getEntitiesMeasuredBy('endpoint_rpfs');
+  assert.equal(measuredBy.length, 1);
+  assert.match(measuredBy[0].name, /Progression Free Survival/i);
+}
+
+function testConsistencyAgentUsesKnowledgeGraphWhenAvailable() {
+  resetKnowledgeGraphForTests();
+  patchKnowledgeGraph({
+    entities: [
+      {
+        id: 'endpoint_rpfs',
+        entityType: 'endpoint',
+        name: 'rPFS',
+        normalizedName: 'rpfs',
+        aliases: [],
+        sourceSectionIds: ['8.1'],
+        sourceDocumentIds: [],
+        metadata: {},
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      },
+    ],
+  });
+  const deterministic = evaluateConsistencyImpacts({
+    sourceSectionId: '3.1',
+    changedItems: [{ collection: 'endpoints', name: 'rPFS' }],
+    availableSectionIds: ['3.1', '8.1', '10.1'],
+  });
+  const augmented = augmentConsistencyImpactsWithKnowledgeGraph({
+    impacts: deterministic,
+    changedItems: [{ collection: 'endpoints', name: 'rPFS' }],
+    availableSectionIds: ['3.1', '8.1', '10.1'],
+    sourceSectionId: '3.1',
+    graphSectionIds: ['8.1'],
+  });
+  assert.equal(augmented.usedKnowledgeGraph, true);
+  assert.ok(augmented.impacts.some((impact) => impact.sectionId === '8.1'));
+
+  const fallback = augmentConsistencyImpactsWithKnowledgeGraph({
+    impacts: deterministic,
+    changedItems: [{ collection: 'endpoints', name: 'rPFS' }],
+    availableSectionIds: ['3.1', '8.1', '10.1'],
+    sourceSectionId: '3.1',
+    graphSectionIds: [],
+  });
+  assert.equal(fallback.usedKnowledgeGraph, false);
+}
+
+function testKnowledgeGraphWorksWithoutSupabase() {
+  resetKnowledgeGraphForTests();
+  const malformed = buildKnowledgeGraphFromStudyModel(null);
+  assert.equal(malformed.entities.length, 0);
+  assert.equal(malformed.relationships.length, 0);
+}
+
 async function main() {
   await testAgentManagerReturnsResultOnFailure();
   testKnowledgeAgentExtractsObjective();
@@ -715,6 +952,14 @@ async function main() {
   testNoDuplicateQueueItems();
   testGenerateRemainingUsesAgentQueue();
   await testGenerationAgentExecute();
+  testKnowledgeGraphBuildsObjectiveEndpointEntities();
+  testKnowledgeGraphMeasuredByRelationship();
+  testKnowledgeGraphUpsertsDuplicateEntities();
+  testKnowledgeGraphMergesSourceSectionIds();
+  testKnowledgeGraphDoesNotWipeUnrelatedData();
+  testKnowledgeGraphQueryHelpers();
+  testConsistencyAgentUsesKnowledgeGraphWhenAvailable();
+  testKnowledgeGraphWorksWithoutSupabase();
   console.log('Agent architecture tests passed.');
 }
 

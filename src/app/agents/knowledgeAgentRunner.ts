@@ -10,6 +10,7 @@ import {
 import { getProtocolDocument } from '../domain/protocol/store/protocolStore';
 import { applyStudyModelPatch } from '../domain/study-model/studyModelPatch';
 import { getStudyModel, patchStudyModel, rebuildStudyModel } from '../domain/study-model/studyModelStore';
+import { patchKnowledgeGraph } from '../domain/knowledge-graph/knowledgeGraphStore';
 
 const editDebounceTimers = new Map<string, ReturnType<typeof setTimeout>>();
 let knowledgeRunnerInitialized = false;
@@ -105,6 +106,17 @@ export async function runKnowledgeAgentForSection(options: {
     }
 
     const output = result.output as KnowledgeAgentOutput | undefined;
+    if (
+      output &&
+      (output.knowledgeEntities.length > 0 || output.knowledgeRelationships.length > 0) &&
+      (result.status === 'success' || result.status === 'partial')
+    ) {
+      patchKnowledgeGraph({
+        entities: output.knowledgeEntities,
+        relationships: output.knowledgeRelationships,
+      });
+    }
+
     if (output?.changedItems?.length) {
       const { scheduleConsistencyAgentCheck } = await import('./consistencyAgentRunner');
       scheduleConsistencyAgentCheck({

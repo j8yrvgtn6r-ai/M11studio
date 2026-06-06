@@ -1,7 +1,10 @@
 import type {
   AgentEventRepository,
   CoreStudyModelRepository,
+  KnowledgeEntityRepository,
+  KnowledgeGraphRepository,
   KnowledgeLayerRepository,
+  KnowledgeRelationshipRepository,
   ProtocolRepository,
   ProtocolSectionRepository,
   ProtocolVersionRepository,
@@ -17,6 +20,9 @@ export interface SupabaseBackend {
   protocolSections: ProtocolSectionRepository;
   coreStudyModels: CoreStudyModelRepository;
   knowledgeLayers: KnowledgeLayerRepository;
+  knowledgeEntities: KnowledgeEntityRepository;
+  knowledgeRelationships: KnowledgeRelationshipRepository;
+  knowledgeGraph: KnowledgeGraphRepository;
   protocolVersions: ProtocolVersionRepository;
   agentEvents: AgentEventRepository;
   validationRuns: ValidationRepository;

@@ -1,5 +1,6 @@
 import type { ProtocolKnowledgeModel } from '../protocol/import/protocolKnowledgeTypes';
 import type { ProtocolDocument } from '../protocol/types';
+import { mergeKnowledgeGraphFromStudyModel, clearKnowledgeGraph } from '../knowledge-graph/knowledgeGraphStore';
 import { buildStudyModelFromSources } from './studyModelBuilder';
 import type { StudyModel, StudyModelDependency } from './studyModelTypes';
 import { buildStudyModelDependencies } from './studyModelDependencyMap';
@@ -45,6 +46,7 @@ export function rebuildStudyModel(input: {
 }): StudyModel {
   studyModel = buildStudyModelFromSources(input);
   dependencies = buildStudyModelDependencies(studyModel, input.document ?? null);
+  mergeKnowledgeGraphFromStudyModel(studyModel, studyModel.id);
   notify();
   return studyModel;
 }
@@ -52,6 +54,7 @@ export function rebuildStudyModel(input: {
 export function patchStudyModel(next: StudyModel, document?: ProtocolDocument | null): StudyModel {
   studyModel = next;
   dependencies = buildStudyModelDependencies(next, document ?? null);
+  mergeKnowledgeGraphFromStudyModel(next, next.id);
   notify();
   return next;
 }
@@ -60,5 +63,6 @@ export function clearStudyModel(): void {
   studyModel = null;
   dependencies = [];
   studyModelPhase = 'idle';
+  clearKnowledgeGraph();
   notify();
 }

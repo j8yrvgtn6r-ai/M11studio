@@ -148,6 +148,52 @@ export function evaluateConsistencyImpacts(input: {
   }));
 }
 
+export function augmentConsistencyImpactsWithKnowledgeGraph(input: {
+  impacts: ConsistencySectionImpact[];
+  changedItems: KnowledgeExtractedItem[];
+  availableSectionIds: string[];
+  sourceSectionId: string;
+  graphSectionIds?: string[];
+}): { impacts: ConsistencySectionImpact[]; usedKnowledgeGraph: boolean } {
+  const graphSectionIds = (input.graphSectionIds ?? []).filter(
+    (sectionId) => sectionId && sectionId !== input.sourceSectionId && input.availableSectionIds.includes(sectionId),
+  );
+
+  if (graphSectionIds.length === 0) {
+    return { impacts: input.impacts, usedKnowledgeGraph: false };
+  }
+
+  const impactsBySection = new Map<string, Map<string, ConsistencyImpactReason>>();
+  for (const impact of input.impacts) {
+    impactsBySection.set(impact.sectionId, new Map(impact.reasons.map((reason) => [reasonKey(reason), reason])));
+  }
+
+  for (const sectionId of expandM11SectionTargets(graphSectionIds, input.availableSectionIds)) {
+    if (sectionId === input.sourceSectionId) {
+      continue;
+    }
+    const changedItem = input.changedItems[0];
+    const reason: ConsistencyImpactReason = {
+      changedItemName: changedItem?.name ?? 'study fact',
+      changedItemCollection: normalizeCollection(changedItem?.collection ?? 'objectives'),
+      relationship: 'knowledge-graph',
+      reason: `Knowledge Graph relationship links changed study facts to section ${sectionId}.`,
+      suggestedAction: 'validate',
+    };
+    const sectionReasons = impactsBySection.get(sectionId) ?? new Map<string, ConsistencyImpactReason>();
+    sectionReasons.set(reasonKey(reason), reason);
+    impactsBySection.set(sectionId, sectionReasons);
+  }
+
+  return {
+    impacts: [...impactsBySection.entries()].map(([sectionId, reasons]) => ({
+      sectionId,
+      reasons: [...reasons.values()],
+    })),
+    usedKnowledgeGraph: true,
+  };
+}
+
 export function getM11ConsistencyDependencyMetadata(): Array<{
   ruleId: string;
   relationship: string;

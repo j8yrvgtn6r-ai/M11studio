@@ -70,6 +70,8 @@ Auth is intentionally disabled on the client (`persistSession: false`).
 
 Migration file: `src/app/backend/migrations/001_initial_schema.sql`
 
+Knowledge graph migration: `src/app/backend/migrations/002_knowledge_graph.sql` (apply after 001)
+
 ### Tables
 
 | Table | Purpose |
@@ -82,6 +84,16 @@ Migration file: `src/app/backend/migrations/001_initial_schema.sql`
 | `agent_events` | Agent build-console / audit events |
 | `validation_runs` | Section or protocol validation results |
 | `source_documents` | Imported DOCX metadata and storage paths |
+| `knowledge_entities` | Structured study entities (objectives, endpoints, …) |
+| `knowledge_relationships` | Directed relationships between entities |
+
+`knowledge_entities` columns: `protocol_id`, `entity_type`, `name`, `normalized_name`, `description`, `aliases`, `source_section_ids`, `source_document_ids`, `metadata`, timestamps.
+
+`knowledge_relationships` columns: `protocol_id`, `source_entity_id`, `target_entity_id`, `relationship_type`, `source_section_ids`, `metadata`, timestamps.
+
+Indexes on `protocol_id`, `entity_type`, `normalized_name`, `relationship_type`, `source_entity_id`, `target_entity_id`. Unique constraints on `(protocol_id, entity_type, normalized_name)` and relationship edges.
+
+See `KNOWLEDGE_GRAPH_ARCHITECTURE.md` for domain semantics and agent usage.
 
 All tables use UUID primary keys (`gen_random_uuid()`), `created_at` timestamps, and JSONB where flexible payloads are needed. `protocol_sections` and versioned tables are indexed by `protocol_id`.
 
@@ -89,7 +101,7 @@ All tables use UUID primary keys (`gen_random_uuid()`), `created_at` timestamps,
 
 **Do not run migrations from the app.** Apply manually:
 
-1. Supabase Dashboard → SQL Editor → paste `001_initial_schema.sql`
+1. Supabase Dashboard → SQL Editor → paste `001_initial_schema.sql`, then `002_knowledge_graph.sql`
 2. Or Supabase CLI: `supabase db push` after linking the project
 
 See `src/app/backend/migrations/README.md` for step-by-step notes.
@@ -119,6 +131,9 @@ Each repository exposes pure persistence — no business logic:
 | `ProtocolSectionRepository` | `protocol_sections` |
 | `CoreStudyModelRepository` | `core_study_models` |
 | `KnowledgeLayerRepository` | `knowledge_layers` |
+| `KnowledgeEntityRepository` | `knowledge_entities` |
+| `KnowledgeRelationshipRepository` | `knowledge_relationships` |
+| `KnowledgeGraphRepository` | composite load/save over entity + relationship repos |
 | `ProtocolVersionRepository` | `protocol_versions` |
 | `AgentEventRepository` | `agent_events` |
 | `ValidationRepository` | `validation_runs` |
@@ -158,7 +173,7 @@ Import flow mapping (future):
 - DOCX → `source_documents` + Supabase Storage bucket
 - Structural mapping → `protocol_sections` with `workflow_state`
 - Study model build → `core_study_models` version rows
-- Knowledge Agent → `knowledge_layers` + `agent_events`
+- Knowledge Agent → `knowledge_layers` + `knowledge_entities` / `knowledge_relationships` + `agent_events`
 
 ## Agent Persistence Strategy
 
@@ -183,11 +198,12 @@ Runtime agents in `src/app/agents/` remain unchanged; a future adapter will tran
 
 ## Knowledge Layer Persistence Strategy
 
-Browser today: knowledge patches applied in-memory via Knowledge Agent → study model store.
+Browser today: knowledge patches applied in-memory via Knowledge Agent → study model store + knowledge graph store (`localStorage` fallback).
 
 Future:
 
-1. Each agent run that produces `knowledgeUpdates` inserts a new `knowledge_layers` row with incremented `version`
+1. Each agent run that produces knowledge graph patches upserts `knowledge_entities` / `knowledge_relationships`
+2. Each agent run that produces study/knowledge JSON may also append `knowledge_layers` version rows
 2. `protocols.current_version_id` may reference the latest committed snapshot (via `protocol_versions`)
 3. Read path: latest `knowledge_layers` by `(protocol_id, version desc)`
 4. Full JSONB stored for replay; diffing optional in application layer
@@ -208,11 +224,10 @@ Workflow (future):
 
 ## What This PR Does Not Do
 
-- No UI changes
-- No imports from `src/app/backend` into existing stores or components
+- No visual graph UI
 - No auth, organizations, or RBAC
 - No automatic migration execution
-- No dual-write or read switch
+- No dual-write or read switch to Supabase for runtime graph queries
 
 ## Verification
 

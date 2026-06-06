@@ -1,5 +1,7 @@
 import type { StudyModelCollectionKey, StudyModelItem } from '../domain/study-model/studyModelTypes';
 import type { StudyModelPatch } from '../domain/study-model/studyModelPatch';
+import type { KnowledgeEntity, KnowledgeRelationship } from '../domain/knowledge-graph/knowledgeGraphTypes';
+import { extractKnowledgeGraphFromSection } from '../domain/knowledge-graph/knowledgeGraphExtraction';
 
 export type KnowledgeAgentTextSource = 'imported' | 'generated' | 'edited' | 'validated' | 'reviewed';
 
@@ -23,6 +25,8 @@ export interface KnowledgeAgentOutput {
   changedItems: KnowledgeExtractedItem[];
   affectedSectionIds: string[];
   studyModelPatch: StudyModelPatch;
+  knowledgeEntities: KnowledgeEntity[];
+  knowledgeRelationships: KnowledgeRelationship[];
   notes: string[];
 }
 
@@ -128,6 +132,8 @@ export function extractKnowledgeFromSectionText(input: KnowledgeAgentInput): Kno
       changedItems: [],
       affectedSectionIds: [],
       studyModelPatch: {},
+      knowledgeEntities: [],
+      knowledgeRelationships: [],
       notes: ['Skipped empty section text.'],
     };
   }
@@ -281,11 +287,18 @@ export function extractKnowledgeFromSectionText(input: KnowledgeAgentInput): Kno
     return !input.previousText.toLowerCase().includes(needle);
   });
 
+  const { knowledgeEntities, knowledgeRelationships } = extractKnowledgeGraphFromSection({
+    sectionId,
+    extractedItems,
+  });
+
   return {
     extractedItems,
     changedItems,
     affectedSectionIds: extractedItems.length > 0 ? [sectionId] : [],
     studyModelPatch: patch,
+    knowledgeEntities,
+    knowledgeRelationships,
     notes,
   };
 }
