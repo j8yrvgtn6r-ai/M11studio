@@ -40,10 +40,20 @@ export interface ProtocolBuildSessionControls {
   generateRemaining?: () => void;
 }
 
+export type StudyModelEnrichmentStatus = 'idle' | 'core-complete' | 'running' | 'complete' | 'partial';
+
+export interface StudyModelEnrichmentTrack {
+  status: StudyModelEnrichmentStatus;
+  completedSlices: number;
+  totalSlices: number;
+  currentLabel?: string;
+}
+
 export interface ProtocolBuildConsoleState {
   status: ProtocolBuildStatus;
   events: ProtocolBuildEvent[];
   generationProgress: M11GenerationProgressSnapshot | null;
+  studyModelEnrichment: StudyModelEnrichmentTrack;
   sectionStates: Record<string, SectionGenerationState>;
   visualizationPhase: ImportVisualizationPhase;
   mode: ProtocolBuildMode;
@@ -74,6 +84,7 @@ let state: ProtocolBuildConsoleState = {
   status: 'idle',
   events: [],
   generationProgress: null,
+  studyModelEnrichment: { status: 'idle', completedSlices: 0, totalSlices: 7 },
   sectionStates: {},
   visualizationPhase: 'idle',
   mode: 'Full',
@@ -200,6 +211,7 @@ export function startProtocolBuildSession(options?: {
     status: 'running',
     events: [],
     generationProgress: null,
+    studyModelEnrichment: { status: 'idle', completedSlices: 0, totalSlices: 7 },
     sectionStates: {},
     visualizationPhase: 'idle',
     mode: options?.mode ?? 'Full',
@@ -242,6 +254,42 @@ export function endProtocolBuildSession(status: ProtocolBuildStatus = 'idle'): v
 export function setProtocolBuildGenerationProgress(progress: M11GenerationProgressSnapshot | null): void {
   state = { ...state, generationProgress: progress };
   notify();
+}
+
+export function setStudyModelEnrichmentTrack(track: Partial<StudyModelEnrichmentTrack>): void {
+  state = {
+    ...state,
+    studyModelEnrichment: { ...state.studyModelEnrichment, ...track },
+  };
+  notify();
+}
+
+export function markStudyModelCoreComplete(): void {
+  setStudyModelEnrichmentTrack({ status: 'core-complete', completedSlices: 0, currentLabel: 'Core complete' });
+}
+
+export function markStudyModelEnrichmentStarted(totalSlices: number): void {
+  setStudyModelEnrichmentTrack({
+    status: 'running',
+    totalSlices,
+    completedSlices: 0,
+    currentLabel: 'Deep enrichment started',
+  });
+}
+
+export function updateStudyModelEnrichmentProgress(completedSlices: number, currentLabel: string): void {
+  setStudyModelEnrichmentTrack({
+    status: 'running',
+    completedSlices,
+    currentLabel,
+  });
+}
+
+export function markStudyModelEnrichmentFinished(partial: boolean): void {
+  setStudyModelEnrichmentTrack({
+    status: partial ? 'partial' : 'complete',
+    currentLabel: partial ? 'Enrichment partial' : 'Enrichment complete',
+  });
 }
 
 export function resetQuickReconstructionVisualization(options: {

@@ -19,7 +19,7 @@ import {
   type ProtocolBuildEventType,
 } from '../domain/protocol/build/protocolBuildConsoleStore';
 import { useProtocolBuildConsole } from '../domain/protocol/build/useProtocolBuildConsole';
-import { countPendingM11Sections, isImportGenerationContextReady } from '../domain/protocol/import';
+import { countPendingM11Sections, isPriorityGenerationContextReady } from '../domain/protocol/import';
 import { useProtocolImport } from '../domain/protocol/import/ProtocolImportContext';
 import { GenerationProgressSummary } from './GenerationProgressSummary';
 import { Button } from './ui/button';
@@ -72,7 +72,18 @@ export function ProtocolBuildConsole() {
   const build = useProtocolBuildConsole();
   const { state: importState } = useProtocolImport();
   const pendingSections = countPendingM11Sections(importState.sectionDrafts);
-  const generationContextReady = isImportGenerationContextReady();
+  const generationContextReady = isPriorityGenerationContextReady();
+  const enrichment = build.studyModelEnrichment;
+  const enrichmentLabel =
+    enrichment.status === 'core-complete' || enrichment.status === 'running'
+      ? enrichment.status === 'running'
+        ? `Deep enrichment running (${enrichment.completedSlices}/${enrichment.totalSlices})`
+        : 'Core complete · Deep enrichment running'
+      : enrichment.status === 'complete'
+        ? 'Deep enrichment complete'
+        : enrichment.status === 'partial'
+          ? 'Deep enrichment partial'
+          : 'Core pending';
   const [expanded, setExpanded] = useState(false);
   const [autoScroll, setAutoScroll] = useState(true);
   const scrollRef = useRef<HTMLDivElement | null>(null);
@@ -154,16 +165,13 @@ export function ProtocolBuildConsole() {
 
         {isActive ? (
           <div
-            className="hidden sm:flex items-center gap-2 text-[10px] text-muted-foreground shrink-0"
+            className="hidden md:flex flex-col items-end gap-0.5 text-[10px] text-muted-foreground shrink-0"
             data-testid="protocol-build-inline-progress"
           >
-            <span data-testid="import-generation-completed-count">
-              {completed}/{total || '—'}
+            <span data-testid="protocol-build-priority-track">
+              Priority Drafts: {completed}/{total || '—'}
             </span>
-            <span>·</span>
-            <span data-testid="protocol-build-phase">{phaseLabel}</span>
-            <span>·</span>
-            <span data-testid="protocol-build-estimated-remaining-inline">{etaLabel}</span>
+            <span data-testid="protocol-build-enrichment-track">Study Model: {enrichmentLabel}</span>
           </div>
         ) : null}
 
@@ -229,7 +237,7 @@ export function ProtocolBuildConsole() {
               title={
                 generationContextReady
                   ? undefined
-                  : 'Generation unavailable until import context is ready.'
+                  : 'Generation unavailable until Core Study Model is ready.'
               }
               onClick={() => {
                 if (!generationContextReady) {

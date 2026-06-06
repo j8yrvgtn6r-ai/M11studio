@@ -6,7 +6,7 @@ import {
   matchStudyModelSectionFocus,
 } from '../../domain/study-model/studyModelSelectors';
 import { useStudyModel } from '../../domain/study-model/useStudyModel';
-import type { StudyModelCollectionKey } from '../../domain/study-model/studyModelTypes';
+import type { StudyModelCollectionKey, StudyModelPhase } from '../../domain/study-model/studyModelTypes';
 import { ScrollArea } from '../ui/scroll-area';
 
 interface StudyModelPanelProps {
@@ -39,15 +39,15 @@ function CollectionBlock({
 }
 
 export function StudyModelPanel({ sectionId, sectionTitle }: StudyModelPanelProps) {
-  const { model, dependencies } = useStudyModel();
+  const { model, dependencies, phase } = useStudyModel();
   const focus = matchStudyModelSectionFocus(model, sectionId, sectionTitle ?? null);
 
   if (!model) {
     return (
       <div className="flex flex-col h-full bg-card border-l border-border" data-testid="study-model-panel">
-        <Header />
+        <Header phase={phase} />
         <div className="p-4 text-sm text-muted-foreground">
-          Structured Study Model will appear after protocol understanding completes during import.
+          Core Study Model will appear shortly after DOCX extraction during import.
         </div>
       </div>
     );
@@ -59,7 +59,7 @@ export function StudyModelPanel({ sectionId, sectionTitle }: StudyModelPanelProp
 
   return (
     <div className="flex flex-col h-full bg-card border-l border-border" data-testid="study-model-panel">
-      <Header subtitle={model.studyMetadata.title ?? 'Structured study understanding'} />
+      <Header phase={phase} subtitle={model.studyMetadata.title ?? 'Structured study understanding'} />
       <ScrollArea className="flex-1">
         <div className="p-4 space-y-4">
           {sectionId ? (
@@ -107,7 +107,16 @@ export function StudyModelPanel({ sectionId, sectionTitle }: StudyModelPanelProp
   );
 }
 
-function Header({ subtitle }: { subtitle?: string }) {
+function Header({ subtitle, phase }: { subtitle?: string; phase?: StudyModelPhase }) {
+  const phaseLabel =
+    phase === 'enriching'
+      ? 'Deep Study Model updating…'
+      : phase === 'deep'
+        ? 'Deep Study Model'
+        : phase === 'core'
+          ? 'Core Study Model'
+          : 'Study Model';
+
   return (
     <div className="px-4 py-3 border-b border-border shrink-0">
       <div className="flex items-center gap-2">
@@ -117,8 +126,8 @@ function Header({ subtitle }: { subtitle?: string }) {
           {subtitle ? <p className="text-xs text-muted-foreground truncate">{subtitle}</p> : null}
         </div>
       </div>
-      <p className="text-[11px] text-muted-foreground mt-2">
-        Read-only structured understanding of the study. Not reviewed or approved.
+      <p className="text-[11px] text-muted-foreground mt-2" data-testid="study-model-phase-label">
+        {phaseLabel}
       </p>
     </div>
   );

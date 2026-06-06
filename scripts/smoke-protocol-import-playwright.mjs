@@ -92,7 +92,7 @@ async function main() {
       const phase = document
         .querySelector('[data-testid="protocol-build-console"]')
         ?.getAttribute('data-import-context-phase');
-      return phase === 'extraction' || phase === 'understanding';
+      return phase === 'extraction';
     }, { timeout: 15_000 })
     .then(() => true)
     .catch(() => false);
@@ -115,11 +115,21 @@ async function main() {
   assertNoImportFailures('After Continue (understanding phase)');
 
   await page.waitForFunction(() => {
-    return (
-      document.querySelector('[data-testid="protocol-build-console"]')?.getAttribute('data-import-context-phase') ===
-      'ready'
-    );
-  }, { timeout: 180_000 });
+    const phase = document
+      .querySelector('[data-testid="protocol-build-console"]')
+      ?.getAttribute('data-import-context-phase');
+    return phase === 'core-ready' || phase === 'enriching' || phase === 'ready';
+  }, { timeout: 60_000 });
+
+  await page.getByTestId('protocol-build-toggle').click();
+  let buildConsoleText = await page.getByTestId('protocol-build-console').innerText();
+  if (!buildConsoleText.includes('Building Core Study Model')) {
+    throw new Error('Expected Building Core Study Model in build console.');
+  }
+  if (!buildConsoleText.includes('Core Study Model complete')) {
+    throw new Error('Expected Core Study Model complete in build console.');
+  }
+  await page.getByTestId('protocol-build-toggle').click();
 
   // Non-blocking workspace: explorer visible, modal stays closed during reconstruction
   await page.locator('#protocol-explorer').getByText('Protocol Explorer').waitFor();
@@ -132,14 +142,18 @@ async function main() {
     const reviewCount = document.querySelectorAll('[data-generation-state="needsReview"]').length;
     const summary =
       document.querySelector('[data-testid="protocol-build-console-summary"]')?.textContent?.toLowerCase() ?? '';
+    const phase = document
+      .querySelector('[data-testid="protocol-build-console"]')
+      ?.getAttribute('data-import-context-phase');
     return (
-      status === 'complete' ||
       reviewCount > 0 ||
       summary.includes('generating') ||
       summary.includes('reconstructing') ||
-      summary.includes('complete')
+      summary.includes('complete') ||
+      status === 'running' ||
+      phase === 'enriching'
     );
-  }, { timeout: 180_000 });
+  }, { timeout: 120_000 });
 
   const buildConsole = page.getByTestId('protocol-build-console');
   const buildStatus = await buildConsole.getAttribute('data-status');
@@ -197,7 +211,13 @@ async function main() {
   await page.getByTestId('import-reconstruction-banner').waitFor({ timeout: 180_000 });
 
   await page.getByTestId('protocol-build-toggle').click();
-  const buildConsoleText = await page.getByTestId('protocol-build-console').innerText();
+  buildConsoleText = await page.getByTestId('protocol-build-console').innerText();
+  if (!buildConsoleText.includes('First draft available')) {
+    throw new Error('Expected First draft available in build console.');
+  }
+  if (!buildConsoleText.includes('Deep Study Model enrichment started')) {
+    throw new Error('Expected Deep Study Model enrichment started in build console.');
+  }
   if (!buildConsoleText.includes('Priority reconstruction complete')) {
     throw new Error('Expected Priority reconstruction complete in build console.');
   }
@@ -261,7 +281,7 @@ async function main() {
 
 async function expectGenerationUnavailableCopy(page) {
   const copy = await page.getByTestId('viewport-section-not-generated').innerText();
-  if (!copy.includes('Generation unavailable until import context is ready')) {
+  if (!copy.includes('Generation unavailable until Core Study Model is ready')) {
     throw new Error(`Expected generation-unavailable copy, got: ${copy}`);
   }
 }

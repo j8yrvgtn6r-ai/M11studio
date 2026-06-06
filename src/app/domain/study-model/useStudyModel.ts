@@ -1,6 +1,11 @@
 import { useSyncExternalStore } from 'react';
 
-import { getStudyModel, getStudyModelDependencies, subscribeStudyModel } from './studyModelStore';
+import {
+  getStudyModel,
+  getStudyModelDependencies,
+  getStudyModelPhase,
+  subscribeStudyModel,
+} from './studyModelStore';
 
 export function useStudyModel() {
   const model = useSyncExternalStore(subscribeStudyModel, getStudyModel, getStudyModel);
@@ -9,5 +14,6 @@ export function useStudyModel() {
     getStudyModelDependencies,
     getStudyModelDependencies,
   );
-  return { model, dependencies };
+  const phase = useSyncExternalStore(subscribeStudyModel, getStudyModelPhase, getStudyModelPhase);
+  return { model, dependencies, phase };
 }

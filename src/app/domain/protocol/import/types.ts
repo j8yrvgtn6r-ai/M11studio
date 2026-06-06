@@ -233,7 +233,13 @@ export interface ProtocolImportState {
   importContextPhase?: ImportContextPhase;
 }
 
-export type ImportContextPhase = 'idle' | 'extraction' | 'understanding' | 'ready';
+export type ImportContextPhase =
+  | 'idle'
+  | 'extraction'
+  | 'understanding'
+  | 'core-ready'
+  | 'enriching'
+  | 'ready';
 
 export type ImportProcessingStepId =
   | 'uploading'

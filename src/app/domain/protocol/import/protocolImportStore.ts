@@ -18,6 +18,7 @@ import {
 import { commitApprovedSectionToProtocol } from './protocolImportProcessor';
 import {
   isImportGenerationContextReady,
+  isPriorityGenerationContextReady,
   logImportGenerationContextGap,
 } from './importGenerationContext';
 
@@ -561,6 +562,36 @@ export function markProtocolImportUnderstandingPhase(): void {
     state.importContextPhase = 'understanding';
     notify();
   }
+}
+
+/** Stages core knowledge model — priority generation can begin. */
+export async function stageProtocolImportCoreUnderstanding(
+  artifact: ProtocolSourceArtifact,
+  importedSource: ImportedProtocolSource,
+  protocolKnowledgeModel: ProtocolKnowledgeModel,
+): Promise<void> {
+  extractionCache.set(importedSource.uploadId, importedSource);
+  knowledgeCache.set(protocolKnowledgeModel.id, protocolKnowledgeModel);
+  await saveImportedProtocolSource(importedSource);
+
+  state.artifact = artifact;
+  state.importedSourceSummary = toSummary(importedSource);
+  state.protocolKnowledgeModelId = protocolKnowledgeModel.id;
+  state.protocolId = defaultProtocolId();
+  state.importContextPhase = 'core-ready';
+  persistMetadata();
+  notify();
+}
+
+/** Merges deep enrichment into the active knowledge model without blocking generation. */
+export function mergeProtocolKnowledgeEnrichment(protocolKnowledgeModel: ProtocolKnowledgeModel): void {
+  knowledgeCache.set(protocolKnowledgeModel.id, protocolKnowledgeModel);
+  state.protocolKnowledgeModelId = protocolKnowledgeModel.id;
+  if (state.importContextPhase === 'core-ready' || state.importContextPhase === 'understanding') {
+    state.importContextPhase = 'enriching';
+  }
+  persistMetadata();
+  notify();
 }
 
 /** Stages artifact, extraction summary, and knowledge model while M11 reconstruction is still running. */
@@ -1208,7 +1239,7 @@ export function setProtocolImportDrafts(
 
 
 export async function generateSectionImportDraftOnDemandAsync(sectionId: string): Promise<void> {
-  if (!isImportGenerationContextReady()) {
+  if (!isPriorityGenerationContextReady()) {
     logImportGenerationContextGap('generateSectionImportDraftOnDemandAsync');
     return;
   }
@@ -1233,7 +1264,7 @@ export async function generateSectionImportDraftOnDemandAsync(sectionId: string)
 export async function generateRemainingSectionImportDraftsAsync(): Promise<{
   failedSectionIds: string[];
 }> {
-  if (!isImportGenerationContextReady()) {
+  if (!isPriorityGenerationContextReady()) {
     logImportGenerationContextGap('generateRemainingSectionImportDraftsAsync');
     return { failedSectionIds: [] };
   }

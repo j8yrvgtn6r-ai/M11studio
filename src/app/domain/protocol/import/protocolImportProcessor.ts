@@ -14,6 +14,10 @@ import {
   injectSectionIntoGenerationQueue,
   prependSectionGenerationPriority,
   updateSectionGenerationState,
+  markStudyModelEnrichmentFinished,
+  markStudyModelEnrichmentStarted,
+  markStudyModelCoreComplete,
+  updateStudyModelEnrichmentProgress,
 } from '../build/protocolBuildConsoleStore';
 import { DocxExtractionError, extractDocxProtocolSource } from './docxProtocolExtractor';
 import {
@@ -23,7 +27,8 @@ import {
 } from './llm/m11GenerationProvider';
 import { formatGenerationProgressDetail, type M11GenerationProgressSnapshot } from './llm/m11GenerationProgress';
 import { getConfiguredLlmProviderId } from './llm/llmConfig';
-import { runStagedProtocolUnderstanding } from './llm/understandingSlices';
+import { runDeepKnowledgeEnrichment, UNDERSTANDING_SLICE_DEFINITIONS } from './llm/understandingSlices';
+import { buildCoreStudyModel, coreStudyModelToProtocolKnowledgeModel } from './coreStudyModel';
 import {
   formatLlmUserError,
   ImportProcessingAbortedError,
@@ -32,16 +37,18 @@ import {
 import { loadProtocolSourceDocument, saveProtocolSourceDocument } from './protocolImportStorage';
 import { applyPostGenerationValidation, applyPostGenerationValidationBatch } from './postGenerationValidation';
 import {
+  stageProtocolImportCoreUnderstanding,
   stageProtocolImportUnderstanding,
   stageProtocolImportExtraction,
   markProtocolImportUnderstandingPhase,
+  mergeProtocolKnowledgeEnrichment,
   upsertLiveSectionImportDraft,
 } from './protocolImportStore';
 import {
-  assertImportGenerationContextReady,
-  getImportGenerationContextDiagnostics,
+  assertPriorityGenerationContextReady,
+  getPriorityGenerationContextDiagnostics,
   ImportGenerationContextNotReadyError,
-  isImportGenerationContextReady,
+  isPriorityGenerationContextReady,
   logImportGenerationContextGap,
 } from './importGenerationContext';
 import { ICH_M11_TEMPLATE_SECTION_SPECS } from '../ichM11/ichM11Template';
@@ -70,7 +77,7 @@ import {
   listAutoBackgroundGenerationSectionIds,
   listPersistentNotGeneratedSectionIds,
 } from './sectionGenerationEligibility';
-import { rebuildStudyModel } from '../../study-model/studyModelStore';
+import { rebuildStudyModel, setStudyModelPhase } from '../../study-model/studyModelStore';
 import { createSectionRegeneratedCommit } from './protocolVersioning';
 import {
   getProtocolImportState,
@@ -78,13 +85,12 @@ import {
   getProtocolKnowledgeModel,
   subscribeProtocolImport,
 } from './protocolImportStore';
-import { STUDY_MODEL_BUILD_STEPS } from '../../study-model/studyModelBuilder';
 
 export const IMPORT_PROCESSING_STEP_DEFS: Array<{ id: ImportProcessingStepId; label: string }> = [
   { id: 'uploading', label: 'Upload' },
   { id: 'reading-docx', label: 'Extract DOCX' },
   { id: 'identifying-sections', label: 'Detect Sections' },
-  { id: 'understanding-context', label: 'Build Protocol Understanding' },
+  { id: 'understanding-context', label: 'Build Core Study Model' },
   { id: 'rewriting-m11', label: 'Generate M11 Drafts' },
   { id: 'structure-checks', label: 'Run Validation' },
   { id: 'preparing-workspace', label: 'Create Review Package' },
@@ -157,11 +163,19 @@ export interface ProcessImportCallbacks {
   signal?: AbortSignal;
 }
 
-function createLiveSectionDraftHandler(callbacks: ProcessImportCallbacks) {
+function createLiveSectionDraftHandler(
+  callbacks: ProcessImportCallbacks,
+  options?: { onFirstDraft?: () => void },
+) {
+  let firstDraftEmitted = false;
   return (draft: GeneratedSectionDraft) => {
     const validated = applyPostGenerationValidation(draft);
     upsertLiveSectionImportDraft(validated);
     callbacks.onSectionDraftGenerated?.(validated);
+    if (!firstDraftEmitted) {
+      firstDraftEmitted = true;
+      options?.onFirstDraft?.();
+    }
   };
 }
 
@@ -286,68 +300,99 @@ export async function runProtocolImportProcessing(
 
     updateStep('understanding-context', {
       state: 'active',
-      detail: `Provider: ${providerId} · staged understanding…`,
+      detail: 'Building Core Study Model…',
     });
-    appendProtocolBuildEvent({
-      type: 'progress',
-      message: `Building staged protocol understanding using ${providerId}`,
-      provider: providerId,
+    appendProtocolBuildEvent({ type: 'progress', message: 'Building Core Study Model' });
+    const coreStartedAt = performance.now();
+    const coreStudyModel = await buildCoreStudyModel({
+      sourceExtraction: importedSource,
+      artifact,
+      signal: callbacks.signal,
     });
-    markProtocolImportUnderstandingPhase();
-    const understandingStartedAt = performance.now();
-    const understandingResult = await runStagedProtocolUnderstanding(
-      {
-        sourceExtraction: importedSource,
-        m11TemplateSections: ICH_M11_TEMPLATE_SECTION_SPECS,
-        m11TechnicalSpecification: ICH_M11_TECHNICAL_SPEC_SECTION_SPECS,
-        artifact,
-      },
-      { signal: callbacks.signal },
+    let protocolKnowledgeModel = coreStudyModelToProtocolKnowledgeModel(
+      coreStudyModel,
+      providerId,
+      coreStudyModel.usedLlm ? 'core-llm-v1' : 'core-deterministic-v1',
     );
-    const protocolKnowledgeModel = understandingResult.model;
     appendProtocolBuildEvent({
-      type: understandingResult.partialUnderstanding ? 'warning' : 'success',
-      message: understandingResult.partialUnderstanding
-        ? `Partial protocol understanding · ${understandingResult.completedSlices.length}/${understandingResult.completedSlices.length + understandingResult.failedSlices.length} slices · confidence ${Math.round(protocolKnowledgeModel.confidence * 100)}%`
-        : `Protocol understanding completed · confidence ${Math.round(protocolKnowledgeModel.confidence * 100)}%`,
-      provider: protocolKnowledgeModel.knowledgeProvider,
-      model: protocolKnowledgeModel.understandingModel,
-      durationMs: Math.round(performance.now() - understandingStartedAt),
+      type: 'success',
+      message: 'Core Study Model complete',
+      durationMs: Math.round(performance.now() - coreStartedAt),
+      metadata: { usedLlm: coreStudyModel.usedLlm },
     });
+    markStudyModelCoreComplete();
 
-    await stageProtocolImportUnderstanding(artifact, importedSource, protocolKnowledgeModel);
-    assertImportGenerationContextReady('runProtocolImportProcessing.beforePriorityGeneration');
-
-    appendProtocolBuildEvent({ type: 'progress', message: 'Building Structured Study Model...' });
-    for (const step of STUDY_MODEL_BUILD_STEPS) {
-      throwIfAborted(callbacks.signal);
-      appendProtocolBuildEvent({ type: 'progress', message: step });
-      await delay(120);
-    }
+    await stageProtocolImportCoreUnderstanding(artifact, importedSource, protocolKnowledgeModel);
+    setStudyModelPhase('core');
     rebuildStudyModel({
       sourceUploadId: importedSource.uploadId,
       knowledge: protocolKnowledgeModel,
       document: getProtocolDocument(),
     });
-    appendProtocolBuildEvent({ type: 'success', message: 'Structured Study Model Complete.' });
+    assertPriorityGenerationContextReady('runProtocolImportProcessing.beforePriorityGeneration');
 
     updateStep('understanding-context', {
       state: 'complete',
-      detail: `${protocolKnowledgeModel.knowledgeProvider}/${protocolKnowledgeModel.understandingModel} · confidence ${Math.round(protocolKnowledgeModel.confidence * 100)}%`,
+      detail: 'Core Study Model ready · deep enrichment running in background',
     });
+
+    const understandingInput = {
+      sourceExtraction: importedSource,
+      m11TemplateSections: ICH_M11_TEMPLATE_SECTION_SPECS,
+      m11TechnicalSpecification: ICH_M11_TECHNICAL_SPEC_SECTION_SPECS,
+      artifact,
+    };
+
+    let enrichmentCompleted = 0;
+    let enrichmentError: Error | null = null;
+    const enrichmentPromise = runDeepKnowledgeEnrichment(protocolKnowledgeModel, understandingInput, {
+      signal: callbacks.signal,
+      onSliceComplete: (sliceId, merged) => {
+        enrichmentCompleted += 1;
+        protocolKnowledgeModel = merged;
+        mergeProtocolKnowledgeEnrichment(merged);
+        setStudyModelPhase('enriching');
+        updateStudyModelEnrichmentProgress(enrichmentCompleted, `Enriching ${sliceId}`);
+      },
+    })
+      .then(async (result) => {
+        protocolKnowledgeModel = result.model;
+        mergeProtocolKnowledgeEnrichment(result.model);
+        setStudyModelPhase(result.partialUnderstanding ? 'enriching' : 'deep');
+        markStudyModelEnrichmentFinished(result.partialUnderstanding);
+        await stageProtocolImportUnderstanding(artifact, importedSource, result.model);
+        return result;
+      })
+      .catch((error) => {
+        enrichmentError = error instanceof Error ? error : new Error(String(error));
+        appendProtocolBuildEvent({
+          type: 'warning',
+          message: 'Deep Study Model enrichment interrupted — continuing with Core Study Model',
+          metadata: { error: enrichmentError.message },
+        });
+        return null;
+      });
+
+    markStudyModelEnrichmentStarted(UNDERSTANDING_SLICE_DEFINITIONS.length);
+    markProtocolImportUnderstandingPhase();
+    appendProtocolBuildEvent({ type: 'progress', message: 'Deep Study Model enrichment started' });
 
     updateStep('rewriting-m11', {
       state: 'active',
-      detail: 'Reconstructing M11 sections one at a time…',
+      detail: 'Generating priority M11 sections…',
     });
     appendProtocolBuildEvent({
       type: 'progress',
-      message: 'Generating priority M11 sections...',
+      message: 'Generating priority M11 sections',
       provider: providerId,
     });
     markProtocolImportGenerationPhase();
 
-    const onSectionDraft = createLiveSectionDraftHandler(callbacks);
+    const onSectionDraft = createLiveSectionDraftHandler(callbacks, {
+      onFirstDraft: () => {
+        appendProtocolBuildEvent({ type: 'success', message: 'First draft available' });
+      },
+    });
     let drafts = await runM11SectionGeneration(
       buildGenerationInput(artifact, importedSource, protocolKnowledgeModel, prioritySectionIds),
       {
@@ -386,8 +431,9 @@ export async function runProtocolImportProcessing(
           'You can begin reviewing completed sections while M11 Studio continues generating remaining sections',
       });
 
+      const latestKnowledge = getProtocolKnowledgeModel() ?? protocolKnowledgeModel;
       const backgroundDrafts = await runM11SectionGeneration(
-        buildGenerationInput(artifact, importedSource, protocolKnowledgeModel, backgroundSectionIds),
+        buildGenerationInput(artifact, importedSource, latestKnowledge, backgroundSectionIds),
         {
           signal: callbacks.signal,
           onProgress: updateGenerationProgress,
@@ -398,6 +444,9 @@ export async function runProtocolImportProcessing(
     } else {
       markSectionsNotGenerated(listNotGeneratedM11SectionIds());
     }
+
+    await enrichmentPromise.catch(() => null);
+    protocolKnowledgeModel = getProtocolKnowledgeModel() ?? protocolKnowledgeModel;
 
     const failedSectionIds = failedSectionIdsFromDrafts(drafts);
     const partialGenerationFailure = failedSectionIds.length > 0;
@@ -632,12 +681,12 @@ export async function generateM11SectionOnDemand(
 ): Promise<GeneratedSectionDraft> {
   const buildStatus = getProtocolBuildConsoleState().status;
 
-  if (!isImportGenerationContextReady()) {
+  if (!isPriorityGenerationContextReady()) {
     logImportGenerationContextGap('generateM11SectionOnDemand');
-    throw new ImportGenerationContextNotReadyError(getImportGenerationContextDiagnostics());
+    throw new ImportGenerationContextNotReadyError(getPriorityGenerationContextDiagnostics());
   }
 
-  assertImportGenerationContextReady('generateM11SectionOnDemand');
+  assertPriorityGenerationContextReady('generateM11SectionOnDemand');
 
   const importState = getProtocolImportState();
   const source = getImportedProtocolSource();
@@ -724,12 +773,12 @@ export async function generateRemainingM11Sections(
   failedSectionIds: string[];
   partialGenerationFailure: boolean;
 }> {
-  if (!isImportGenerationContextReady()) {
+  if (!isPriorityGenerationContextReady()) {
     logImportGenerationContextGap('generateRemainingM11Sections');
-    throw new ImportGenerationContextNotReadyError(getImportGenerationContextDiagnostics());
+    throw new ImportGenerationContextNotReadyError(getPriorityGenerationContextDiagnostics());
   }
 
-  assertImportGenerationContextReady('generateRemainingM11Sections');
+  assertPriorityGenerationContextReady('generateRemainingM11Sections');
 
   const importState = getProtocolImportState();
   const source = getImportedProtocolSource();

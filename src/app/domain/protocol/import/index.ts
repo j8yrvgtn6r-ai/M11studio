@@ -48,8 +48,10 @@ export {
   regenerateSectionImportDraft,
   regenerateSectionImportDraftAsync,
   stageProtocolImportExtraction,
+  stageProtocolImportCoreUnderstanding,
   stageProtocolImportUnderstanding,
   markProtocolImportUnderstandingPhase,
+  mergeProtocolKnowledgeEnrichment,
   syncSectionImportDrafts,
   upsertLiveSectionImportDraft,
   requestChangesOnSectionImportDraft,
@@ -76,11 +78,17 @@ export type { ProtocolImportProcessingResult, ProcessImportCallbacks } from './p
 export { ImportProcessingAbortedError, LlmRequestTimeoutError } from './llm/llmRequestTimeouts';
 export {
   assertImportGenerationContextReady,
+  assertPriorityGenerationContextReady,
   getImportGenerationContextDiagnostics,
+  getPriorityGenerationContextDiagnostics,
   ImportGenerationContextNotReadyError,
   isImportGenerationContextReady,
+  isPriorityGenerationContextReady,
   logImportGenerationContextGap,
 } from './importGenerationContext';
+
+export { buildCoreStudyModel, coreStudyModelToProtocolKnowledgeModel } from './coreStudyModel';
+export type { CoreStudyModel } from './coreStudyModel';
 
 export { DocxExtractionError, extractDocxProtocolSource } from './docxProtocolExtractor';
 export { buildProtocolKnowledgeModel, buildLocalDeterministicKnowledgeModel } from './buildProtocolKnowledgeModel';
@@ -162,4 +170,4 @@ export {
   QUICK_RECONSTRUCTION_SECTION_IDS,
 } from './quickReconstructionSections';
 export { listM11GenerationTargetSectionIds, flattenProtocolSectionIds } from './importVisualizationUtils';
-export { runStagedProtocolUnderstanding } from './llm/understandingSlices';
+export { runStagedProtocolUnderstanding, runDeepKnowledgeEnrichment } from './llm/understandingSlices';

@@ -207,6 +207,87 @@ export interface StagedUnderstandingResult {
   completedSlices: UnderstandingSliceId[];
 }
 
+export interface DeepEnrichmentCallbacks extends ProtocolUnderstandingCallbacks {
+  onSliceComplete?: (sliceId: UnderstandingSliceId, merged: ProtocolKnowledgeModel) => void;
+}
+
+/** Background deep knowledge enrichment — does not block priority generation. */
+export async function runDeepKnowledgeEnrichment(
+  baseModel: ProtocolKnowledgeModel,
+  input: ProtocolUnderstandingInput,
+  callbacks?: DeepEnrichmentCallbacks,
+): Promise<StagedUnderstandingResult> {
+  const providerId = resolveLlmProviderConfig().providerId;
+  const useFixture = providerId === 'fixture' || providerId === 'local' || providerId === 'anthropic';
+  const uploadId = input.sourceExtraction.uploadId;
+
+  let merged: Partial<ProtocolKnowledgeModel> = { ...baseModel };
+  const completedSlices: UnderstandingSliceId[] = [];
+  const failedSlices: UnderstandingSliceId[] = [];
+
+  for (const slice of UNDERSTANDING_SLICE_DEFINITIONS) {
+    throwIfAborted(callbacks?.signal);
+    appendProtocolBuildEvent({ type: 'progress', message: `Enriching ${slice.id}` });
+
+    try {
+      const partial = useFixture
+        ? await runFixtureSlice(input, slice)
+        : await runOpenAiSlice(input, slice, callbacks);
+      merged = mergePartialKnowledge(merged, partial);
+      completedSlices.push(slice.id);
+      appendProtocolBuildEvent({ type: 'success', message: `${slice.consoleLabel} complete` });
+    } catch (error) {
+      failedSlices.push(slice.id);
+      appendProtocolBuildEvent({
+        type: 'warning',
+        message: `${slice.consoleLabel} unavailable — continuing with partial enrichment`,
+        metadata: { slice: slice.id, error: error instanceof Error ? error.message : String(error) },
+      });
+    }
+
+    const normalized = normalizeProtocolKnowledgeModelArrays(merged) as ProtocolKnowledgeModel;
+    rebuildStudyModel({
+      sourceUploadId: uploadId,
+      knowledge: normalized,
+      document: getProtocolDocument(),
+    });
+    callbacks?.onSliceComplete?.(slice.id, normalized);
+  }
+
+  const partialUnderstanding = failedSlices.length > 0;
+  const model: ProtocolKnowledgeModel = normalizeProtocolKnowledgeModelArrays({
+    ...(merged as ProtocolKnowledgeModel),
+    confidence: 0,
+    extractionNotes: [
+      ...(ensureArray<string>(merged.extractionNotes)),
+      partialUnderstanding
+        ? `Deep enrichment partial (${completedSlices.length}/${UNDERSTANDING_SLICE_DEFINITIONS.length} slices).`
+        : `Deep enrichment complete (${completedSlices.length} slices).`,
+      ...failedSlices.map((slice) => `Enrichment slice unavailable: ${slice}`),
+    ],
+    understandingSliceStatus: Object.fromEntries(
+      UNDERSTANDING_SLICE_DEFINITIONS.map((slice) => [
+        slice.id,
+        completedSlices.includes(slice.id) ? 'complete' : 'failed',
+      ]),
+    ),
+    partialUnderstanding,
+  }) as ProtocolKnowledgeModel;
+
+  if (partialUnderstanding) {
+    appendProtocolBuildEvent({
+      type: 'warning',
+      message: 'Deep Study Model enrichment partial — some slices were unavailable',
+      metadata: { failedSlices: failedSlices.join(', ') },
+    });
+  } else {
+    appendProtocolBuildEvent({ type: 'success', message: 'Deep Study Model enrichment complete' });
+  }
+
+  return { model, partialUnderstanding, failedSlices, completedSlices };
+}
+
+/** @deprecated Use buildCoreStudyModel + runDeepKnowledgeEnrichment instead. */
 export async function runStagedProtocolUnderstanding(
   input: ProtocolUnderstandingInput,
   callbacks?: ProtocolUnderstandingCallbacks,

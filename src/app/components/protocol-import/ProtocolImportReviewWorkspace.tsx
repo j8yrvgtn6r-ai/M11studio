@@ -6,7 +6,7 @@ import {
   countPendingM11Sections,
   downloadM11StudioArchive,
   generateRemainingSectionImportDraftsAsync,
-  isImportGenerationContextReady,
+  isPriorityGenerationContextReady,
   isSectionActionable,
   openSectionForReview,
   requestChangesOnSectionImportDraft,
@@ -55,7 +55,7 @@ export function ProtocolImportReviewWorkspace({
   const [activeSectionId, setActiveSectionId] = useState<string | null>(initialSectionId);
   const [activeTab, setActiveTab] = useState<'sections' | 'extraction' | 'knowledge' | 'versions'>('sections');
   const [generatingRemaining, setGeneratingRemaining] = useState(false);
-  const generationContextReady = isImportGenerationContextReady();
+  const generationContextReady = isPriorityGenerationContextReady();
   const pendingSections = countPendingM11Sections(state.sectionDrafts);
 
   const drafts = useMemo(

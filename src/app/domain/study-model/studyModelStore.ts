@@ -4,10 +4,13 @@ import { buildStudyModelFromSources } from './studyModelBuilder';
 import type { StudyModel, StudyModelDependency } from './studyModelTypes';
 import { buildStudyModelDependencies } from './studyModelDependencyMap';
 
+export type StudyModelPhase = 'idle' | 'core' | 'enriching' | 'deep';
+
 const listeners = new Set<() => void>();
 
 let studyModel: StudyModel | null = null;
 let dependencies: StudyModelDependency[] = [];
+let studyModelPhase: StudyModelPhase = 'idle';
 
 function notify(): void {
   listeners.forEach((listener) => listener());
@@ -26,6 +29,15 @@ export function getStudyModelDependencies(): StudyModelDependency[] {
   return dependencies;
 }
 
+export function getStudyModelPhase(): StudyModelPhase {
+  return studyModelPhase;
+}
+
+export function setStudyModelPhase(phase: StudyModelPhase): void {
+  studyModelPhase = phase;
+  notify();
+}
+
 export function rebuildStudyModel(input: {
   sourceUploadId: string;
   knowledge?: ProtocolKnowledgeModel | null;
@@ -40,5 +52,6 @@ export function rebuildStudyModel(input: {
 export function clearStudyModel(): void {
   studyModel = null;
   dependencies = [];
+  studyModelPhase = 'idle';
   notify();
 }

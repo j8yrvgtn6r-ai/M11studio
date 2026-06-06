@@ -17,7 +17,7 @@ import {
   getProtocolImportState,
   getProtocolKnowledgeModel,
   generateRemainingSectionImportDraftsAsync,
-  isImportGenerationContextReady,
+  isPriorityGenerationContextReady,
 } from '../../domain/protocol/import';
 import {
   endProtocolBuildSession,
@@ -319,7 +319,7 @@ export function ImportProtocolDialog({
   handleRetryFailedSectionsRef.current = handleRetryFailedSections;
 
   const handleGenerateRemainingSections = async () => {
-    if (!isImportGenerationContextReady()) {
+    if (!isPriorityGenerationContextReady()) {
       return;
     }
     setProcessingActive(true);

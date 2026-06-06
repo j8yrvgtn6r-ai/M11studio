@@ -26,7 +26,7 @@ import {
 
   generateSectionImportDraftOnDemandAsync,
 
-  isImportGenerationContextReady,
+  isPriorityGenerationContextReady,
 
 } from '../domain/protocol/import';
 
@@ -92,7 +92,7 @@ export function DocumentViewport({
 
   const [regenerating, setRegenerating] = useState(false);
   const { revision: importRevision } = useProtocolImport();
-  const generationContextReady = isImportGenerationContextReady();
+  const generationContextReady = isPriorityGenerationContextReady();
   void importRevision;
 
 
@@ -262,7 +262,7 @@ export function DocumentViewport({
                 <p>
                   {generationContextReady
                     ? 'This section has not been generated yet. Generate this section when needed.'
-                    : 'Generation unavailable until import context is ready.'}
+                    : 'Generation unavailable until Core Study Model is ready.'}
                 </p>
                 <Button
                   size="sm"
