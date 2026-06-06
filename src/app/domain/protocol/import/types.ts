@@ -54,6 +54,36 @@ export interface SectionValidationFinding {
   suggestedTerm?: string;
 }
 
+export type ValidationChangeType =
+  | 'addition'
+  | 'deletion'
+  | 'replacement'
+  | 'terminology'
+  | 'structural'
+  | 'formatting';
+
+export type ValidationChangeSeverity = 'info' | 'warning' | 'required';
+
+export interface ValidationChange {
+  id: string;
+  type: ValidationChangeType;
+  originalText?: string;
+  replacementText?: string;
+  reason: string;
+  startIndex?: number;
+  endIndex?: number;
+  terminologyCode?: string;
+  severity: ValidationChangeSeverity;
+}
+
+export interface ValidationAttemptRecord {
+  attemptedAt: string;
+  validatedTargetText: string;
+  changeCount: number;
+  outcome: 'proposed' | 'accepted' | 'rejected' | 'failed';
+  reason?: string;
+}
+
 export interface SectionStateHistoryEntry {
   state: SectionReviewState;
   changedAt: string;
@@ -161,11 +191,20 @@ export type MappingMethod =
   | 'heading-number'
   | 'heading-title'
   | 'semantic-similarity'
-  | 'content-context';
+  | 'content-context'
+  | 'exactNumber'
+  | 'exactTitle'
+  | 'normalizedTitle'
+  | 'semanticTitle'
+  | 'contentHeuristic'
+  | 'manual';
 
 export type ProtocolSectionWorkflowState =
   | 'importedUnvalidated'
   | 'imported'
+  | 'validationRunning'
+  | 'validationProposed'
+  | 'validationRejected'
   | 'unvalidated'
   | 'validated'
   | 'generated'
@@ -190,6 +229,7 @@ export interface MappedProtocolSection {
   needsValidation: boolean;
   importedTextLength: number;
   sourcePreview: string;
+  mappingWarnings?: string[];
 }
 
 export interface StructuralMappingResult {
@@ -237,7 +277,27 @@ export interface GeneratedSectionDraft {
   validatedTargetText?: string;
   mappingConfidence?: number;
   mappingMethod?: MappingMethod;
+  mappingWarnings?: string[];
+  suspiciousMapping?: boolean;
   lastValidatedAt?: string;
+  validationChanges?: ValidationChange[];
+  validationHistory?: ValidationAttemptRecord[];
+  /** Consistency Agent — downstream impact records when study facts change elsewhere. */
+  consistencyImpacts?: ConsistencyImpactRecord[];
+  /** Workflow state before Consistency Agent marked this section out of sync. */
+  priorWorkflowState?: ProtocolSectionWorkflowState;
+}
+
+export interface ConsistencyImpactRecord {
+  impactId: string;
+  sourceSectionId: string;
+  sourceSectionTitle?: string;
+  changedItemName: string;
+  changedItemCollection: string;
+  relationship: string;
+  reason: string;
+  suggestedAction: 'validate' | 'regenerate' | 'edit';
+  detectedAt: string;
 }
 
 export type ProtocolCommitSource =

@@ -216,6 +216,12 @@ export function GenerationMetadataPanel({ draft }: GenerationMetadataPanelProps)
                 <dd className="font-mono" data-testid="import-source-section-id">
                   {draft.sourceSectionId ?? draft.matchedSourceCandidateIds?.[0] ?? 'Unknown'}
                 </dd>
+                <dt className="text-muted-foreground">Mapping warnings</dt>
+                <dd data-testid="import-mapping-warnings">
+                  {(draft.mappingWarnings ?? []).length > 0
+                    ? draft.mappingWarnings?.join(' · ')
+                    : 'None'}
+                </dd>
               </>
             ) : null}
 

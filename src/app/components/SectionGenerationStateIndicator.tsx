@@ -18,6 +18,8 @@ export function sectionGenerationStateLabel(state: SectionGenerationState): stri
       return 'Needs generation';
     case 'queued':
       return 'Queued';
+    case 'backgroundQueued':
+      return 'Background queued';
     case 'generating':
       return 'Generating';
     case 'generated':
@@ -25,8 +27,12 @@ export function sectionGenerationStateLabel(state: SectionGenerationState): stri
     case 'imported':
     case 'importedUnvalidated':
       return 'Imported (unvalidated)';
+    case 'validationRunning':
+      return 'Validation running';
+    case 'validationProposed':
+      return 'Validation proposed';
     case 'unvalidated':
-      return 'Unvalidated';
+      return 'Unvalidated (review)';
     case 'validated':
       return 'Validated';
     case 'reviewed':
@@ -58,11 +64,17 @@ export function SectionGenerationStateIndicator({
   switch (state) {
     case 'queued':
       return <Circle className={`${className} text-muted-foreground/70`} />;
+    case 'backgroundQueued':
+      return <Circle className={`${className} text-indigo-500/80`} />;
     case 'generating':
       return <Loader2 className={`${className} animate-spin text-primary`} />;
     case 'imported':
     case 'importedUnvalidated':
       return <Circle className={`${className} text-cyan-600 dark:text-cyan-400`} />;
+    case 'validationRunning':
+      return <Loader2 className={`${className} animate-spin text-primary`} />;
+    case 'validationProposed':
+      return <Circle className={`${className} text-slate-500`} />;
     case 'unvalidated':
       return <AlertTriangle className={`${className} text-slate-500`} />;
     case 'validated':
@@ -93,11 +105,16 @@ export function sectionGenerationOverlayClass(state: SectionGenerationState): st
   switch (state) {
     case 'queued':
       return 'ring-1 ring-muted-foreground/20';
+    case 'backgroundQueued':
+      return 'ring-1 ring-indigo-400/40';
     case 'generating':
       return 'ring-2 ring-primary/60 animate-pulse';
     case 'imported':
     case 'importedUnvalidated':
       return 'ring-1 ring-cyan-500/50';
+    case 'validationRunning':
+      return 'ring-2 ring-primary/60 animate-pulse';
+    case 'validationProposed':
     case 'unvalidated':
       return 'ring-1 ring-slate-400/50';
     case 'validated':
@@ -125,6 +142,8 @@ export function sectionGenerationDotClass(state: SectionGenerationState): string
   switch (state) {
     case 'queued':
       return 'bg-muted-foreground/30';
+    case 'backgroundQueued':
+      return 'bg-indigo-400/70';
     case 'generating':
       return 'bg-primary/40';
     case 'imported':

@@ -187,12 +187,57 @@ export function buildSourcePreview(text: string, maxLength = 120): string {
   return `${normalized.slice(0, maxLength - 1)}…`;
 }
 
+export function isLikelyHeaderFooterText(text: string): boolean {
+  const trimmed = text.trim();
+  if (!trimmed) {
+    return false;
+  }
+  if (/^page\s+\d+\s+of\s+\d+$/i.test(trimmed)) {
+    return true;
+  }
+  if (/^confidential$/i.test(trimmed)) {
+    return true;
+  }
+  if (/^draft\s+protocol$/i.test(trimmed)) {
+    return true;
+  }
+  return false;
+}
+
+export function isMostlyTableOfContentsDots(text: string): boolean {
+  const lines = text.split('\n').map((line) => line.trim()).filter(Boolean);
+  if (lines.length === 0) {
+    return false;
+  }
+  const tocLike = lines.filter((line) => isTableOfContentsEntry(line) || /\.{4,}/.test(line));
+  return tocLike.length / lines.length >= 0.5;
+}
+
+export function isHeadingOnlyBody(body: string, headingText: string): boolean {
+  const trimmed = body.trim();
+  if (!trimmed) {
+    return true;
+  }
+  const normalizedBody = trimmed.toLowerCase().replace(/[^a-z0-9\s]/g, ' ').replace(/\s+/g, ' ').trim();
+  const normalizedHeading = headingText.toLowerCase().replace(/[^a-z0-9\s]/g, ' ').replace(/\s+/g, ' ').trim();
+  return normalizedBody === normalizedHeading;
+}
+
 export function isSuspiciousImportedBody(body: string, headingText: string): boolean {
   const trimmed = body.trim();
   if (trimmed.length >= MIN_IMPORTED_BODY_LENGTH) {
+    if (isMostlyTableOfContentsDots(trimmed)) {
+      return true;
+    }
+    if (isLikelyHeaderFooterText(trimmed)) {
+      return true;
+    }
     return false;
   }
   if (trimmed.length === 0) {
+    return true;
+  }
+  if (isHeadingOnlyBody(trimmed, headingText)) {
     return true;
   }
   if (trimmed.length < 20 && headingText.length > trimmed.length) {

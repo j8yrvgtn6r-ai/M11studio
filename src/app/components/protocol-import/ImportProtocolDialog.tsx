@@ -21,6 +21,7 @@ import {
 } from '../../domain/protocol/import';
 import {
   endProtocolBuildSession,
+  getProtocolBuildConsoleState,
   registerProtocolBuildControls,
   requestPauseAfterCurrentSection,
   resumeProtocolBuild,
@@ -74,6 +75,7 @@ export function ImportProtocolDialog({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
   const reconstructionStartedRef = useRef(false);
+  const processingActiveRef = useRef(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [overwriteConfirmed, setOverwriteConfirmed] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
@@ -95,6 +97,7 @@ export function ImportProtocolDialog({
     setIsDragging(false);
     setCompletedContext(null);
     setProcessingActive(false);
+    processingActiveRef.current = false;
     endProtocolBuildSession('idle');
   }, []);
 
@@ -141,7 +144,12 @@ export function ImportProtocolDialog({
       return;
     }
 
-    if (processingActive) {
+    if (
+      processingActive ||
+      processingActiveRef.current ||
+      getProtocolBuildConsoleState().status === 'running' ||
+      getProtocolBuildConsoleState().status === 'paused'
+    ) {
       onOpenChange(false);
       return;
     }
@@ -180,6 +188,7 @@ export function ImportProtocolDialog({
     }
 
     setUploadError(null);
+    processingActiveRef.current = true;
     setProcessingActive(true);
     setProcessingSteps(createInitialProcessingSteps());
     reconstructionStartedRef.current = false;
@@ -253,6 +262,7 @@ export function ImportProtocolDialog({
         );
       }
     } finally {
+      processingActiveRef.current = false;
       setProcessingActive(false);
       abortControllerRef.current = null;
     }
@@ -272,6 +282,7 @@ export function ImportProtocolDialog({
       return;
     }
 
+    processingActiveRef.current = true;
     setProcessingActive(true);
     onOpenChange(false);
     startProtocolBuildSession({ mode: 'Selected' });
@@ -311,6 +322,7 @@ export function ImportProtocolDialog({
         return;
       }
     } finally {
+      processingActiveRef.current = false;
       setProcessingActive(false);
       abortControllerRef.current = null;
     }
@@ -322,11 +334,13 @@ export function ImportProtocolDialog({
     if (!isPriorityGenerationContextReady()) {
       return;
     }
+    processingActiveRef.current = true;
     setProcessingActive(true);
     onOpenChange(false);
     try {
       await generateRemainingSectionImportDraftsAsync();
     } finally {
+      processingActiveRef.current = false;
       setProcessingActive(false);
     }
   };

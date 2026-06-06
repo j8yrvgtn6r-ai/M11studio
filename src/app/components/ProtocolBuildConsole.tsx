@@ -295,6 +295,7 @@ export function ProtocolBuildConsole() {
                 progress={build.generationProgress}
                 status={build.status}
                 mode={build.mode}
+                schedule={build.generationSchedule}
               />
             </div>
           ) : null}

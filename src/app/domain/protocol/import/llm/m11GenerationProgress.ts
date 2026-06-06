@@ -7,6 +7,9 @@ export interface M11GenerationProgressSnapshot {
   completedSections: number;
   failedSections: number;
   queuedSections?: number;
+  skippedSections?: number;
+  queueType?: string;
+  currentComplexity?: string;
   currentSectionId?: string;
   currentSectionTitle?: string;
   elapsedMs: number;

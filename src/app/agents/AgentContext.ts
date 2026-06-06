@@ -7,6 +7,8 @@ import type { StudyModel } from '../domain/study-model/studyModelTypes';
 export type AgentTrigger =
   | 'import'
   | 'sectionEdit'
+  | 'sectionValidation'
+  | 'sectionReviewed'
   | 'sectionApproval'
   | 'regeneration'
   | 'manual'

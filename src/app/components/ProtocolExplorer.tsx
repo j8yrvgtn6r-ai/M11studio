@@ -1,4 +1,4 @@
-import { ChevronRight, ChevronDown, FileText, AlertCircle, MessageSquare, FileEdit, BookOpen, BrainCircuit } from 'lucide-react';
+import { ChevronRight, ChevronDown, FileText, AlertCircle, AlertTriangle, MessageSquare, FileEdit, BookOpen, BrainCircuit } from 'lucide-react';
 import { useState } from 'react';
 import type { GeneratedSectionDraft } from '../domain/protocol/import';
 import {
@@ -86,7 +86,9 @@ export function ProtocolExplorer({
       </div>
       <ScrollArea className="flex-1 min-h-0" data-testid="protocol-explorer-scroll">
         <div className="p-2">
-          {sections.map((section) => (
+          {sections
+            .filter((section): section is ProtocolSection => Boolean(section?.id))
+            .map((section) => (
             <SectionTreeNode
               key={section.id}
               section={section}
@@ -173,7 +175,7 @@ function SectionTreeNode({
         <FileText className="h-3.5 w-3.5 shrink-0 opacity-70" />
 
         <span className={`flex-1 truncate ${section.ichM11InstructionOnly ? 'text-muted-foreground italic' : ''}`}>
-          {section.title}
+          {section?.title ?? section?.id ?? 'Section'}
         </span>
 
         <div className="flex items-center gap-1 shrink-0">
@@ -194,9 +196,9 @@ function SectionTreeNode({
           )}
           {(importDraft || buildActive || sectionGenerationStates[section.id]) ? (
             <div
-              className="flex items-center"
+              className="flex items-center gap-0.5"
               title={[
-                section.title,
+                section?.title ?? section?.id ?? 'Section',
                 `Generation: ${sectionGenerationStateLabel(generationState)}`,
                 importedSectionTooltip(importDraft),
                 importDraft?.contentOrigin
@@ -207,12 +209,22 @@ function SectionTreeNode({
                   : null,
                 importDraft?.generatedAt ? `Updated: ${new Date(importDraft.generatedAt).toLocaleString()}` : null,
                 importDraft?.validationMessages?.[0] ? `Error: ${importDraft.validationMessages[0]}` : null,
+                importDraft?.consistencyImpacts?.[0]?.reason ?? null,
               ]
                 .filter(Boolean)
                 .join('\n')}
               data-testid={`import-section-indicator-${section.id}`}
               data-generation-state={generationState}
             >
+              {generationState === 'outOfSync' ? (
+                <Badge
+                  variant="outline"
+                  className="h-4 px-1 text-[10px] text-amber-600 border-amber-500/50"
+                  data-testid={`out-of-sync-badge-${section.id}`}
+                >
+                  <AlertTriangle className="h-2.5 w-2.5" />
+                </Badge>
+              ) : null}
               <SectionGenerationStateIndicator state={generationState} compact />
             </div>
           ) : (
@@ -223,7 +235,9 @@ function SectionTreeNode({
 
       {hasChildren && expanded && (
         <div>
-          {section.children!.map((child) => (
+          {section.children!
+            .filter((child): child is ProtocolSection => Boolean(child?.id))
+            .map((child) => (
             <SectionTreeNode
               key={child.id}
               section={child}

@@ -496,6 +496,7 @@ export default function App() {
                       onSelectSection={handleSectionSelect}
                       sectionImportDrafts={importState.sectionDrafts}
                       sectionGenerationStates={buildState.sectionStates}
+                      sectionSkipReasons={buildState.sectionSkipReasons}
                       buildActive={buildActive || buildState.status === 'complete'}
                       visualizationPhase={buildState.visualizationPhase}
                       generationProgress={buildState.generationProgress}

@@ -20,6 +20,7 @@ export interface ProtocolBuildEvent {
 export type SectionGenerationState =
   | 'notGenerated'
   | 'queued'
+  | 'backgroundQueued'
   | 'generating'
   | 'generated'
   | 'needsReview'
@@ -28,11 +29,22 @@ export type SectionGenerationState =
   | 'outOfDate'
   | 'imported'
   | 'importedUnvalidated'
+  | 'validationRunning'
+  | 'validationProposed'
   | 'unvalidated'
   | 'validated'
   | 'reviewed'
   | 'outOfSync'
   | 'needsGeneration';
+
+export interface GenerationScheduleSnapshot {
+  queueType: string;
+  queuedCount: number;
+  skippedCount: number;
+  priorityCount: number;
+  backgroundCount: number;
+  trigger: string;
+}
 
 export type ProtocolBuildStatus = 'idle' | 'running' | 'paused' | 'complete' | 'failed' | 'cancelled';
 
@@ -66,6 +78,8 @@ export interface ProtocolBuildConsoleState {
   visualizationPhase: ImportVisualizationPhase;
   mode: ProtocolBuildMode;
   failedSectionIds: string[];
+  sectionSkipReasons: Record<string, string>;
+  generationSchedule: GenerationScheduleSnapshot | null;
   controls: ProtocolBuildSessionControls;
   completionSummary: {
     sectionsGenerated: number;
@@ -97,6 +111,8 @@ let state: ProtocolBuildConsoleState = {
   visualizationPhase: 'idle',
   mode: 'Full',
   failedSectionIds: [],
+  sectionSkipReasons: {},
+  generationSchedule: null,
   controls: {},
   completionSummary: null,
 };
@@ -123,6 +139,7 @@ export function normalizeSectionGenerationState(value: unknown): SectionGenerati
   const allowed: SectionGenerationState[] = [
     'notGenerated',
     'queued',
+    'backgroundQueued',
     'generating',
     'generated',
     'needsReview',
@@ -426,9 +443,12 @@ const PROTECTED_SECTION_STATES: SectionGenerationState[] = [
   'generating',
   'imported',
   'importedUnvalidated',
+  'validationRunning',
+  'validationProposed',
   'unvalidated',
   'validated',
   'reviewed',
+  'backgroundQueued',
 ];
 
 export function markSectionsQueued(sectionIds: string[]): void {
@@ -482,13 +502,56 @@ export function mergeSectionGenerationStatesFromDrafts(
 
 export function markSectionsNotGenerated(sectionIds: string[]): void {
   const next = { ...state.sectionStates };
+  const skipReasons = { ...state.sectionSkipReasons };
   for (const sectionId of sectionIds) {
     if (next[sectionId] !== 'generating' && next[sectionId] !== 'needsReview' && next[sectionId] !== 'approved' && next[sectionId] !== 'imported' && next[sectionId] !== 'importedUnvalidated' && next[sectionId] !== 'validated') {
       next[sectionId] = 'needsGeneration';
     }
+    if (!skipReasons[sectionId]) {
+      skipReasons[sectionId] = 'Not generated because source/context is insufficient.';
+    }
+  }
+  state = { ...state, sectionStates: next, sectionSkipReasons: skipReasons };
+  notify();
+}
+
+export function markSectionsBackgroundQueued(sectionIds: string[]): void {
+  const next = { ...state.sectionStates };
+  for (const sectionId of sectionIds) {
+    const current = next[sectionId];
+    if (!current || !PROTECTED_SECTION_STATES.includes(current)) {
+      next[sectionId] = 'backgroundQueued';
+    }
   }
   state = { ...state, sectionStates: next };
   notify();
+}
+
+export function setSectionSkipReasons(reasons: Record<string, string>): void {
+  state = {
+    ...state,
+    sectionSkipReasons: {
+      ...state.sectionSkipReasons,
+      ...reasons,
+    },
+  };
+  notify();
+}
+
+export function getSectionSkipReason(sectionId: string | undefined): string | undefined {
+  if (!sectionId) {
+    return undefined;
+  }
+  return state.sectionSkipReasons[sectionId];
+}
+
+export function setGenerationScheduleSnapshot(snapshot: GenerationScheduleSnapshot): void {
+  state = { ...state, generationSchedule: snapshot };
+  notify();
+}
+
+export function getGenerationScheduleSnapshot(): GenerationScheduleSnapshot | null {
+  return state.generationSchedule;
 }
 
 export function setProtocolBuildFailedSectionIds(sectionIds: string[]): void {

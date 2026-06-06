@@ -1,15 +1,19 @@
 import type { M11GenerationProgressSnapshot } from '../domain/protocol/import/llm/m11GenerationProgress';
 import { formatEstimatedRemaining } from '../domain/protocol/import/llm/m11GenerationProgress';
 import { formatBuildDurationMs } from '../domain/protocol/build/formatBuildDuration';
-import type { ProtocolBuildStatus } from '../domain/protocol/build/protocolBuildConsoleStore';
+import type {
+  GenerationScheduleSnapshot,
+  ProtocolBuildStatus,
+} from '../domain/protocol/build/protocolBuildConsoleStore';
 
 interface GenerationProgressSummaryProps {
   progress: M11GenerationProgressSnapshot | null;
   status: ProtocolBuildStatus;
   mode?: string;
+  schedule?: GenerationScheduleSnapshot | null;
 }
 
-export function GenerationProgressSummary({ progress, status, mode = 'Full' }: GenerationProgressSummaryProps) {
+export function GenerationProgressSummary({ progress, status, mode = 'Full', schedule = null }: GenerationProgressSummaryProps) {
   if (!progress && status === 'idle') {
     return null;
   }
@@ -25,6 +29,9 @@ export function GenerationProgressSummary({ progress, status, mode = 'Full' }: G
       : status === 'paused'
         ? 'Paused'
         : '—';
+
+  const queueType = progress?.queueType ?? schedule?.queueType ?? '—';
+  const skippedCount = progress?.skippedSections ?? schedule?.skippedCount ?? 0;
 
   return (
     <div
@@ -48,6 +55,10 @@ export function GenerationProgressSummary({ progress, status, mode = 'Full' }: G
       <div className="grid grid-cols-[130px_1fr] gap-x-3 gap-y-1">
         <span className="text-muted-foreground">Mode</span>
         <span data-testid="protocol-build-mode">{mode}</span>
+        <span className="text-muted-foreground">Queue type</span>
+        <span data-testid="protocol-build-queue-type">{queueType}</span>
+        <span className="text-muted-foreground">Skipped</span>
+        <span data-testid="protocol-build-skipped-count">{skippedCount}</span>
         <span className="text-muted-foreground">Completed</span>
         <span data-testid="protocol-build-completed-count">
           {completed} / {total || '—'}
@@ -59,6 +70,7 @@ export function GenerationProgressSummary({ progress, status, mode = 'Full' }: G
         <span className="text-muted-foreground">Currently generating</span>
         <span data-testid="protocol-build-current-section" className="truncate">
           {currentLabel}
+          {progress?.currentComplexity ? ` · ${progress.currentComplexity} complexity` : ''}
         </span>
         <span className="text-muted-foreground">Provider</span>
         <span data-testid="protocol-build-provider-model">

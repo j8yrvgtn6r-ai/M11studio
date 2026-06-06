@@ -23,6 +23,7 @@ interface DocumentMinimapProps {
   onSelectSection: (sectionId: string) => void;
   sectionImportDrafts?: Record<string, GeneratedSectionDraft>;
   sectionGenerationStates?: Record<string, SectionGenerationState>;
+  sectionSkipReasons?: Record<string, string>;
   buildActive?: boolean;
   visualizationPhase?: ImportVisualizationPhase;
   generationProgress?: {
@@ -39,18 +40,26 @@ export function DocumentMinimap({
   onSelectSection,
   sectionImportDrafts = {},
   sectionGenerationStates = {},
+  sectionSkipReasons = {},
   buildActive = false,
   visualizationPhase = 'idle',
   generationProgress = null,
 }: DocumentMinimapProps) {
   const flattenSections = (items: ProtocolSection[]): ProtocolSection[] => {
     const result: ProtocolSection[] = [];
-    items.forEach((section) => {
-      result.push(section);
-      if (section.children) {
-        result.push(...flattenSections(section.children));
+    for (const section of items) {
+      if (!section?.id) {
+        continue;
       }
-    });
+      result.push(section);
+      if (section.children?.length) {
+        result.push(
+          ...flattenSections(
+            section.children.filter((child): child is ProtocolSection => Boolean(child?.id)),
+          ),
+        );
+      }
+    }
     return result;
   };
 
@@ -64,7 +73,9 @@ export function DocumentMinimap({
       </div>
       <ScrollArea className="flex-1 min-h-0">
         <div className="p-1.5 space-y-1">
-          {allSections.map((section) => {
+          {allSections
+            .filter((section): section is ProtocolSection => Boolean(section?.id))
+            .map((section) => {
             const isSelected = selectedSectionId === section.id;
             const importDraft = sectionImportDrafts[section.id];
             const generationState = resolveSectionGenerationState(
@@ -85,7 +96,7 @@ export function DocumentMinimap({
                 ? sectionGenerationDotClass(generationState)
                 : 'bg-muted/40';
             const tooltipLines = [
-              `Section: ${section.title}`,
+              `Section: ${section?.title ?? section?.id ?? 'Section'}`,
               `Status: ${sectionGenerationStateLabel(generationState)}`,
               importedSectionTooltip(importDraft),
               importDraft?.contentOrigin
@@ -95,6 +106,9 @@ export function DocumentMinimap({
                 ? `Imported length: ${importDraft.importedTextLength} characters`
                 : null,
               importDraft?.sourcePreview ? `Preview: ${importDraft.sourcePreview}` : null,
+              sectionSkipReasons[section.id]
+                ? `Skip reason: ${sectionSkipReasons[section.id]}`
+                : null,
               generationProgress?.providerLabel
                 ? `Provider: ${generationProgress.providerLabel}${generationProgress.model ? ` / ${generationProgress.model}` : ''}`
                 : null,

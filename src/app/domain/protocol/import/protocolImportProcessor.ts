@@ -5,6 +5,7 @@ import {
   markProtocolImportGenerationPhase,
   markSectionsNotGenerated,
   markSectionsQueued,
+  markSectionsBackgroundQueued,
   mergeSectionGenerationStatesFromDrafts,
   resetQuickReconstructionVisualization,
   setProtocolBuildFailedSectionIds,
@@ -74,7 +75,8 @@ import {
   listQuickReconstructionSectionIds,
 } from './quickReconstructionSections';
 import { createImportedSectionDraft, markDraftAsGenerated } from './importedSectionBuilder';
-import { runStructuralMappingEngine } from './structuralMappingEngine';
+import { runStructuralMappingAgent } from '../../../agents/structuralMappingAgentRunner';
+import { runGenerationAgentSchedule } from '../../../agents/generationAgentRunner';
 import { rebuildStudyModel, setStudyModelPhase } from '../../study-model/studyModelStore';
 import { createSectionRegeneratedCommit } from './protocolVersioning';
 import {
@@ -280,37 +282,12 @@ export async function runProtocolImportProcessing(
 
     updateStep('identifying-sections', { state: 'active' });
     appendProtocolBuildEvent({ type: 'progress', message: 'Detecting protocol structure...' });
-    appendProtocolBuildEvent({ type: 'progress', message: 'Matching protocol headings...' });
-    const structuralMapping = runStructuralMappingEngine(importedSource, {
-      onMapping: (mapping) => {
-        appendProtocolBuildEvent({
-          type: 'success',
-          message: `Mapped section ${mapping.mappedM11SectionId} from source heading "${mapping.sourceHeading}"`,
-          sectionId: mapping.mappedM11SectionId,
-          metadata: {
-            importedTextLength: mapping.importedTextLength,
-            mappingMethod: mapping.mappingMethod,
-          },
-        });
-      },
-      onRejectedMapping: ({ mappedM11SectionId, sourceHeading, reason }) => {
-        appendProtocolBuildEvent({
-          type: 'warning',
-          message: `Skipped mapping for ${mappedM11SectionId} from "${sourceHeading}": ${reason}`,
-          sectionId: mappedM11SectionId,
-        });
-      },
-    });
+    const { result: structuralMapping } = await runStructuralMappingAgent(importedSource, { trigger: 'import' });
     appendProtocolBuildEvent({ type: 'progress', message: 'Mapping content into M11 hierarchy...' });
     appendProtocolBuildEvent({
       type: 'success',
       message: `${structuralMapping.mappedSectionIds.length} sections mapped.`,
       metadata: { mappedSections: structuralMapping.mappedSectionIds.length },
-    });
-    appendProtocolBuildEvent({
-      type: 'info',
-      message: `${structuralMapping.needsGenerationSectionIds.length} sections require generation.`,
-      metadata: { needsGenerationSections: structuralMapping.needsGenerationSectionIds.length },
     });
 
     const importedDrafts = structuralMapping.mappings.map((mapping) =>
@@ -425,12 +402,20 @@ export async function runProtocolImportProcessing(
     markProtocolImportGenerationPhase();
 
     const needsGenerationIds = structuralMapping.needsGenerationSectionIds;
-    const priorityNeedsGeneration = prioritySectionIds.filter((sectionId) =>
-      needsGenerationIds.includes(sectionId),
-    );
-    markSectionsNotGenerated(
-      needsGenerationIds.filter((sectionId) => !priorityNeedsGeneration.includes(sectionId)),
-    );
+    const importedDraftRecord = Object.fromEntries(importedDrafts.map((draft) => [draft.sectionId, draft]));
+    const generationSchedule = await runGenerationAgentSchedule({
+      trigger: 'import',
+      sectionDrafts: importedDraftRecord,
+      mappedSections: structuralMapping.mappings,
+      needsGenerationSectionIds: needsGenerationIds,
+      importedSource,
+      protocolKnowledgeModel,
+      coreStudyModel,
+    });
+
+    const priorityNeedsGeneration = generationSchedule.prioritizedSections;
+    const skippedSectionIds = generationSchedule.skippedSections.map((entry) => entry.sectionId);
+    markSectionsNotGenerated(skippedSectionIds);
     if (priorityNeedsGeneration.length > 0) {
       markSectionsQueued(priorityNeedsGeneration);
     }
@@ -469,12 +454,12 @@ export async function runProtocolImportProcessing(
     }
 
     const draftRecord = Object.fromEntries(drafts.map((draft) => [draft.sectionId, draft]));
-    const backgroundSectionIds = needsGenerationIds.filter(
-      (sectionId) =>
-        !prioritySectionIds.includes(sectionId) && !draftRecord[sectionId],
+    const backgroundSectionIds = generationSchedule.backgroundSections.filter(
+      (sectionId) => !draftRecord[sectionId],
     );
 
     if (backgroundSectionIds.length > 0) {
+      markSectionsBackgroundQueued(backgroundSectionIds);
       markSectionsQueued(backgroundSectionIds);
       appendProtocolBuildEvent({ type: 'progress', message: 'Continuing background generation' });
       appendProtocolBuildEvent({
@@ -496,7 +481,9 @@ export async function runProtocolImportProcessing(
       );
       drafts = mergeRetriedSectionDrafts(drafts, backgroundDrafts.map((draft) => markDraftAsGenerated(draft)));
     } else {
-      markSectionsNotGenerated(needsGenerationIds.filter((sectionId) => !draftRecord[sectionId]));
+      markSectionsNotGenerated(
+        generationSchedule.skippedSections.map((entry) => entry.sectionId).filter((sectionId) => !draftRecord[sectionId]),
+      );
     }
 
     await enrichmentPromise.catch(() => null);
@@ -633,8 +620,27 @@ export async function retryFailedM11SectionGeneration(
     };
   }
 
+  const importState = getProtocolImportState();
+  const source = getImportedProtocolSource();
+  const knowledge = getProtocolKnowledgeModel();
+  const retrySchedule = await runGenerationAgentSchedule({
+    trigger: 'retryFailed',
+    sectionDrafts: importState.sectionDrafts,
+    failedSectionIds,
+    importedSource: source,
+    protocolKnowledgeModel: knowledge,
+  });
+  const retrySectionIds = retrySchedule.queue.map((item) => item.sectionId);
+  if (retrySectionIds.length === 0) {
+    return {
+      sectionDrafts: existingDrafts,
+      failedSectionIds,
+      partialGenerationFailure: failedSectionIds.length > 0,
+    };
+  }
+
   const retriedDrafts = await runM11SectionGeneration(
-    buildGenerationInput(artifact, importedSource, protocolKnowledgeModel, failedSectionIds),
+    buildGenerationInput(artifact, importedSource, protocolKnowledgeModel, retrySectionIds),
     {
       signal: callbacks.signal,
       onProgress: (progress) => {
@@ -750,6 +756,23 @@ export async function generateM11SectionOnDemand(
     throw new ImportGenerationContextNotReadyError(getImportGenerationContextDiagnostics());
   }
 
+  const manualSchedule = await runGenerationAgentSchedule({
+    trigger: 'generateSection',
+    requestedSectionId: sectionId,
+    sectionDrafts: importState.sectionDrafts,
+    importedSource: source,
+    protocolKnowledgeModel: knowledge,
+  });
+  const scheduled = manualSchedule.queue.find((item) => item.sectionId === sectionId);
+  if (!scheduled?.canGenerateNow) {
+    const reason =
+      manualSchedule.skippedSections.find((entry) => entry.sectionId === sectionId)?.reason ??
+      scheduled?.skipReason ??
+      'Cannot generate this section yet.';
+    appendProtocolBuildEvent({ type: 'warning', message: reason, sectionId });
+    throw new Error(reason);
+  }
+
   if (buildStatus === 'running' || buildStatus === 'paused') {
     injectSectionIntoGenerationQueue(sectionId);
     prependSectionGenerationPriority(sectionId);
@@ -837,13 +860,24 @@ export async function generateRemainingM11Sections(
   const knowledge = getProtocolKnowledgeModel();
   const artifact = importState.artifact;
   const existingDrafts = Object.values(importState.sectionDrafts);
-  const remainingSectionIds = listSectionsEligibleForGeneration(importState.sectionDrafts);
+  const remainingSchedule = await runGenerationAgentSchedule({
+    trigger: 'generateRemaining',
+    sectionDrafts: importState.sectionDrafts,
+    importedSource: source,
+    protocolKnowledgeModel: knowledge,
+  });
+  const remainingSectionIds = remainingSchedule.queue.map((item) => item.sectionId);
 
   if (!source || !knowledge || !artifact) {
     logImportGenerationContextGap('generateRemainingM11Sections.resolvedContext');
     throw new ImportGenerationContextNotReadyError(getImportGenerationContextDiagnostics());
   }
   if (remainingSectionIds.length === 0) {
+    appendProtocolBuildEvent({
+      type: 'info',
+      message: `Generate Remaining skipped ${remainingSchedule.generationSummary.skippedCount} section(s)`,
+      metadata: { skippedCount: remainingSchedule.generationSummary.skippedCount },
+    });
     return {
       sectionDrafts: existingDrafts,
       failedSectionIds: [],
@@ -856,7 +890,10 @@ export async function generateRemainingM11Sections(
   appendProtocolBuildEvent({
     type: 'progress',
     message: `Generating remaining sections (${remainingSectionIds.length})...`,
-    metadata: { remainingSections: remainingSectionIds.length },
+    metadata: {
+      remainingSections: remainingSectionIds.length,
+      skippedSections: remainingSchedule.generationSummary.skippedCount,
+    },
   });
 
   const onSectionDraft = createLiveSectionDraftHandler(callbacks);

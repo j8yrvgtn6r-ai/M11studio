@@ -67,8 +67,8 @@ export function ProtocolImportReviewWorkspace({
   );
 
   const handleOpenReview = (sectionId: string) => {
-    openSectionForReview(sectionId);
     setActiveSectionId(sectionId);
+    openSectionForReview(sectionId);
   };
 
   const handleExportArchive = () => {

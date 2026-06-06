@@ -36,9 +36,10 @@ import {
 
 } from '../domain/protocol/import';
 
-import { inferWorkflowState } from '../domain/protocol/import/sectionWorkflowState';
+import { inferWorkflowState, isValidationReviewReady } from '../domain/protocol/import/sectionWorkflowState';
 
 import { SectionValidationReviewPanel } from './protocol-import/SectionValidationReviewPanel';
+import { ConsistencyImpactReviewPanel } from './protocol-import/ConsistencyImpactReviewPanel';
 
 import { useProtocolImport } from '../domain/protocol/import/ProtocolImportContext';
 
@@ -144,9 +145,22 @@ export function DocumentViewport({
   const isImportedUnvalidatedSection =
     workflowState === 'importedUnvalidated' || workflowState === 'imported';
 
-  const isUnvalidatedSection = workflowState === 'unvalidated';
-
   const isGeneratedSection = importDraft?.contentOrigin === 'generated' || workflowState === 'generated';
+
+  const isValidationRunning = workflowState === 'validationRunning';
+
+  const isValidationProposedSection = isValidationReviewReady(importDraft ?? undefined);
+
+  const isUnvalidatedSection = workflowState === 'unvalidated' || isValidationProposedSection;
+
+  const canShowValidateButton =
+    importDraft &&
+    !isValidationRunning &&
+    !isValidationProposedSection &&
+    (isImportedUnvalidatedSection || isGeneratedSection);
+
+  const isOutOfSyncSection =
+    sectionGenerationState === 'outOfSync' || workflowState === 'outOfSync' || importDraft?.workflowState === 'outOfSync';
 
   return (
 
@@ -160,7 +174,7 @@ export function DocumentViewport({
 
           <div className="flex items-center gap-2">
 
-            <h2 className="font-semibold">{section.title}</h2>
+            <h2 className="font-semibold">{section?.title ?? section.id}</h2>
 
             <Badge variant="outline" className={`${statusColor.text} ${statusColor.border}`}>
 
@@ -206,7 +220,7 @@ export function DocumentViewport({
 
                 </Badge>
 
-                {isImportedUnvalidatedSection && !importDraft.validatedTargetText ? (
+                {canShowValidateButton ? (
 
                   <Button
 
@@ -219,6 +233,16 @@ export function DocumentViewport({
                   >
 
                     Validate
+
+                  </Button>
+
+                ) : isValidationRunning ? (
+
+                  <Button size="sm" disabled data-testid="viewport-validate-running">
+
+                    <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />
+
+                    Validating…
 
                   </Button>
 
@@ -313,9 +337,11 @@ export function DocumentViewport({
               </AlertTitle>
               <AlertDescription className="space-y-3">
                 <p>
-                  {generationContextReady
-                    ? 'This section has not been generated yet. Generate this section when needed.'
-                    : 'Generation unavailable until Core Study Model is ready.'}
+                  {sectionGenerationState === 'needsGeneration'
+                    ? 'Source mapping was uncertain or no confident source body was found. This section will be generated or requires manual review.'
+                    : generationContextReady
+                      ? 'This section has not been generated yet. Generate this section when needed.'
+                      : 'Generation unavailable until Core Study Model is ready.'}
                 </p>
                 <Button
                   size="sm"
@@ -377,7 +403,29 @@ export function DocumentViewport({
 
 
 
-          {importDraft && isUnvalidatedSection && importDraft.validatedTargetText ? (
+          {importDraft && isOutOfSyncSection ? (
+            <ConsistencyImpactReviewPanel
+              sectionId={section.id}
+              draft={importDraft}
+              onManualEdit={() => {
+                document.getElementById('viewport-import-generated-text')?.focus();
+              }}
+            />
+          ) : null}
+
+
+
+          {importDraft && isValidationRunning ? (
+            <Alert data-testid="viewport-validation-running">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              <AlertTitle>Validation running</AlertTitle>
+              <AlertDescription>
+                Validation Agent is checking M11 structure and controlled terminology for this section.
+              </AlertDescription>
+            </Alert>
+          ) : null}
+
+          {importDraft && isValidationProposedSection ? (
 
             <SectionValidationReviewPanel
 
@@ -393,7 +441,7 @@ export function DocumentViewport({
 
 
 
-          {importDraft && isImportedUnvalidatedSection && !importDraft.validatedTargetText ? (
+          {importDraft && isImportedUnvalidatedSection && !isValidationProposedSection && !isValidationRunning ? (
 
             <div className="space-y-3 mb-8">
 

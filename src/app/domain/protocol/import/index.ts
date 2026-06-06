@@ -30,6 +30,7 @@ export type {
   SectionValidationFinding,
   SourceSectionCandidate,
   StructuralMappingResult,
+  ConsistencyImpactRecord,
 } from './types';
 
 export type { ProtocolKnowledgeModel, ProtocolKnowledgeProvider, ProtocolKnowledgeProviderId } from './protocolKnowledgeTypes';
@@ -71,6 +72,9 @@ export {
   setProtocolImportResult,
   subscribeProtocolImport,
   updateSectionImportDraft,
+  applyConsistencyAgentResults,
+  clearSectionOutOfSyncState,
+  getSectionImportDrafts,
 } from './protocolImportStore';
 
 export {

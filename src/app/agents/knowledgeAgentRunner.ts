@@ -2,6 +2,7 @@ import { agentManager } from './AgentManager';
 import type { AgentTrigger } from './AgentContext';
 import { KNOWLEDGE_AGENT_ID, knowledgeAgent } from './KnowledgeAgent';
 import type { KnowledgeAgentInput, KnowledgeAgentOutput, KnowledgeAgentTextSource } from './knowledgeAgentHeuristics';
+import { ensureAgentsRegistered } from './consistencyAgentRunner';
 import {
   getImportedProtocolSource,
   getProtocolKnowledgeModel,
@@ -11,7 +12,7 @@ import { applyStudyModelPatch } from '../domain/study-model/studyModelPatch';
 import { getStudyModel, patchStudyModel, rebuildStudyModel } from '../domain/study-model/studyModelStore';
 
 const editDebounceTimers = new Map<string, ReturnType<typeof setTimeout>>();
-let initialized = false;
+let knowledgeRunnerInitialized = false;
 
 const studyModelUpdatedListeners = new Set<(message: string) => void>();
 
@@ -34,12 +35,15 @@ function notifyStudyModelUpdated(message: string): void {
   studyModelUpdatedListeners.forEach((listener) => listener(message));
 }
 
-function ensureAgentsRegistered(): void {
-  if (initialized) {
+function ensureKnowledgeRunnerRegistered(): void {
+  if (knowledgeRunnerInitialized) {
     return;
   }
-  agentManager.register(knowledgeAgent);
-  initialized = true;
+  ensureAgentsRegistered();
+  if (!agentManager.getAgent(KNOWLEDGE_AGENT_ID)) {
+    agentManager.register(knowledgeAgent);
+  }
+  knowledgeRunnerInitialized = true;
 }
 
 function ensureStudyModelReady(): void {
@@ -61,7 +65,7 @@ export async function runKnowledgeAgentForSection(options: {
   source: KnowledgeAgentTextSource;
   trigger: AgentTrigger;
 }): Promise<void> {
-  ensureAgentsRegistered();
+  ensureKnowledgeRunnerRegistered();
   if (!options.currentText.trim()) {
     return;
   }
@@ -98,6 +102,18 @@ export async function runKnowledgeAgentForSection(options: {
         );
         notifyStudyModelUpdated(`Study Model updated from section ${options.sectionId}`);
       }
+    }
+
+    const output = result.output as KnowledgeAgentOutput | undefined;
+    if (output?.changedItems?.length) {
+      const { scheduleConsistencyAgentCheck } = await import('./consistencyAgentRunner');
+      scheduleConsistencyAgentCheck({
+        sourceSectionId: options.sectionId,
+        sourceSectionTitle: options.sectionTitle,
+        changedItems: output.changedItems,
+        studyModelPatch: result.studyModelUpdates,
+        trigger: options.trigger,
+      });
     }
   } catch {
     // Knowledge Agent must never crash callers.

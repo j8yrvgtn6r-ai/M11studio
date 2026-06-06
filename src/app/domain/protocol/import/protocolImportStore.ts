@@ -1,7 +1,8 @@
 import { getProtocolDocument } from '../store/protocolStore';
-import { updateSectionGenerationState } from '../build/protocolBuildConsoleStore';
+import { updateSectionGenerationState, getProtocolBuildConsoleState } from '../build/protocolBuildConsoleStore';
 import { clearStudyModel, rebuildStudyModel } from '../../study-model/studyModelStore';
 import { refreshStudyModelFromContext } from '../../study-model/refreshStudyModelFromContext';
+import { inferWorkflowState, resolveWorkflowGenerationState } from './sectionWorkflowState';
 
 import { ICH_M11_TERMINOLOGY_META } from '../ichM11/ichM11ControlledTerminology';
 
@@ -58,6 +59,7 @@ import {
 
 import { validateGeneratedSectionDraft } from './sectionDraftValidation';
 import { buildValidatedTarget } from './sectionValidationTargetEngine';
+import type { ValidationAgentOutput } from '../../../agents/validationRules';
 
 import type {
 
@@ -89,7 +91,7 @@ const extractionCache = new Map<string, ImportedProtocolSource>();
 
 function queueKnowledgeAgentFromDraft(
   draft: GeneratedSectionDraft,
-  trigger: 'import' | 'sectionEdit' | 'sectionApproval' | 'regeneration' | 'manual' | 'background',
+  trigger: 'import' | 'sectionEdit' | 'sectionValidation' | 'sectionReviewed' | 'sectionApproval' | 'regeneration' | 'manual' | 'background',
   previousText?: string,
 ): void {
   void import('../../../agents/knowledgeAgentRunner').then(({ triggerKnowledgeAgentFromDraft }) => {
@@ -191,6 +193,15 @@ function toSummary(source: ImportedProtocolSource): ImportedProtocolSourceSummar
 
 
 
+function sectionDraftsForStorage(): Record<string, GeneratedSectionDraft> {
+  const serialized: Record<string, GeneratedSectionDraft> = {};
+  for (const [sectionId, draft] of Object.entries(state.sectionDrafts)) {
+    const { consistencyImpacts: _ignored, ...rest } = draft;
+    serialized[sectionId] = rest;
+  }
+  return serialized;
+}
+
 function persistMetadata(): void {
 
   if (typeof localStorage === 'undefined') {
@@ -199,35 +210,43 @@ function persistMetadata(): void {
 
   }
 
-  localStorage.setItem(
+  try {
+    localStorage.setItem(
 
-    STORAGE_KEY,
+      STORAGE_KEY,
 
-    JSON.stringify({
+      JSON.stringify({
 
-      artifact: state.artifact,
+        artifact: state.artifact,
 
-      importedSourceSummary: state.importedSourceSummary,
+        importedSourceSummary: state.importedSourceSummary,
 
-      protocolKnowledgeModelId: state.protocolKnowledgeModelId,
+        protocolKnowledgeModelId: state.protocolKnowledgeModelId,
 
-      protocolId: state.protocolId,
+        protocolId: state.protocolId,
 
-      sectionDrafts: state.sectionDrafts,
+        sectionDrafts: sectionDraftsForStorage(),
 
-      structuralMappings: state.structuralMappings,
+        structuralMappings: state.structuralMappings,
 
-      lastImportCompletedAt: state.lastImportCompletedAt,
+        lastImportCompletedAt: state.lastImportCompletedAt,
 
-      protocolKnowledgeModel: state.protocolKnowledgeModelId
+        protocolKnowledgeModel: state.protocolKnowledgeModelId
 
-        ? knowledgeCache.get(state.protocolKnowledgeModelId) ?? null
+          ? knowledgeCache.get(state.protocolKnowledgeModelId) ?? null
 
-        : null,
+          : null,
 
-    }),
+      }),
 
-  );
+    );
+  } catch (error) {
+    const message =
+      error instanceof Error ? error.message : 'Import metadata could not be saved to browser storage.';
+    if (!state.storageWarnings.includes(message)) {
+      state.storageWarnings = [...state.storageWarnings, message];
+    }
+  }
 
 }
 
@@ -867,27 +886,128 @@ export function runSectionValidation(sectionId: string, actor = 'Current user'):
   if (!draft) {
     return;
   }
+  if (draft.workflowState === 'validationRunning' || draft.workflowState === 'validationProposed') {
+    return;
+  }
 
-  const result = buildValidatedTarget(draft);
   const now = new Date().toISOString();
   state.sectionDrafts[sectionId] = {
     ...draft,
-    validatedTargetText: result.validatedTargetText,
-    validationMessages: result.messages,
-    validationFindings: result.findings,
-    validationStatus: result.messages.some((message) => message.includes('failed')) ? 'failed' : 'warnings',
-    workflowState: 'unvalidated',
+    workflowState: 'validationRunning',
     state: 'validationPending',
     stateChangedAt: now,
     stateChangedBy: actor,
     stateHistory: [
       ...draft.stateHistory,
-      { state: 'validationPending', changedAt: now, changedBy: actor, note: 'Validation target prepared' },
+      { state: 'validationPending', changedAt: now, changedBy: actor, note: 'Validation Agent running' },
     ],
   };
-  updateSectionGenerationState(sectionId, 'unvalidated');
+  updateSectionGenerationState(sectionId, 'validationRunning');
   persistMetadata();
   notify();
+
+  void import('../../../agents/validationAgentRunner').then(({ runValidationAgentForSection }) =>
+    runValidationAgentForSection(sectionId, actor),
+  );
+}
+
+export function applyValidationAgentProposal(
+  sectionId: string,
+  output: ValidationAgentOutput,
+  actor = 'Current user',
+): void {
+  const draft = state.sectionDrafts[sectionId];
+  if (!draft) {
+    return;
+  }
+
+  const now = new Date().toISOString();
+  const historyEntry = {
+    attemptedAt: now,
+    validatedTargetText: output.validatedText,
+    changeCount: output.changes.length,
+    outcome: 'proposed' as const,
+  };
+
+  state.sectionDrafts[sectionId] = {
+    ...draft,
+    validatedTargetText: output.validatedText,
+    validationMessages: output.findings.map((finding) => finding.message),
+    validationFindings: output.findings,
+    validationChanges: output.changes,
+    validationStatus: output.validationSummary.status === 'failed' ? 'failed' : 'warnings',
+    workflowState: 'validationProposed',
+    state: 'validationPending',
+    stateChangedAt: now,
+    stateChangedBy: 'Validation Agent',
+    validationHistory: [...(draft.validationHistory ?? []), historyEntry],
+    stateHistory: [
+      ...draft.stateHistory,
+      {
+        state: 'validationPending',
+        changedAt: now,
+        changedBy: 'Validation Agent',
+        note: `Validation proposed (${output.validationSummary.changeCount} changes)`,
+      },
+    ],
+  };
+  updateSectionGenerationState(sectionId, 'validationProposed');
+  persistMetadata();
+  notify();
+}
+
+export function applyValidationAgentFailure(
+  sectionId: string,
+  output: ValidationAgentOutput,
+  actor = 'Current user',
+): void {
+  const draft = state.sectionDrafts[sectionId];
+  if (!draft) {
+    return;
+  }
+
+  const now = new Date().toISOString();
+  const originalText = draft.sourceText ?? draft.generatedText;
+  state.sectionDrafts[sectionId] = {
+    ...draft,
+    validatedTargetText: undefined,
+    validationChanges: undefined,
+    validationMessages: output.findings.map((finding) => finding.message),
+    validationFindings: output.findings,
+    validationStatus: 'failed',
+    workflowState: draft.contentOrigin === 'imported' ? 'importedUnvalidated' : inferWorkflowStateFromDraft(draft),
+    state: 'validationFailed',
+    stateChangedAt: now,
+    stateChangedBy: actor,
+    generatedText: originalText,
+    validationHistory: [
+      ...(draft.validationHistory ?? []),
+      {
+        attemptedAt: now,
+        validatedTargetText: output.validatedText,
+        changeCount: output.changes.length,
+        outcome: 'failed',
+        reason: output.findings[0]?.message,
+      },
+    ],
+    stateHistory: [
+      ...draft.stateHistory,
+      { state: 'validationFailed', changedAt: now, changedBy: actor, note: 'Validation Agent failed' },
+    ],
+  };
+  updateSectionGenerationState(
+    sectionId,
+    draft.contentOrigin === 'imported' ? 'importedUnvalidated' : 'failed',
+  );
+  persistMetadata();
+  notify();
+}
+
+function inferWorkflowStateFromDraft(draft: GeneratedSectionDraft): GeneratedSectionDraft['workflowState'] {
+  if (draft.contentOrigin === 'generated') {
+    return 'generated';
+  }
+  return 'importedUnvalidated';
 }
 
 export function acceptSectionValidation(sectionId: string, reviewer = 'Current user'): void {
@@ -905,6 +1025,15 @@ export function acceptSectionValidation(sectionId: string, reviewer = 'Current u
     validationStatus: 'passed',
     lastValidatedAt: now,
     reviewer,
+    validationHistory: [
+      ...(draft.validationHistory ?? []),
+      {
+        attemptedAt: now,
+        validatedTargetText: draft.validatedTargetText,
+        changeCount: draft.validationChanges?.length ?? 0,
+        outcome: 'accepted',
+      },
+    ],
     stateChangedAt: now,
     stateChangedBy: reviewer,
     stateHistory: [
@@ -921,7 +1050,10 @@ export function acceptSectionValidation(sectionId: string, reviewer = 'Current u
     finalized.validationMessages.join(' ') || 'Section validated against M11 guidance.',
   );
   updateSectionGenerationState(sectionId, 'validated');
-  queueKnowledgeAgentFromDraft(finalized, 'sectionApproval', draft.generatedText);
+  void import('../../../agents/validationAgentRunner').then(({ emitValidationAccepted }) => {
+    emitValidationAccepted(sectionId, finalized.title);
+  });
+  queueKnowledgeAgentFromDraft(finalized, 'sectionValidation', draft.generatedText);
   refreshStudyModelFromContext();
   persistMetadata();
   notify();
@@ -934,9 +1066,12 @@ export function rejectSectionValidation(sectionId: string, reviewer = 'Current u
   }
 
   const now = new Date().toISOString();
+  const preservedText = draft.sourceText ?? draft.generatedText;
   state.sectionDrafts[sectionId] = {
     ...draft,
     validatedTargetText: undefined,
+    validationChanges: undefined,
+    generatedText: preservedText,
     workflowState: 'importedUnvalidated',
     state: 'pendingReview',
     validationStatus: 'not-run',
@@ -944,12 +1079,24 @@ export function rejectSectionValidation(sectionId: string, reviewer = 'Current u
     validationFindings: [],
     stateChangedAt: now,
     stateChangedBy: reviewer,
+    validationHistory: [
+      ...(draft.validationHistory ?? []),
+      {
+        attemptedAt: now,
+        validatedTargetText: draft.validatedTargetText ?? '',
+        changeCount: draft.validationChanges?.length ?? 0,
+        outcome: 'rejected',
+      },
+    ],
     stateHistory: [
       ...draft.stateHistory,
       { state: 'pendingReview', changedAt: now, changedBy: reviewer, note: 'Validation rejected — restored imported text' },
     ],
   };
   updateSectionGenerationState(sectionId, 'importedUnvalidated');
+  void import('../../../agents/validationAgentRunner').then(({ emitValidationRejected }) => {
+    emitValidationRejected(sectionId, draft.title);
+  });
   persistMetadata();
   notify();
 }
@@ -1029,7 +1176,7 @@ export function approveSectionImportDraft(sectionId: string, reviewer = 'Current
     );
 
     updateSectionGenerationState(sectionId, 'approved');
-    queueKnowledgeAgentFromDraft(finalized, 'sectionApproval', draft.generatedText);
+    queueKnowledgeAgentFromDraft(finalized, 'sectionReviewed', draft.generatedText);
     refreshStudyModelFromContext();
 
   }
@@ -1147,6 +1294,7 @@ export async function regenerateSectionImportDraftAsync(
   });
 
   updateSectionGenerationState(sectionId, 'needsReview');
+  queueKnowledgeAgentFromDraft(newDraft, 'regeneration', current?.generatedText);
   refreshStudyModelFromContext();
 
   persistMetadata();
@@ -1430,6 +1578,128 @@ export async function generateRemainingSectionImportDraftsAsync(): Promise<{
 }
 
 
+
+export function getSectionImportDrafts(): Record<string, GeneratedSectionDraft> {
+  return state.sectionDrafts;
+}
+
+function slugImpactToken(value: string): string {
+  return value
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 32);
+}
+
+function buildConsistencyImpactId(
+  sourceSectionId: string,
+  collection: string,
+  changedItemName: string,
+  targetSectionId: string,
+): string {
+  return `${sourceSectionId}:${collection}:${slugImpactToken(changedItemName)}:${targetSectionId}`;
+}
+
+export function applyConsistencyAgentResults(
+  sourceSectionId: string,
+  impacts: Array<{
+    sectionId: string;
+    reasons: Array<{
+      sourceSectionId: string;
+      sourceSectionTitle?: string;
+      changedItemName: string;
+      changedItemCollection: string;
+      relationship: string;
+      reason: string;
+      suggestedAction: 'validate' | 'regenerate' | 'edit';
+    }>;
+  }>,
+): string[] {
+  const marked: string[] = [];
+  const now = new Date().toISOString();
+
+  for (const impact of impacts) {
+    if (impact.sectionId === sourceSectionId) {
+      continue;
+    }
+
+    const draft = state.sectionDrafts[impact.sectionId];
+    if (!draft) {
+      continue;
+    }
+    if (draft.generationStatus === 'failed') {
+      continue;
+    }
+    const liveState = getProtocolBuildConsoleState().sectionStates[impact.sectionId];
+    if (liveState === 'generating' || liveState === 'queued') {
+      continue;
+    }
+    if (draft.workflowState === 'importedUnvalidated' || draft.workflowState === 'needsGeneration') {
+      continue;
+    }
+
+    const impactMap = new Map((draft.consistencyImpacts ?? []).map((entry) => [entry.impactId, entry]));
+    for (const reason of impact.reasons) {
+      const impactId = buildConsistencyImpactId(
+        reason.sourceSectionId,
+        reason.changedItemCollection,
+        reason.changedItemName,
+        impact.sectionId,
+      );
+      impactMap.set(impactId, {
+        impactId,
+        sourceSectionId: reason.sourceSectionId,
+        sourceSectionTitle: reason.sourceSectionTitle,
+        changedItemName: reason.changedItemName,
+        changedItemCollection: reason.changedItemCollection,
+        relationship: reason.relationship,
+        reason: reason.reason,
+        suggestedAction: reason.suggestedAction,
+        detectedAt: now,
+      });
+    }
+
+    const priorWorkflowState =
+      draft.workflowState === 'outOfSync'
+        ? draft.priorWorkflowState
+        : draft.workflowState ?? inferWorkflowState(draft);
+
+    state.sectionDrafts[impact.sectionId] = {
+      ...draft,
+      priorWorkflowState,
+      workflowState: 'outOfSync',
+      consistencyImpacts: [...impactMap.values()],
+    };
+    updateSectionGenerationState(impact.sectionId, 'outOfSync');
+    marked.push(impact.sectionId);
+  }
+
+  if (marked.length > 0) {
+    persistMetadata();
+    notify();
+  }
+
+  return marked;
+}
+
+export function clearSectionOutOfSyncState(sectionId: string): void {
+  const draft = state.sectionDrafts[sectionId];
+  if (!draft || draft.workflowState !== 'outOfSync') {
+    return;
+  }
+
+  const restoredWorkflow = draft.priorWorkflowState ?? 'generated';
+  const nextDraft: GeneratedSectionDraft = {
+    ...draft,
+    workflowState: restoredWorkflow,
+    priorWorkflowState: undefined,
+    consistencyImpacts: undefined,
+  };
+  state.sectionDrafts[sectionId] = nextDraft;
+  updateSectionGenerationState(sectionId, resolveWorkflowGenerationState(nextDraft));
+  persistMetadata();
+  notify();
+}
 
 export { ICH_M11_TERMINOLOGY_META };
 

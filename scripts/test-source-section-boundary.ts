@@ -5,6 +5,8 @@ import {
   extractBodyTextBetweenParagraphs,
   findNextPeerOrHigherBoundary,
   isAppendixHeading,
+  isLikelyHeaderFooterText,
+  isMostlyTableOfContentsDots,
   isSuspiciousImportedBody,
   isTableOfContentsEntry,
 } from '../src/app/domain/protocol/import/sourceSectionBodyExtractor';
@@ -137,12 +139,44 @@ function testEmptyBodySectionsAreSuspicious() {
   assert.ok(!isSuspiciousImportedBody('A'.repeat(60), '1 Protocol Summary'));
 }
 
+function testExactNumberBeatsSemanticHeuristic() {
+  const paragraphs = buildFixtureParagraphs();
+  const source = detectSourceSections('upload-1', 'fixture.docx', paragraphs.map((p) => p.text).join('\n'), paragraphs, [], [], []);
+  const objectivesCandidate = source.sections.find((section) => section.headingText.startsWith('2 Study Objectives'));
+  assert.ok(objectivesCandidate);
+  objectivesCandidate!.detectedNumber = '3.1';
+  objectivesCandidate!.possibleM11SectionId = '10';
+  const mapping = runStructuralMappingEngine({
+    ...source,
+    sections: source.sections.map((section) =>
+      section.id === objectivesCandidate!.id ? objectivesCandidate! : section,
+    ),
+  });
+  const mapped = mapping.mappings.find((entry) => entry.sourceSectionId === objectivesCandidate!.id);
+  assert.ok(mapped);
+  assert.equal(mapped?.mappedM11SectionId, '3.1');
+  assert.equal(mapped?.mappingMethod, 'exactNumber');
+}
+
+function testTableOfContentsDotsAreSuspicious() {
+  assert.ok(isMostlyTableOfContentsDots('1 Summary .......... 3\n2 Objectives .......... 5'));
+  assert.ok(isSuspiciousImportedBody('1 Summary .......... 3\n2 Objectives .......... 5', 'Summary'));
+}
+
+function testHeaderFooterTextIsSuspicious() {
+  assert.ok(isLikelyHeaderFooterText('Page 1 of 12'));
+  assert.ok(isSuspiciousImportedBody('Page 1 of 12', 'Footer'));
+}
+
 function main() {
   testHeadingMatchCopiesUntilNextSiblingHeading();
   testChildHeadingsIncludedInParentSection();
   testTableOfContentsEntriesIgnored();
   testAppendixFragmentsNotMappedToProtocolSummary();
   testEmptyBodySectionsAreSuspicious();
+  testExactNumberBeatsSemanticHeuristic();
+  testTableOfContentsDotsAreSuspicious();
+  testHeaderFooterTextIsSuspicious();
   console.log('Source section boundary tests passed.');
 }
 
