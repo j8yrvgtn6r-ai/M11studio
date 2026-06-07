@@ -8,6 +8,8 @@ interface SectionEditorStatusBarProps {
   lastSaved?: Date | null;
   validationSummary: SectionValidationSummary;
   dependencyCount: number;
+  lintStatusLabel?: string;
+  lintIssueCount?: number;
 }
 
 export function SectionEditorStatusBar({
@@ -16,6 +18,8 @@ export function SectionEditorStatusBar({
   lastSaved,
   validationSummary,
   dependencyCount,
+  lintStatusLabel = 'No issues',
+  lintIssueCount = 0,
 }: SectionEditorStatusBarProps) {
   const autosaveLabel =
     autosaveStatus === 'saving'
@@ -39,6 +43,10 @@ export function SectionEditorStatusBar({
       <span data-testid="section-editor-validation">{validationLabel}</span>
       <span data-testid="section-editor-dependencies">Deps: {dependencyCount}</span>
       <span data-testid="section-editor-terminology-warnings">Term warnings: {terminologyWarnings}</span>
+      <span data-testid="section-editor-lint-status">Lint: {lintStatusLabel}</span>
+      {lintIssueCount > 0 ? (
+        <span data-testid="section-editor-lint-count">{lintIssueCount} lint issue{lintIssueCount === 1 ? '' : 's'}</span>
+      ) : null}
     </div>
   );
 }

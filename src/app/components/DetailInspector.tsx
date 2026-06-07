@@ -1,3 +1,4 @@
+import { useEffect, useMemo, useState } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
 import { ScrollArea } from './ui/scroll-area';
 import { Badge } from './ui/badge';
@@ -33,6 +34,13 @@ import {
   getSectionDependencyReferences,
   type LineDiagnostic,
 } from '../domain/protocol/authoring/editorIntegration';
+import {
+  getLintIssues,
+  getLintQuickFixes,
+  getLintSummary,
+  mergeLineDiagnosticsWithLint,
+  subscribeLintIssues,
+} from '../domain/protocol/authoring/linting';
 import { resolveSectionEditorContent } from '../domain/protocol/import/sectionAuthoring';
 import { SectionIdeValidationPanel } from './protocol-ide/SectionIdeValidationPanel';
 
@@ -81,6 +89,9 @@ export function DetailInspector({
   const sectionComments = comments.filter((comment) => comment.sectionId === selectedSectionId);
   const hasComments = sectionComments.length > 0;
   const hasAudit = sectionAuditEvents.length > 0;
+  const [, bumpLintRevision] = useState(0);
+
+  useEffect(() => subscribeLintIssues(() => bumpLintRevision((value) => value + 1)), []);
 
   const findSection = (sections: ProtocolSection[], id: string): ProtocolSection | null => {
     for (const entry of sections) {
@@ -104,7 +115,7 @@ export function DetailInspector({
     sectionDraft ?? undefined,
     validationIssues,
   );
-  const lineDiagnostics =
+  const validationLineDiagnostics =
     selectedSectionId && sectionDraft
       ? buildLineDiagnostics({
           sectionId: selectedSectionId,
@@ -119,6 +130,13 @@ export function DetailInspector({
             validationIssues,
           })
         : [];
+  const lintIssues = selectedSectionId ? getLintIssues(selectedSectionId) : [];
+  const lintQuickFixes = selectedSectionId ? getLintQuickFixes(selectedSectionId) : [];
+  const lintSummary = selectedSectionId ? getLintSummary(selectedSectionId) : null;
+  const lineDiagnostics = useMemo(
+    () => mergeLineDiagnosticsWithLint(validationLineDiagnostics, lintIssues),
+    [lintIssues, validationLineDiagnostics],
+  );
   const dependencyReferences = getSectionDependencyReferences(
     selectedSectionId,
     getProtocolDocument(),
@@ -184,6 +202,11 @@ export function DetailInspector({
               summary={validationSummary}
               dependencyReferences={dependencyReferences}
               lineDiagnostics={lineDiagnostics}
+              lintIssues={lintIssues}
+              lintQuickFixes={lintQuickFixes}
+              lastLintedAt={lintSummary?.lastLintedAt ?? null}
+              intellisenseAcceptanceLog={sectionDraft?.intellisenseAcceptanceLog}
+              entityInsertionLog={sectionDraft?.entityInsertionLog}
               onNavigateDiagnostic={onNavigateDiagnostic}
             />
             <ValidationTab

@@ -14,15 +14,28 @@ import {
   stripDiagnosticHighlights,
   wrapPlainTextWithHighlights,
 } from '../../domain/protocol/authoring/diagnosticHighlights';
-import { getTerminologySuggestions, type TerminologySuggestion } from '../../domain/protocol/authoring/editorIntegration';
 import {
-  applyTokenReplacement,
-  getTokenAtOffset,
-  recordTerminologyAcceptance,
+  applyIntellisenseSuggestion,
+  buildProtocolIntellisenseContext,
+  getProtocolIntellisenseSuggestions,
+  getTokenRangeAtOffset,
+  recordIntellisenseAcceptance,
+  type ProtocolIntellisenseSuggestion,
+} from '../../domain/protocol/authoring/intellisense';
+import {
+  getRelatedEntitySuggestions,
+  listProtocolEntityReferences,
+  recordEntityAcceptance,
+  resolveProtocolEntityHoverInfo,
+  type ProtocolEntityHoverInfo,
+  type ProtocolEntityType,
+} from '../../domain/protocol/entities';
+import {
   resolveTerminologyHoverInfo,
-  suggestionToAcceptance,
 } from '../../domain/protocol/authoring/terminologyEditorIntegration';
 import { extractFigureReferenceTokens } from '../../domain/protocol/assets/protocolAssetReference';
+import { ProtocolGhostTextHint, ProtocolIntellisensePopup } from '../protocol-ide/ProtocolIntellisensePopup';
+import { ProtocolEntityHoverCard } from '../protocol-ide/ProtocolEntityHoverCard';
 import { FigureReferenceCard } from '../protocol-ide/FigureReferenceCard';
 import { cn } from '../ui/utils';
 
@@ -40,7 +53,10 @@ interface RichTextEditorProps {
   surfaceRef?: React.RefObject<HTMLDivElement | null>;
   lineDiagnostics?: LineDiagnostic[];
   sectionId?: string;
+  sectionTitle?: string;
   onTerminologyAccepted?: () => void;
+  onIntellisenseAccepted?: () => void;
+  explicitIntellisenseQuery?: string | null;
   scrollToOffset?: number | null;
   'data-testid'?: string;
 }
@@ -75,6 +91,18 @@ function writeEditorDom(node: HTMLDivElement, value: string, withHighlights = fa
   node.textContent = domValue;
 }
 
+function getCaretOffset(node: HTMLDivElement): number | null {
+  const selection = window.getSelection();
+  if (!selection || selection.rangeCount === 0) {
+    return null;
+  }
+  const range = selection.getRangeAt(0);
+  const preRange = range.cloneRange();
+  preRange.selectNodeContents(node);
+  preRange.setEnd(range.startContainer, range.startOffset);
+  return preRange.toString().length;
+}
+
 export function RichTextEditor({
   value,
   onChange,
@@ -88,7 +116,10 @@ export function RichTextEditor({
   surfaceRef,
   lineDiagnostics = [],
   sectionId,
+  sectionTitle,
   onTerminologyAccepted,
+  onIntellisenseAccepted,
+  explicitIntellisenseQuery = null,
   scrollToOffset = null,
   'data-testid': dataTestId = 'rich-text-editor',
 }: RichTextEditorProps) {
@@ -96,10 +127,19 @@ export function RichTextEditor({
   const editorRef = surfaceRef ?? internalRef;
   const lastEmitted = useRef(normalizeStoredRichText(value));
   const isFocusedRef = useRef(false);
-  const [suggestions, setSuggestions] = useState<TerminologySuggestion[]>([]);
+  const [suggestions, setSuggestions] = useState<ProtocolIntellisenseSuggestion[]>([]);
+  const [ghostText, setGhostText] = useState<ProtocolIntellisenseSuggestion | null>(null);
+  const [selectedIndex, setSelectedIndex] = useState(0);
+  const [popupOpen, setPopupOpen] = useState(false);
   const [suggestionAnchor, setSuggestionAnchor] = useState<{ top: number; left: number } | null>(null);
-  const [activeToken, setActiveToken] = useState<{ token: string; startOffset: number; endOffset: number } | null>(null);
+  const [ghostAnchor, setGhostAnchor] = useState<{ top: number; left: number } | null>(null);
+  const [fallbackRange, setFallbackRange] = useState<{ startOffset: number; endOffset: number } | null>(null);
   const [hoverCard, setHoverCard] = useState<{ top: number; left: number; token: string } | null>(null);
+  const [entityHover, setEntityHover] = useState<{
+    top: number;
+    left: number;
+    info: ProtocolEntityHoverInfo;
+  } | null>(null);
 
   useEffect(() => {
     const node = editorRef.current;
@@ -144,59 +184,159 @@ export function RichTextEditor({
     }
   }, [onChange, readOnly, editorRef]);
 
-  const updateSuggestions = useCallback(() => {
-    const node = editorRef.current;
-    if (!node || readOnly) {
-      setSuggestions([]);
-      return;
-    }
-    const selection = window.getSelection();
-    if (!selection || selection.rangeCount === 0) {
-      return;
-    }
-    const range = selection.getRangeAt(0);
-    const plain = stripHtmlToPlainText(normalizeEditorOutput(node.innerHTML));
-    const preRange = range.cloneRange();
-    preRange.selectNodeContents(node);
-    preRange.setEnd(range.startContainer, range.startOffset);
-    const offset = preRange.toString().length;
-    const tokenRange = getTokenAtOffset(plain, offset);
-    if (!tokenRange || tokenRange.token.length < 2) {
-      setSuggestions([]);
-      setActiveToken(null);
-      return;
-    }
-    const nextSuggestions = getTerminologySuggestions(tokenRange.token);
-    if (nextSuggestions.length === 0) {
-      setSuggestions([]);
-      setActiveToken(null);
-      return;
-    }
-    const rect = range.getBoundingClientRect();
-    const host = node.getBoundingClientRect();
-    setSuggestionAnchor({ top: rect.bottom - host.top + 4, left: rect.left - host.left });
-    setActiveToken(tokenRange);
-    setSuggestions(nextSuggestions);
-  }, [readOnly, editorRef]);
-
-  const acceptSuggestion = useCallback((suggestion: TerminologySuggestion) => {
-    const node = editorRef.current;
-    if (!node || !activeToken) {
-      return;
-    }
-    const plain = stripHtmlToPlainText(normalizeEditorOutput(node.innerHTML));
-    const next = applyTokenReplacement(plain, activeToken, suggestion.preferredTerm);
-    writeEditorDom(node, next, false);
-    lastEmitted.current = next;
-    onChange(next);
-    if (sectionId) {
-      recordTerminologyAcceptance(sectionId, suggestionToAcceptance(suggestion, activeToken.token));
-      onTerminologyAccepted?.();
-    }
+  const dismissIntellisense = useCallback(() => {
     setSuggestions([]);
-    setActiveToken(null);
-    node.focus();
-  }, [activeToken, editorRef, onChange, onTerminologyAccepted, sectionId]);
+    setPopupOpen(false);
+    setSelectedIndex(0);
+    setGhostText(null);
+    setGhostAnchor(null);
+  }, []);
+
+  const refreshIntellisense = useCallback(
+    (trigger: 'typing' | 'explicit' = 'typing', explicitQuery?: string) => {
+      const node = editorRef.current;
+      if (!node || readOnly || !ideMode || !sectionId) {
+        dismissIntellisense();
+        return;
+      }
+
+      const offset = getCaretOffset(node);
+      if (offset == null) {
+        return;
+      }
+
+      const plain = stripHtmlToPlainText(normalizeEditorOutput(node.innerHTML));
+      const context = buildProtocolIntellisenseContext({
+        sectionId,
+        sectionTitle,
+        currentText: plain,
+        cursorOffset: offset,
+        trigger,
+        explicitQuery: explicitQuery ?? explicitIntellisenseQuery ?? undefined,
+      });
+
+      const result = getProtocolIntellisenseSuggestions(context);
+      const tokenRange = getTokenRangeAtOffset(plain, offset);
+      setFallbackRange(tokenRange ? { startOffset: tokenRange.startOffset, endOffset: tokenRange.endOffset } : null);
+
+      if (result.suggestions.length === 0) {
+        setSuggestions([]);
+        setPopupOpen(false);
+      } else {
+        const selection = window.getSelection();
+        const range = selection?.rangeCount ? selection.getRangeAt(0) : null;
+        if (range) {
+          const rect = range.getBoundingClientRect();
+          const host = node.getBoundingClientRect();
+          setSuggestionAnchor({ top: rect.bottom - host.top + 4, left: rect.left - host.left });
+        }
+        setSuggestions(result.suggestions);
+        setPopupOpen(true);
+        setSelectedIndex(0);
+      }
+
+      if (result.ghostText && !result.suggestions.length) {
+        const selection = window.getSelection();
+        const range = selection?.rangeCount ? selection.getRangeAt(0) : null;
+        if (range) {
+          const rect = range.getBoundingClientRect();
+          const host = node.getBoundingClientRect();
+          setGhostAnchor({ top: rect.bottom - host.top + 2, left: rect.left - host.left + 8 });
+        }
+        setGhostText(result.ghostText);
+      } else {
+        setGhostText(null);
+        setGhostAnchor(null);
+      }
+    },
+    [dismissIntellisense, explicitIntellisenseQuery, ideMode, readOnly, sectionId, sectionTitle, editorRef],
+  );
+
+  useEffect(() => {
+    if (explicitIntellisenseQuery && ideMode && sectionId) {
+      refreshIntellisense('explicit', explicitIntellisenseQuery);
+    }
+  }, [explicitIntellisenseQuery, ideMode, refreshIntellisense, sectionId]);
+
+  const acceptSuggestion = useCallback(
+    (suggestion: ProtocolIntellisenseSuggestion) => {
+      const node = editorRef.current;
+      if (!node) {
+        return;
+      }
+      const plain = stripHtmlToPlainText(normalizeEditorOutput(node.innerHTML));
+      const originalText = suggestion.replacementRange
+        ? plain.slice(suggestion.replacementRange.startOffset, suggestion.replacementRange.endOffset)
+        : fallbackRange
+          ? plain.slice(fallbackRange.startOffset, fallbackRange.endOffset)
+          : '';
+      const next = applyIntellisenseSuggestion(plain, suggestion, fallbackRange ?? undefined);
+      writeEditorDom(node, next, false);
+      lastEmitted.current = next;
+      onChange(next);
+
+      const insertOffset =
+        suggestion.replacementRange?.startOffset ?? fallbackRange?.startOffset ?? plain.length;
+      const insertEnd = insertOffset + suggestion.insertText.length;
+
+      if (sectionId) {
+        recordIntellisenseAcceptance({
+          sectionId,
+          suggestionId: suggestion.id,
+          kind: suggestion.kind,
+          source: suggestion.source,
+          originalText,
+          insertedText: suggestion.insertText,
+          metadata: suggestion.metadata,
+        });
+        if (suggestion.kind === 'terminology' || suggestion.kind === 'synonym') {
+          onTerminologyAccepted?.();
+        }
+
+        if (suggestion.metadata?.entityId && suggestion.metadata?.entityType) {
+          recordEntityAcceptance({
+            sectionId,
+            entityId: suggestion.metadata.entityId,
+            entityType: suggestion.metadata.entityType as ProtocolEntityType,
+            displayText: suggestion.insertText,
+            offset: insertOffset,
+            endOffset: insertEnd,
+          });
+
+          const relatedContext = buildProtocolIntellisenseContext({
+            sectionId,
+            sectionTitle,
+            currentText: next,
+            cursorOffset: insertEnd,
+          });
+          const related = getRelatedEntitySuggestions(suggestion.metadata.entityId, relatedContext);
+          if (related.length > 0) {
+            const selection = window.getSelection();
+            const range = selection?.rangeCount ? selection.getRangeAt(0) : null;
+            if (range) {
+              const rect = range.getBoundingClientRect();
+              const host = node.getBoundingClientRect();
+              setSuggestionAnchor({ top: rect.bottom - host.top + 4, left: rect.left - host.left });
+            }
+            setSuggestions(related);
+            setPopupOpen(true);
+            setSelectedIndex(0);
+            setGhostText(null);
+            setGhostAnchor(null);
+            onIntellisenseAccepted?.();
+            node.focus();
+            return;
+          }
+        }
+
+        onIntellisenseAccepted?.();
+      }
+
+      dismissIntellisense();
+      node.focus();
+    },
+    [dismissIntellisense, editorRef, fallbackRange, onChange, onIntellisenseAccepted, onTerminologyAccepted, sectionId, sectionTitle],
+  );
 
   const handleBlur = useCallback(() => {
     isFocusedRef.current = false;
@@ -213,9 +353,10 @@ export function RichTextEditor({
     onChange(normalized);
     onBlurCommit?.(normalized);
     writeEditorDom(node, normalized, true, lineDiagnostics);
-    setSuggestions([]);
+    dismissIntellisense();
     setHoverCard(null);
-  }, [onBlurCommit, onChange, readOnly, editorRef, lineDiagnostics]);
+    setEntityHover(null);
+  }, [dismissIntellisense, onBlurCommit, onChange, readOnly, editorRef, lineDiagnostics]);
 
   const handleFocus = useCallback(() => {
     isFocusedRef.current = true;
@@ -227,40 +368,90 @@ export function RichTextEditor({
     writeEditorDom(node, plain, false);
   }, [readOnly, editorRef]);
 
-  const handleKeyDown = useCallback((event: React.KeyboardEvent<HTMLDivElement>) => {
-    if (event.key === 'Tab' && suggestions.length > 0) {
-      event.preventDefault();
-      acceptSuggestion(suggestions[0]);
-    }
-  }, [acceptSuggestion, suggestions]);
+  const handleKeyDown = useCallback(
+    (event: React.KeyboardEvent<HTMLDivElement>) => {
+      if (event.key === 'Escape') {
+        if (popupOpen || ghostText) {
+          event.preventDefault();
+          dismissIntellisense();
+        }
+        return;
+      }
 
-  const handleMouseMove = useCallback((event: React.MouseEvent<HTMLDivElement>) => {
-    const node = editorRef.current;
-    if (!node || readOnly) {
-      return;
-    }
-    const range = document.caretRangeFromPoint?.(event.clientX, event.clientY);
-    if (!range) {
-      return;
-    }
-    const preRange = range.cloneRange();
-    preRange.selectNodeContents(node);
-    preRange.setEnd(range.startContainer, range.startOffset);
-    const plain = stripHtmlToPlainText(normalizeEditorOutput(node.innerHTML));
-    const offset = preRange.toString().length;
-    const tokenRange = getTokenAtOffset(plain, offset);
-    if (!tokenRange) {
-      setHoverCard(null);
-      return;
-    }
-    const hover = resolveTerminologyHoverInfo(tokenRange.token);
-    if (!hover) {
-      setHoverCard(null);
-      return;
-    }
-    const host = node.getBoundingClientRect();
-    setHoverCard({ top: event.clientY - host.top + 12, left: event.clientX - host.left, token: tokenRange.token });
-  }, [readOnly, editorRef]);
+      if (popupOpen && suggestions.length > 0) {
+        if (event.key === 'ArrowDown') {
+          event.preventDefault();
+          setSelectedIndex((current) => (current + 1) % suggestions.length);
+          return;
+        }
+        if (event.key === 'ArrowUp') {
+          event.preventDefault();
+          setSelectedIndex((current) => (current - 1 + suggestions.length) % suggestions.length);
+          return;
+        }
+        if (event.key === 'Enter' || event.key === 'Tab') {
+          event.preventDefault();
+          acceptSuggestion(suggestions[selectedIndex] ?? suggestions[0]);
+          return;
+        }
+      }
+
+      if (event.key === 'Tab' && ghostText && !popupOpen) {
+        event.preventDefault();
+        acceptSuggestion(ghostText);
+      }
+    },
+    [acceptSuggestion, dismissIntellisense, ghostText, popupOpen, selectedIndex, suggestions],
+  );
+
+  const handleMouseMove = useCallback(
+    (event: React.MouseEvent<HTMLDivElement>) => {
+      const node = editorRef.current;
+      if (!node || readOnly) {
+        return;
+      }
+      const range = document.caretRangeFromPoint?.(event.clientX, event.clientY);
+      if (!range) {
+        return;
+      }
+      const preRange = range.cloneRange();
+      preRange.selectNodeContents(node);
+      preRange.setEnd(range.startContainer, range.startOffset);
+      const plain = stripHtmlToPlainText(normalizeEditorOutput(node.innerHTML));
+      const offset = preRange.toString().length;
+      const tokenRange = getTokenRangeAtOffset(plain, offset);
+      if (!tokenRange) {
+        setHoverCard(null);
+        setEntityHover(null);
+        return;
+      }
+
+      const references = sectionId ? listProtocolEntityReferences(sectionId) : [];
+      const entityInfo = resolveProtocolEntityHoverInfo(tokenRange.text, {
+        sectionId,
+        references,
+      });
+      const host = node.getBoundingClientRect();
+      if (entityInfo) {
+        setEntityHover({
+          top: event.clientY - host.top + 12,
+          left: event.clientX - host.left,
+          info: entityInfo,
+        });
+        setHoverCard(null);
+        return;
+      }
+
+      setEntityHover(null);
+      const hover = resolveTerminologyHoverInfo(tokenRange.text);
+      if (!hover) {
+        setHoverCard(null);
+        return;
+      }
+      setHoverCard({ top: event.clientY - host.top + 12, left: event.clientX - host.left, token: tokenRange.text });
+    },
+    [readOnly, editorRef, sectionId],
+  );
 
   return (
     <div className={cn('relative space-y-2', className)} data-testid={dataTestId}>
@@ -279,35 +470,36 @@ export function RichTextEditor({
         data-placeholder={placeholder}
         data-testid={`${dataTestId}-surface`}
         data-highlight-query={highlightQuery || undefined}
-        onInput={readOnly ? undefined : () => { emitChange(); updateSuggestions(); }}
+        onInput={
+          readOnly
+            ? undefined
+            : () => {
+                emitChange();
+                refreshIntellisense('typing');
+              }
+        }
         onFocus={readOnly ? undefined : handleFocus}
         onBlur={readOnly ? undefined : handleBlur}
         onKeyDown={readOnly ? undefined : handleKeyDown}
         onMouseMove={readOnly ? undefined : handleMouseMove}
       />
 
-      {suggestions.length > 0 && suggestionAnchor ? (
-        <div
-          className="absolute z-20 min-w-[240px] rounded-md border border-border bg-popover p-2 shadow-md"
-          style={{ top: suggestionAnchor.top, left: suggestionAnchor.left }}
-          data-testid="terminology-intellisense-popup"
-        >
-          {suggestions.slice(0, 5).map((suggestion) => (
-            <button
-              key={`${suggestion.preferredTerm}-${suggestion.codelistName}`}
-              type="button"
-              className="block w-full rounded px-2 py-1.5 text-left text-xs hover:bg-muted"
-              onMouseDown={(event) => {
-                event.preventDefault();
-                acceptSuggestion(suggestion);
-              }}
-            >
-              <p className="font-medium">{suggestion.preferredTerm}</p>
-              <p className="text-muted-foreground">{suggestion.codelistName}{suggestion.termCode ? ` · ${suggestion.termCode}` : ''}</p>
-              <p className="text-muted-foreground mt-0.5">Press Tab to accept</p>
-            </button>
-          ))}
-        </div>
+      {popupOpen && suggestions.length > 0 && suggestionAnchor ? (
+        <ProtocolIntellisensePopup
+          suggestions={suggestions}
+          selectedIndex={selectedIndex}
+          anchor={suggestionAnchor}
+          onSelect={acceptSuggestion}
+          onHover={setSelectedIndex}
+        />
+      ) : null}
+
+      {!popupOpen && ghostText && ghostAnchor ? (
+        <ProtocolGhostTextHint ghostText={ghostText.insertText.trim()} anchor={ghostAnchor} />
+      ) : null}
+
+      {entityHover ? (
+        <ProtocolEntityHoverCard hover={entityHover.info} anchor={entityHover} />
       ) : null}
 
       {hoverCard ? (

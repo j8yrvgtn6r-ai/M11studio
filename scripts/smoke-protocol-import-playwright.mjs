@@ -11,6 +11,57 @@ const baseUrl = process.env.M11_BASE_URL ?? 'http://localhost:5175/';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const minimalDocx = join(__dirname, 'fixtures', 'minimal.docx');
 
+async function collectImportLifecycleSnapshot(page) {
+  return page.evaluate(() => {
+    const dialog = document.querySelector('[data-testid="import-protocol-dialog"]');
+    const buildConsole = document.querySelector('[data-testid="protocol-build-console"]');
+    const progressTitle = document.querySelector('[data-testid="protocol-reconstruction-progress-title"]');
+    return {
+      url: window.location.href,
+      dialogVisible: Boolean(dialog && dialog.getAttribute('data-state') === 'open'),
+      dialogState: dialog?.getAttribute('data-state') ?? null,
+      uploadError: document.querySelector('[data-testid="import-upload-error"]')?.textContent?.trim() ?? null,
+      backgroundNoticeVisible: Boolean(document.querySelector('[data-testid="import-processing-background-notice"]')),
+      reconstructionProgressVisible: Boolean(progressTitle),
+      reconstructionProgressTitle: progressTitle?.textContent?.trim() ?? null,
+      buildConsoleVisible: Boolean(buildConsole),
+      buildConsoleStatus: buildConsole?.getAttribute('data-status') ?? null,
+      buildConsolePhase: buildConsole?.getAttribute('data-import-context-phase') ?? null,
+      buildConsoleLogTail:
+        document.querySelector('[data-testid="protocol-build-console-scroll"]')?.textContent?.slice(-500) ?? null,
+    };
+  });
+}
+
+async function waitForImportReconstructionStart(page, pageErrors, timeout = 60_000) {
+  try {
+    await page.waitForFunction(
+      () => {
+        const dialog = document.querySelector('[data-testid="import-protocol-dialog"]');
+        const dialogOpen = dialog?.getAttribute('data-state') === 'open';
+        const progressTitle = document.querySelector('[data-testid="protocol-reconstruction-progress-title"]');
+        const buildConsole = document.querySelector('[data-testid="protocol-build-console"]');
+        const backgroundNotice = document.querySelector('[data-testid="import-processing-background-notice"]');
+        return (
+          !dialogOpen ||
+          Boolean(progressTitle) ||
+          Boolean(buildConsole) ||
+          Boolean(backgroundNotice)
+        );
+      },
+      { timeout },
+    );
+  } catch (error) {
+    const snapshot = await collectImportLifecycleSnapshot(page);
+    throw new Error(
+      `Import reconstruction did not start within ${timeout}ms.\n` +
+        `Snapshot: ${JSON.stringify(snapshot, null, 2)}\n` +
+        `Page errors: ${pageErrors.join('; ') || '(none)'}`,
+      { cause: error },
+    );
+  }
+}
+
 async function main() {
   const browser = await chromium.launch({ headless: true });
   const context = await browser.newContext({ acceptDownloads: true });
@@ -88,7 +139,7 @@ async function main() {
     throw new Error(`Page error during upload start: ${pageErrors.join('; ')}`);
   }
 
-  await page.getByTestId('import-protocol-dialog').waitFor({ state: 'hidden', timeout: 30_000 });
+  await waitForImportReconstructionStart(page, pageErrors);
   await page.getByTestId('protocol-reconstruction-progress-title').waitFor({ timeout: 30_000 });
   await page.getByTestId('protocol-build-console').waitFor({ timeout: 30_000 });
   if ((await page.getByTestId('protocol-build-console').getAttribute('data-expanded')) !== 'true') {
@@ -540,7 +591,7 @@ async function expectGenerationUnavailableCopy(page) {
   }
 }
 
-main().catch((error) => {
+main().catch(async (error) => {
   console.error(error);
   process.exit(1);
 });

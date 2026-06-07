@@ -1,5 +1,7 @@
 import type { ValidationIssue } from '../../../types/protocol';
 import type { GeneratedSectionDraft, SectionValidationFinding, ValidationChange } from '../import/types';
+import { buildEntityDiagnostics } from '../entities/protocolEntitySelectors';
+import { getKnowledgeGraph } from '../../knowledge-graph/knowledgeGraphStore';
 import { stripHtmlToPlainText } from './richTextContent';
 
 export type LineDiagnosticSeverity = 'info' | 'warning' | 'error';
@@ -8,6 +10,7 @@ export type LineDiagnosticCategory =
   | 'structure'
   | 'terminology'
   | 'consistency'
+  | 'entity'
   | 'missingContent'
   | 'grammar'
   | 'soa';
@@ -40,6 +43,7 @@ export interface DiagnosticScrollTarget {
   lineNumber: number;
   startOffset?: number;
   requestId: number;
+  suggestedFix?: string;
 }
 
 let diagnosticCounter = 0;
@@ -185,6 +189,37 @@ export function buildLineDiagnostics(input: LineDiagnosticsInput): LineDiagnosti
       message: `Accepted M11 term "${entry.acceptedTerm}" (${entry.codelistName})`,
       source: 'terminologySuggestionAccepted',
       suggestedFix: entry.preferredTerm,
+    });
+  }
+
+  const entityReferences = (draft?.entityReferences ?? []).map((entry) => ({
+    entityId: entry.entityId,
+    entityType: entry.entityType as import('../entities/protocolEntityTypes').ProtocolEntityType,
+    displayText: entry.displayText,
+    sectionId: entry.sectionId,
+    offset: entry.offset,
+    endOffset: entry.endOffset,
+    createdAt: entry.createdAt,
+  }));
+  for (const entityDiagnostic of buildEntityDiagnostics({
+    sectionId,
+    content: plainText,
+    references: entityReferences,
+    knowledgeGraph: getKnowledgeGraph(),
+  })) {
+    pushDiagnostic(diagnostics, {
+      sectionId,
+      lineNumber: entityDiagnostic.startOffset != null
+        ? lineNumberFromOffset(plainText, entityDiagnostic.startOffset)
+        : 1,
+      startOffset: entityDiagnostic.startOffset,
+      endOffset: entityDiagnostic.endOffset,
+      severity: entityDiagnostic.severity,
+      category: 'entity',
+      message: entityDiagnostic.message,
+      source: 'protocolEntity',
+      suggestedFix: entityDiagnostic.suggestedFix,
+      relatedEntityIds: entityDiagnostic.relatedEntityIds ?? (entityDiagnostic.entityId ? [entityDiagnostic.entityId] : undefined),
     });
   }
 

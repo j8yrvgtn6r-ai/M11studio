@@ -68,6 +68,7 @@ import { buildValidatedTarget } from './sectionValidationTargetEngine';
 import type { ValidationAgentOutput } from '../../../agents/validationRules';
 import { TITLE_PAGE_SECTION_ID } from '../authoring/titlePageAuthoring';
 import { hasSubstantiveEditorContent } from '../authoring/richTextContent';
+import { scheduleImpactedSectionLint } from '../authoring/linting';
 import {
   buildTitlePageValidationOutput,
   ensureTitlePageAuthoringDraft,
@@ -2080,6 +2081,23 @@ export function applyConsistencyAgentResults(
   }
 
   if (marked.length > 0) {
+    scheduleImpactedSectionLint(
+      marked
+        .map((sectionId) => {
+          const impactedDraft = state.sectionDrafts[sectionId];
+          if (!impactedDraft) {
+            return null;
+          }
+          return {
+            sectionId,
+            sectionTitle: impactedDraft.title,
+            content: impactedDraft.generatedText ?? '',
+          };
+        })
+        .filter((entry): entry is { sectionId: string; sectionTitle: string; content: string } =>
+          Boolean(entry && entry.content.trim()),
+        ),
+    );
     persistMetadata();
     notify();
   }

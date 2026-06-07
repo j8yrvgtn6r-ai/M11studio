@@ -118,6 +118,7 @@ export function DocumentViewport({
   const [regenerating, setRegenerating] = useState(false);
   const [editorSession, setEditorSession] = useState<NarrativeEditorSession>('viewing');
   const [editorBuffer, setEditorBuffer] = useState('');
+  const [explicitIntellisenseQuery, setExplicitIntellisenseQuery] = useState<string | null>(null);
   const [editorBaseline, setEditorBaseline] = useState('');
   const [titlePageMode, setTitlePageMode] = useState<TitlePageMode>('editing');
   const [titlePageBaseline, setTitlePageBaseline] = useState<Record<string, unknown>>({});
@@ -141,6 +142,12 @@ export function DocumentViewport({
   useEffect(() => {
     editorBaselineRef.current = editorBaseline;
   }, [editorBaseline]);
+
+  useEffect(() => {
+    if (diagnosticScrollTarget?.sectionId === section?.id && diagnosticScrollTarget.suggestedFix) {
+      setExplicitIntellisenseQuery(diagnosticScrollTarget.suggestedFix);
+    }
+  }, [diagnosticScrollTarget, section?.id]);
 
   const flushPendingPersist = useCallback(() => {
     if (persistTimer.current) {
@@ -567,12 +574,15 @@ export function DocumentViewport({
                 gutterIndicators={gutterIndicators}
                 lineDiagnostics={lineDiagnostics}
                 sectionId={section.id}
+                sectionTitle={section.title}
                 highlightQuery={highlightQuery}
                 onValidate={canShowValidateButton ? handleValidateSection : undefined}
                 validateDisabled={!canShowValidateButton}
                 validateRunning={isValidationRunning}
                 onFind={onFind}
                 onReplace={onReplace}
+                explicitIntellisenseQuery={explicitIntellisenseQuery}
+                onExplicitIntellisenseQueryChange={setExplicitIntellisenseQuery}
                 diagnosticScrollTarget={diagnosticScrollTarget}
                 onDiagnosticScrollComplete={onDiagnosticScrollComplete}
                 data-testid={

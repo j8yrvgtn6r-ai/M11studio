@@ -3,7 +3,16 @@ import type { EditorGutterIndicator, LineDiagnostic, SectionValidationSummary } 
 import { buildLineDiagnostics } from '../../domain/protocol/authoring/editorIntegration';
 import type { DiagnosticScrollTarget } from '../../domain/protocol/authoring/lineDiagnostics';
 import { offsetFromLineColumn } from '../../domain/protocol/authoring/lineDiagnostics';
-import { normalizeEditorOutput } from '../../domain/protocol/authoring/richTextContent';
+import {
+  applyQuickFixToText,
+  registerProtocolQuickFixHandler,
+  type ProtocolQuickFix,
+  useProtocolLint,
+} from '../../domain/protocol/authoring/linting';
+import { recordIntellisenseAcceptance } from '../../domain/protocol/authoring/intellisense';
+import { recordTerminologyAcceptance } from '../../domain/protocol/authoring/terminologyEditorIntegration';
+import { normalizeEditorOutput, stripHtmlToPlainText } from '../../domain/protocol/authoring/richTextContent';
+import { diagnosticsToGutterIndicators } from '../../domain/protocol/authoring/lineDiagnostics';
 import type { AutosaveStatus } from '../StatusBar';
 import { RichTextEditor } from '../authoring/RichTextEditor';
 import { EditorGutter, countEditorLines } from './EditorGutter';
@@ -33,6 +42,10 @@ export interface ProtocolIdeEditorProps {
   onFind?: () => void;
   onReplace?: () => void;
   onTerminologyAccepted?: () => void;
+  onIntellisenseAccepted?: () => void;
+  sectionTitle?: string;
+  explicitIntellisenseQuery?: string | null;
+  onExplicitIntellisenseQueryChange?: (query: string | null) => void;
   diagnosticScrollTarget?: DiagnosticScrollTarget | null;
   onDiagnosticScrollComplete?: () => void;
   'data-testid'?: string;
@@ -59,6 +72,10 @@ export function ProtocolIdeEditor({
   onFind,
   onReplace,
   onTerminologyAccepted,
+  onIntellisenseAccepted,
+  sectionTitle,
+  explicitIntellisenseQuery = null,
+  onExplicitIntellisenseQueryChange,
   diagnosticScrollTarget = null,
   onDiagnosticScrollComplete,
   'data-testid': dataTestId = 'protocol-ide-editor',
@@ -79,7 +96,7 @@ export function ProtocolIdeEditor({
     onDiagnosticScrollComplete?.();
   }, [diagnosticScrollTarget, onDiagnosticScrollComplete, sectionId, value]);
 
-  const lineDiagnostics = useMemo(() => {
+  const validationDiagnostics = useMemo(() => {
     if (lineDiagnosticsProp) {
       return lineDiagnosticsProp;
     }
@@ -88,6 +105,98 @@ export function ProtocolIdeEditor({
     }
     return buildLineDiagnostics({ sectionId, content: value });
   }, [lineDiagnosticsProp, sectionId, value]);
+
+  const {
+    mergedDiagnostics: lineDiagnostics,
+    lintStatusLabel,
+    lintIssueCount,
+    scheduleLint,
+  } = useProtocolLint({
+    sectionId,
+    sectionTitle,
+    content: value,
+    validationDiagnostics,
+    enabled: !readOnly && Boolean(sectionId),
+  });
+
+  const handleEditorChange = useCallback(
+    (nextValue: string) => {
+      onChange(nextValue);
+      scheduleLint(nextValue);
+    },
+    [onChange, scheduleLint],
+  );
+
+  const handleQuickFix = useCallback(
+    (fix: ProtocolQuickFix) => {
+      if (fix.actionType === 'openIntellisense') {
+        onExplicitIntellisenseQueryChange?.(fix.metadata?.query ?? null);
+        return;
+      }
+      if (fix.actionType !== 'replaceText' || !sectionId) {
+        return;
+      }
+      const { nextText, applied } = applyQuickFixToText(value, fix);
+      if (!applied) {
+        return;
+      }
+      const plain = stripHtmlToPlainText(value);
+      const originalText =
+        fix.range != null ? plain.slice(fix.range.startOffset, fix.range.endOffset) : '';
+      handleEditorChange(nextText);
+      recordIntellisenseAcceptance({
+        sectionId,
+        suggestionId: fix.id,
+        kind: 'terminology',
+        source: 'm11Terminology',
+        originalText,
+        insertedText: fix.replacementText ?? '',
+        metadata: fix.metadata,
+      });
+      recordTerminologyAcceptance(sectionId, {
+        acceptedTerm: fix.replacementText ?? '',
+        preferredTerm: fix.replacementText ?? '',
+        codelistName: 'M11 Terminology',
+        originalToken: originalText,
+      });
+      onTerminologyAccepted?.();
+      onIntellisenseAccepted?.();
+    },
+    [
+      handleEditorChange,
+      onExplicitIntellisenseQueryChange,
+      onIntellisenseAccepted,
+      onTerminologyAccepted,
+      sectionId,
+      value,
+    ],
+  );
+
+  useEffect(() => {
+    if (!sectionId || readOnly) {
+      return;
+    }
+    return registerProtocolQuickFixHandler(handleQuickFix);
+  }, [handleQuickFix, readOnly, sectionId]);
+
+  const resolvedGutterIndicators = useMemo(() => {
+    if (lineDiagnostics.length > 0) {
+      return diagnosticsToGutterIndicators(lineDiagnostics).map((entry) => ({
+        lineNumber: entry.lineNumber,
+        kind:
+          entry.category === 'terminology'
+            ? 'terminology'
+            : entry.category === 'structure' || entry.category === 'missingContent'
+              ? 'structure'
+              : 'validation',
+        severity: entry.severity,
+        message: entry.message,
+        diagnosticId: lineDiagnostics.find((diag) => diag.lineNumber === entry.lineNumber)?.id,
+        startOffset: lineDiagnostics.find((diag) => diag.lineNumber === entry.lineNumber)?.startOffset,
+      })) as EditorGutterIndicator[];
+    }
+    return gutterIndicators;
+  }, [gutterIndicators, lineDiagnostics]);
 
   const runOnSurface = useCallback((fn: (surface: HTMLDivElement) => void) => {
     const surface = surfaceRef.current ?? document.querySelector<HTMLDivElement>(`[data-testid="${dataTestId}-inner-surface"]`);
@@ -168,7 +277,7 @@ export function ProtocolIdeEditor({
         {!readOnly ? (
           <EditorGutter
             lineCount={lineCount}
-            indicators={gutterIndicators}
+            indicators={resolvedGutterIndicators}
             showLineNumbers
             onIndicatorClick={handleGutterClick}
           />
@@ -176,7 +285,7 @@ export function ProtocolIdeEditor({
         <div className="min-w-0 flex-1">
           <RichTextEditor
             value={value}
-            onChange={onChange}
+            onChange={handleEditorChange}
             editorKey={editorKey}
             placeholder={placeholder}
             readOnly={readOnly}
@@ -186,7 +295,10 @@ export function ProtocolIdeEditor({
             surfaceRef={surfaceRef}
             lineDiagnostics={lineDiagnostics}
             sectionId={sectionId}
+            sectionTitle={sectionTitle}
             onTerminologyAccepted={onTerminologyAccepted}
+            onIntellisenseAccepted={onIntellisenseAccepted}
+            explicitIntellisenseQuery={explicitIntellisenseQuery}
             scrollToOffset={scrollToOffset}
             data-testid={`${dataTestId}-inner`}
           />
@@ -200,6 +312,8 @@ export function ProtocolIdeEditor({
           lastSaved={lastSaved}
           validationSummary={validationSummary}
           dependencyCount={dependencyCount}
+          lintStatusLabel={lintStatusLabel}
+          lintIssueCount={lintIssueCount}
         />
       ) : null}
     </div>

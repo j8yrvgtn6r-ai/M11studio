@@ -5,6 +5,10 @@ import {
 } from '../build/protocolBuildConsoleStore';
 import { clearImportedAssets, clearAssets } from '../assets/protocolAssetRegistry';
 import { clearReplaceTransactions } from '../search/replaceTransaction';
+import { resetProtocolLintScheduler } from '../authoring/linting/protocolLintScheduler';
+import { clearIntellisenseAcceptanceRecords } from '../authoring/intellisense';
+import { clearProtocolEntityReferences } from '../entities/protocolEntityReference';
+import { resetProtocolEntityRegistryCache } from '../entities/protocolEntityRegistry';
 import { resetProtocolStoreToBlank } from '../store/protocolStore';
 import { clearProtocolVersioningState } from './protocolVersioning';
 import { clearAllProtocolImportStorage } from './protocolImportStorage';
@@ -26,6 +30,10 @@ export function resetImportWorkspace(): void {
   clearSoANarrativeSyncState();
   clearReplaceTransactions();
   clearImportedAssets();
+  clearIntellisenseAcceptanceRecords();
+  resetProtocolLintScheduler();
+  clearProtocolEntityReferences();
+  resetProtocolEntityRegistryCache();
   persistImportWorkspaceReset();
   clearProtocolBuildEvents();
   resetImportBuildConsoleWorkspace();

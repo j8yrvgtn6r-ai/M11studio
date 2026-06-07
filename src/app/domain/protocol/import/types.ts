@@ -95,6 +95,37 @@ export interface TerminologyAcceptanceRecord {
   originalToken: string;
 }
 
+export interface IntellisenseAcceptanceRecord {
+  id: string;
+  sectionId: string;
+  suggestionId: string;
+  kind: string;
+  source: string;
+  originalText: string;
+  insertedText: string;
+  timestamp: string;
+  metadata?: Record<string, string>;
+}
+
+export interface ProtocolEntityReferenceRecord {
+  entityId: string;
+  entityType: string;
+  displayText: string;
+  sectionId: string;
+  offset: number;
+  endOffset: number;
+  createdAt: string;
+}
+
+export interface EntityInsertionRecord {
+  id: string;
+  entityId: string;
+  entityType: string;
+  sectionId: string;
+  insertedText: string;
+  timestamp: string;
+}
+
 export interface ValidationProposalSnapshot {
   validatedTargetText?: string;
   validationChanges?: ValidationChange[];
@@ -373,6 +404,9 @@ export interface GeneratedSectionDraft {
   consistencyImpacts?: ConsistencyImpactRecord[];
   /** Terminology IntelliSense acceptances recorded during authoring. */
   terminologyAcceptanceLog?: TerminologyAcceptanceRecord[];
+  intellisenseAcceptanceLog?: IntellisenseAcceptanceRecord[];
+  entityReferences?: ProtocolEntityReferenceRecord[];
+  entityInsertionLog?: EntityInsertionRecord[];
   /** Workflow state before Consistency Agent marked this section out of sync. */
   priorWorkflowState?: ProtocolSectionWorkflowState;
 }

@@ -192,9 +192,9 @@ export function ImportProtocolDialog({
     setProcessingActive(true);
     setProcessingSteps(createInitialProcessingSteps());
     reconstructionStartedRef.current = false;
+    onOpenChange(false);
     resetImportWorkspace();
     startProtocolBuildSession({ mode: 'Quick' });
-    onOpenChange(false);
 
     const abortController = new AbortController();
     abortControllerRef.current = abortController;

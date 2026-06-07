@@ -347,6 +347,7 @@ export default function App() {
       lineNumber: diagnostic.lineNumber,
       startOffset: diagnostic.startOffset,
       requestId: Date.now(),
+      suggestedFix: diagnostic.suggestedFix,
     });
   };
 
