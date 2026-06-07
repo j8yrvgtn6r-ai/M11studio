@@ -1,4 +1,5 @@
 import type { ProtocolLintContext, ProtocolLintIssue } from './protocolLintTypes';
+import { getSectionGuidance, shouldSkipRequiredMissingForEmptySection } from '../../../m11-template-guidance';
 
 const PLACEHOLDER_PATTERNS = [
   /\[insert[^\]]*\]/gi,
@@ -48,18 +49,24 @@ function pushSpanIssues(
 export function runStructureLintRules(context: ProtocolLintContext): ProtocolLintIssue[] {
   const issues: ProtocolLintIssue[] = [];
   const trimmed = context.plainText.trim();
+  const guidance = getSectionGuidance(context.sectionId);
+  const usesGuidanceLayer = Boolean(guidance && !guidance.excludedFromGuidanceUi);
 
   if (!trimmed) {
-    issues.push({
-      id: `lint.structure.empty.${context.sectionId}`,
-      sectionId: context.sectionId,
-      lineNumber: 1,
-      severity: 'error',
-      category: 'requiredContent',
-      message: 'Required section content is missing.',
-      source: 'm11Template',
-      createdAt: new Date().toISOString(),
-    });
+    if (!usesGuidanceLayer) {
+      issues.push({
+        id: `lint.structure.empty.${context.sectionId}`,
+        sectionId: context.sectionId,
+        lineNumber: 1,
+        severity: 'error',
+        category: 'requiredContent',
+        message: 'Required section content is missing.',
+        source: 'm11Template',
+        createdAt: new Date().toISOString(),
+      });
+    } else if (!shouldSkipRequiredMissingForEmptySection(context.sectionId)) {
+      // Guidance lint rules emit the required-content finding for applicable sections.
+    }
     return issues;
   }
 

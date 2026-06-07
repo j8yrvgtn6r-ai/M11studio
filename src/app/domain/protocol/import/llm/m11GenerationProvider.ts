@@ -29,6 +29,7 @@ import { formatLlmUserError, ImportProcessingAbortedError, throwIfAborted } from
 import { parseLlmJson } from './parseLlmJson';
 import type { M11GenerationInput, M11GenerationProvider } from './types';
 import { GENERATION_PROMPT_VERSION } from './types';
+import { getGenerationGuidancePayload } from '../../../m11-template-guidance';
 
 function shouldGenerate(spec: IchM11SectionSpec): boolean {
   if (spec.sectionType === 'template-instruction') return false;
@@ -118,6 +119,7 @@ async function generateOpenAiSectionDraft(
 ): Promise<GeneratedSectionDraft> {
   const config = resolveLlmProviderConfig();
   const techSpec = input.m11TechnicalSpecification.find((s) => s.id === spec.id);
+  const sectionGuidance = getGenerationGuidancePayload(spec.id);
 
   const result = await callOpenAiChat(
     config,
@@ -134,6 +136,7 @@ async function generateOpenAiSectionDraft(
           task: 'm11_section_reconstruction',
           promptVersion: GENERATION_PROMPT_VERSION,
           m11Section: { id: spec.id, title: spec.title, conformance: spec.conformance },
+          sectionGuidance,
           technicalSpec: techSpec?.description ?? techSpec?.title,
           protocolKnowledgeModel: input.protocolKnowledgeModel,
           fullProtocolContext: truncate(input.sourceExtraction.fullText),

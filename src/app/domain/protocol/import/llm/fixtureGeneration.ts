@@ -6,6 +6,7 @@ import type { GeneratedSectionDraft, ImportedProtocolSource, ProtocolSourceArtif
 import type { SectionGenerationProvenance } from '../types';
 import type { M11GenerationInput } from './types';
 import { GENERATION_PROMPT_VERSION } from './types';
+import { getGenerationGuidancePayload } from '../../../m11-template-guidance';
 
 const SOA_NOTE =
   'Schedule of Activities is authored in SoA Configuration. This proposal reminds reviewers that visit and assessment schedules must be confirmed against the reconstructed study design.';
@@ -115,6 +116,7 @@ function buildProvenance(
   draftVersion = 1,
 ): SectionGenerationProvenance {
   const refs = input.sourceExtraction.sections.slice(0, 4).map((section) => section.id);
+  const sectionGuidance = getGenerationGuidancePayload(spec.id);
   return {
     generationProvider: 'fixture',
     generationModel: 'fixture-m11-reconstruct-v1',
@@ -127,6 +129,7 @@ function buildProvenance(
     generationNotes: [
       'Fixture M11 reconstruction provider (development/smoke).',
       `Reconstructed M11 section ${spec.id} from ProtocolKnowledgeModel — not source-section mapping.`,
+      ...(sectionGuidance ? [`Applied section guidance for ${spec.id}.`] : []),
     ],
     knowledgeElementsUsed: knowledgeElements,
     draftVersion,

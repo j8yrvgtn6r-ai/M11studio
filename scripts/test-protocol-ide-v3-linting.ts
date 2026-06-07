@@ -97,7 +97,7 @@ function testTerminologyDetectsSynonymAndSuggestsPreferredTerm() {
   resetLintHarness();
   const text = 'Each subject must provide informed consent before enrollment.';
   const issues = runTerminologyLintRules({
-    sectionId: '5',
+    sectionId: '5.1',
     content: text,
     plainText: text,
   });
@@ -212,7 +212,7 @@ function testLintingDoesNotTriggerAutosave() {
 function testGutterReceivesLintMarkers() {
   resetLintHarness();
   const text = 'Each subject must consent.';
-  const result = runProtocolLint({ sectionId: '5', content: text });
+  const result = runProtocolLint({ sectionId: '5.1', content: text });
   const diagnostics = lintIssuesToLineDiagnostics(result.issues);
   const gutter = diagnosticsToGutterIndicators(diagnostics);
   assert.ok(gutter.some((entry) => entry.category === 'terminology'));
@@ -222,7 +222,7 @@ function testGutterReceivesLintMarkers() {
 function testInlineSquiggleRendersForLintIssue() {
   resetLintHarness();
   const text = 'Each subject must consent.';
-  const result = runProtocolLint({ sectionId: '5', content: text });
+  const result = runProtocolLint({ sectionId: '5.1', content: text });
   const diagnostics = lintIssuesToLineDiagnostics(result.issues);
   const highlights = diagnosticHighlightsFromLineDiagnostics(text, diagnostics);
   assert.ok(highlights.length >= 1);
@@ -234,7 +234,7 @@ function testInlineSquiggleRendersForLintIssue() {
 function testQuickFixReplacesTerminologyText() {
   resetLintHarness();
   const text = 'Each subject must consent.';
-  const result = runProtocolLint({ sectionId: '5', content: text });
+  const result = runProtocolLint({ sectionId: '5.1', content: text });
   const issue = result.issues.find((entry) => entry.category === 'terminology');
   assert.ok(issue);
   const fix = buildQuickFixesForIssue(issue).find((entry) => entry.actionType === 'replaceText');
@@ -249,14 +249,14 @@ function testQuickFixRecordsAcceptance() {
   resetLintHarness();
   clearIntellisenseAcceptanceRecords();
   const text = 'Each subject must consent.';
-  const result = runProtocolLint({ sectionId: '5', content: text });
+  const result = runProtocolLint({ sectionId: '5.1', content: text });
   const issue = result.issues.find((entry) => entry.category === 'terminology');
   assert.ok(issue);
   const fix = buildQuickFixesForIssue(issue).find((entry) => entry.actionType === 'replaceText');
   assert.ok(fix);
   const { nextText } = applyQuickFixToText(text, fix);
   recordIntellisenseAcceptance({
-    sectionId: '5',
+    sectionId: '5.1',
     suggestionId: fix.id,
     kind: 'terminology',
     source: 'm11Terminology',
@@ -264,28 +264,28 @@ function testQuickFixRecordsAcceptance() {
     insertedText: fix.replacementText ?? '',
   });
   assert.match(nextText, /participant/);
-  assert.ok(listIntellisenseAcceptanceRecords().some((entry) => entry.sectionId === '5'));
+  assert.ok(listIntellisenseAcceptanceRecords().some((entry) => entry.sectionId === '5.1'));
 }
 
 function testValidationPanelListsLintIssues() {
   resetLintHarness();
-  const result = runProtocolLint({ sectionId: '5', content: 'Each subject must consent before screening.' });
-  setLintIssues('5', result.issues, result.quickFixes);
-  const issues = getLintIssues('5');
-  const fixes = getLintQuickFixes('5');
+  const result = runProtocolLint({ sectionId: '5.1', content: 'Each subject must consent before screening.' });
+  setLintIssues('5.1', result.issues, result.quickFixes);
+  const issues = getLintIssues('5.1');
+  const fixes = getLintQuickFixes('5.1');
   assert.ok(issues.length >= 1);
   assert.ok(fixes.length >= 1);
-  assert.ok(formatLintStatusLabel(getLintSummary('5')).includes('issue'));
+  assert.ok(formatLintStatusLabel(getLintSummary('5.1')).includes('issue'));
 }
 
 function testNoDuplicateIssuesFromValidationAndLinting() {
   resetLintHarness();
   const text = 'Each subject must consent.';
   const validationDiagnostics = buildLineDiagnostics({
-    sectionId: '5',
+    sectionId: '5.1',
     content: text,
     draft: {
-      sectionId: '5',
+      sectionId: '5.1',
       title: 'Trial Population',
       generatedText: text,
       validationFindings: [],
@@ -305,7 +305,7 @@ function testNoDuplicateIssuesFromValidationAndLinting() {
       ],
     },
   });
-  const lintIssues = runProtocolLint({ sectionId: '5', content: text }).issues;
+  const lintIssues = runProtocolLint({ sectionId: '5.1', content: text }).issues;
   const merged = mergeLineDiagnosticsWithLint(validationDiagnostics, lintIssues);
   assert.ok(validationDiagnostics.length >= 1);
   assert.ok(lintIssues.length >= 1);

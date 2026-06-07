@@ -38,6 +38,15 @@ import { Alert, AlertDescription, AlertTitle } from './ui/alert';
 import { Button } from './ui/button';
 import { RichTextEditor, RichTextReadOnlyView } from './authoring/RichTextEditor';
 import { TitlePageViewport } from './authoring/TitlePageViewport';
+import { M11SectionGuidancePanel } from './authoring/M11SectionGuidancePanel';
+import {
+  getEditorPlaceholderText,
+  getNotApplicableInsertText,
+  getSectionGuidance,
+  shouldShowHeadingOnlyAuthoring,
+  shouldSkipRequiredMissingForEmptySection,
+  shouldUseM11TemplateGuidanceLayer,
+} from '../domain/m11-template-guidance';
 import { ProtocolIdeEditor } from './protocol-ide/ProtocolIdeEditor';
 import {
   buildEditorGutterIndicators,
@@ -252,6 +261,8 @@ export function DocumentViewport({
   const showLegacyRequiredMissing =
     isTitlePageSection
       ? !titlePageCompletion?.allRequiredComplete
+      : shouldSkipRequiredMissingForEmptySection(section.id)
+        ? false
       : shouldShowRequiredMissing({
           draft: importDraft,
           generationState: sectionGenerationState,
@@ -266,6 +277,15 @@ export function DocumentViewport({
     !showGeneratingState &&
     fields.length === 0 &&
     !section.ichM11InstructionOnly;
+  const sectionGuidance = useMemo(() => getSectionGuidance(section?.id), [section?.id]);
+  const useM11GuidanceLayer = shouldUseM11TemplateGuidanceLayer(section?.id);
+  const showHeadingOnlyGuidance = showBlankAuthoring && shouldShowHeadingOnlyAuthoring(section?.id);
+  const editorPlaceholder =
+    showBlankAuthoring && useM11GuidanceLayer && !showHeadingOnlyGuidance
+      ? getEditorPlaceholderText(section.id) ?? undefined
+      : showBlankAuthoring
+        ? undefined
+        : undefined;
 
   const workflowState = importDraft ? inferWorkflowState(importDraft) : null;
   const isValidationRunning = workflowState === 'validationRunning';
@@ -275,6 +295,7 @@ export function DocumentViewport({
     !isTitlePageSection &&
     !showQueuedState &&
     !showGeneratingState &&
+    !showHeadingOnlyGuidance &&
     (importDraft || showBlankAuthoring);
 
   const isNarrativeEditorActive =
@@ -315,6 +336,30 @@ export function DocumentViewport({
           (isImportedUnvalidatedSection || isGeneratedSection || isManualDraftSection),
       )) &&
     canValidateSectionContent;
+
+  const handleInsertGuidancePrompt = useCallback(
+    (prompt: string) => {
+      const base = editorBufferRef.current ?? '';
+      const next = base.trim() ? `${base}\n\n${prompt}` : prompt;
+      setEditorBuffer(next);
+      editorBufferRef.current = next;
+      queueEditorPersist(next);
+    },
+    [queueEditorPersist],
+  );
+
+  const handleMarkSectionNotApplicable = useCallback(() => {
+    const text = getNotApplicableInsertText();
+    setEditorBuffer(text);
+    editorBufferRef.current = text;
+    if (persistTimer.current) {
+      clearTimeout(persistTimer.current);
+      persistTimer.current = null;
+    }
+    onApplyManualSectionSave?.(text, editorBaselineRef.current);
+    setEditorBaseline(text);
+    editorBaselineRef.current = text;
+  }, [onApplyManualSectionSave]);
 
   const handleValidateSection = () => {
     if (!canShowValidateButton) {
@@ -547,11 +592,26 @@ export function DocumentViewport({
         <div
           className={`p-6 max-w-5xl ${importDraft && isValidationProposedSection ? 'flex flex-col min-h-[calc(100vh-14rem)]' : ''}`}
         >
+          {showHeadingOnlyGuidance && sectionGuidance ? (
+            <div className="mb-8" data-testid="viewport-heading-only-guidance">
+              <M11SectionGuidancePanel guidance={sectionGuidance} />
+            </div>
+          ) : null}
+
           {isNarrativeEditorActive ? (
             <div
               className="space-y-3 mb-8"
               data-testid={showBlankAuthoring ? 'viewport-blank-authoring' : undefined}
             >
+              {showBlankAuthoring && sectionGuidance && !showHeadingOnlyGuidance ? (
+                <M11SectionGuidancePanel
+                  guidance={sectionGuidance}
+                  onInsertPrompt={handleInsertGuidancePrompt}
+                  onMarkNotApplicable={
+                    sectionGuidance.allowsNotApplicable ? handleMarkSectionNotApplicable : undefined
+                  }
+                />
+              ) : null}
               <Label htmlFor="viewport-narrative-editor">
                 {showBlankAuthoring
                   ? 'Section content'
@@ -569,7 +629,7 @@ export function DocumentViewport({
                   editorBufferRef.current = text;
                   queueEditorPersist(text);
                 }}
-                placeholder={showBlankAuthoring ? 'Start writing this section…' : undefined}
+                placeholder={editorPlaceholder}
                 readOnly={false}
                 sectionState={narrativeSectionState}
                 autosaveStatus={autosaveStatus}
@@ -616,6 +676,18 @@ export function DocumentViewport({
                   {regenerating ? 'Generating…' : 'Generate Section'}
                 </Button>
               ) : null}
+            </div>
+          ) : null}
+
+          {importDraft && hasSectionContent && sectionGuidance && useM11GuidanceLayer ? (
+            <div className="mb-6" data-testid="viewport-compact-m11-guidance">
+              <M11SectionGuidancePanel
+                guidance={sectionGuidance}
+                compact
+                defaultExpanded={false}
+                showInsertionPrompts={false}
+                showNotApplicableAction={false}
+              />
             </div>
           ) : null}
 

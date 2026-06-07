@@ -1,4 +1,5 @@
 import type { ProtocolLintContext, ProtocolLintIssue } from './protocolLintTypes';
+import { runM11TemplateGuidanceLintRules } from '../../../m11-template-guidance';
 import { runConsistencyLintRules } from './consistencyLintRules';
 import { runSoALintRules } from './soaLintRules';
 import { runStructureLintRules } from './structureLintRules';
@@ -76,6 +77,7 @@ export function runStyleLintRules(context: ProtocolLintContext): ProtocolLintIss
 
 export function runAllProtocolLintRules(context: ProtocolLintContext): ProtocolLintIssue[] {
   return [
+    ...runM11TemplateGuidanceLintRules(context),
     ...runTerminologyLintRules(context),
     ...runStructureLintRules(context),
     ...runConsistencyLintRules(context),
