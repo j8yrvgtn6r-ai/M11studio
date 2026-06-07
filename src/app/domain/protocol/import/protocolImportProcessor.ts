@@ -46,7 +46,15 @@ import {
   markProtocolImportUnderstandingPhase,
   mergeProtocolKnowledgeEnrichment,
   upsertLiveSectionImportDraft,
+  stageImportSummaryReports,
 } from './protocolImportStore';
+import {
+  buildImportSummaryReport,
+  buildLlmRoutingAuditReport,
+  formatImportSummaryLines,
+  formatLlmRoutingAuditLines,
+} from './importSummaryReport';
+import { runSoAAgentFromImport } from '../../../agents/soaAgentRunner';
 import {
   assertPriorityGenerationContextReady,
   getPriorityGenerationContextDiagnostics,
@@ -572,6 +580,45 @@ export async function runProtocolImportProcessing(
     emitOrphanImportDiagnosticEvents(importDiagnosticsSnapshot, (event) => {
       appendProtocolBuildEvent(event);
     });
+
+    try {
+      const draftRecord = Object.fromEntries(drafts.map((draft) => [draft.sectionId, draft]));
+      await runSoAAgentFromImport(draftRecord);
+    } catch (error) {
+      appendProtocolBuildEvent({
+        type: 'warning',
+        message: `SoA Knowledge Model refresh skipped: ${error instanceof Error ? error.message : String(error)}`,
+      });
+    }
+
+    const importSummaryReport = buildImportSummaryReport({
+      mappings: structuralMapping.mappings,
+      suspiciousMappings: structuralMappingOutput.suspiciousMappings,
+      needsGenerationSectionIds: structuralMapping.needsGenerationSectionIds,
+      sectionDrafts: Object.fromEntries(drafts.map((draft) => [draft.sectionId, draft])),
+      sectionGenerationStates: buildConsoleState.sectionStates,
+      generationSchedule,
+      diagnostics: importDiagnosticsSnapshot,
+    });
+    const llmRoutingAudit = buildLlmRoutingAuditReport({
+      mappings: structuralMapping.mappings,
+      sectionDrafts: Object.fromEntries(drafts.map((draft) => [draft.sectionId, draft])),
+      needsGenerationSectionIds: structuralMapping.needsGenerationSectionIds,
+      generationSchedule,
+    });
+    await stageImportSummaryReports(importSummaryReport, llmRoutingAudit);
+    appendProtocolBuildEvent({ type: 'success', message: 'Import summary dashboard ready' });
+    for (const line of formatImportSummaryLines(importSummaryReport)) {
+      if (line.trim()) {
+        appendProtocolBuildEvent({ type: 'info', message: line, metadata: { importSummary: true } });
+      }
+    }
+    appendProtocolBuildEvent({ type: 'info', message: 'LLM routing audit' });
+    for (const line of formatLlmRoutingAuditLines(llmRoutingAudit)) {
+      if (line.trim()) {
+        appendProtocolBuildEvent({ type: 'info', message: line, metadata: { llmRoutingAudit: true } });
+      }
+    }
 
     mergeSectionGenerationStatesFromDrafts(drafts, { allM11SectionIds, prioritySectionIds });
     setProtocolBuildFailedSectionIds(failedSectionIds);

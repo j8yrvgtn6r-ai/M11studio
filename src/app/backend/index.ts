@@ -30,6 +30,12 @@ export {
   RepositoryUnavailableError,
   SourceDocumentRepository,
   sourceDocumentRepository,
+  SoAEntityRepository,
+  soaEntityRepository,
+  SoAKnowledgeRepository,
+  soaKnowledgeRepository,
+  SoAScheduleRuleRepository,
+  soaScheduleRuleRepository,
   ValidationRepository,
   validationRepository,
 } from './repositories';

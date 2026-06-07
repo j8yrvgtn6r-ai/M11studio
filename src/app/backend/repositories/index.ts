@@ -8,6 +8,9 @@ export { ProtocolRepository, protocolRepository } from './ProtocolRepository';
 export { ProtocolSectionRepository, protocolSectionRepository } from './ProtocolSectionRepository';
 export { ProtocolVersionRepository, protocolVersionRepository } from './ProtocolVersionRepository';
 export { SourceDocumentRepository, sourceDocumentRepository } from './SourceDocumentRepository';
+export { SoAEntityRepository, soaEntityRepository } from './SoAEntityRepository';
+export { SoAKnowledgeRepository, soaKnowledgeRepository } from './SoAKnowledgeRepository';
+export { SoAScheduleRuleRepository, soaScheduleRuleRepository } from './SoAScheduleRuleRepository';
 export { ValidationRepository, validationRepository } from './ValidationRepository';
 export {
   RepositoryPersistenceError,

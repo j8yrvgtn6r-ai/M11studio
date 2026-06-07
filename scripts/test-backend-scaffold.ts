@@ -10,6 +10,9 @@ import {
   protocolRepository,
   resetStorageProviderForTests,
   resetSupabaseClientForTests,
+  soaEntityRepository,
+  soaKnowledgeRepository,
+  soaScheduleRuleRepository,
   supabaseStorageProvider,
 } from '../src/app/backend';
 
@@ -45,6 +48,16 @@ async function main(): Promise<void> {
     entityThrew = error instanceof RepositoryUnavailableError;
   }
   assert(entityThrew, 'knowledge entity repository should throw when unconfigured');
+
+  for (const repository of [soaKnowledgeRepository, soaEntityRepository, soaScheduleRuleRepository]) {
+    let soaThrew = false;
+    try {
+      await repository.listByProtocol('00000000-0000-0000-0000-000000000001');
+    } catch (error) {
+      soaThrew = error instanceof RepositoryUnavailableError;
+    }
+    assert(soaThrew, `${repository.constructor.name} should throw when unconfigured`);
+  }
 
   console.log('test:backend — all scaffold checks passed');
 }

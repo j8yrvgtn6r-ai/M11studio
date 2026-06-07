@@ -100,6 +100,14 @@ export function getProtocolVersioningState(protocolId: string): ProtocolVersioni
   return loadVersioningState(protocolId);
 }
 
+/** Clears persisted protocol version history for a project reset. */
+export function clearProtocolVersioningState(_protocolId?: string): void {
+  if (typeof localStorage === 'undefined') {
+    return;
+  }
+  localStorage.removeItem(VERSIONING_STORAGE_KEY);
+}
+
 export function getProtocolCommits(protocolId: string): ProtocolCommit[] {
   return loadVersioningState(protocolId).commits;
 }

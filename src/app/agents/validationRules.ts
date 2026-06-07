@@ -491,12 +491,35 @@ export function summarizeValidationChanges(changes: ValidationChange[] = []): Va
   return { total, byType, label };
 }
 
+export function formatValidationChangeSource(type: ValidationChangeType): string {
+  switch (type) {
+    case 'terminology':
+      return 'Controlled Terminology';
+    case 'structural':
+      return 'ICH M11 Structure';
+    case 'formatting':
+      return 'Formatting';
+    case 'replacement':
+      return 'Grammar';
+    case 'addition':
+    case 'deletion':
+      return 'Required Section Content';
+    default:
+      return 'Terminology Harmonization';
+  }
+}
+
 export function formatValidationChangeTooltip(change?: ValidationChange): string {
   if (!change) {
     return 'Text changed during validation.';
   }
   const typeLabel = formatValidationChangeType(change.type, change.severity);
-  const lines = [`Change type: ${typeLabel}`, `Reason: ${change.reason || 'Validation adjustment'}`];
+  const sourceLabel = formatValidationChangeSource(change.type);
+  const lines = [
+    `Change type: ${typeLabel}`,
+    `Reason: ${change.reason || 'Validation adjustment'}`,
+    `Source: ${sourceLabel}`,
+  ];
   if (change.originalText) {
     lines.push(`Original: ${change.originalText}`);
   }

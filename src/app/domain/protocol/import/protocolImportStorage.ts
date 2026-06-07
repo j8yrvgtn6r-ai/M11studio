@@ -104,6 +104,28 @@ export async function saveImportedProtocolSource(
   });
 }
 
+/** Removes all persisted import blobs and extractions from IndexedDB. */
+export async function clearAllProtocolImportStorage(): Promise<void> {
+  if (!isProtocolImportStorageAvailable()) {
+    return;
+  }
+
+  const database = await openDatabase();
+  await new Promise<void>((resolve, reject) => {
+    const transaction = database.transaction([DOC_STORE, EXTRACTION_STORE], 'readwrite');
+    transaction.objectStore(DOC_STORE).clear();
+    transaction.objectStore(EXTRACTION_STORE).clear();
+    transaction.oncomplete = () => {
+      database.close();
+      resolve();
+    };
+    transaction.onerror = () => {
+      database.close();
+      reject(transaction.error ?? new Error('Failed to clear protocol import storage'));
+    };
+  });
+}
+
 export async function loadImportedProtocolSource(
   uploadId: string,
 ): Promise<ImportedProtocolSource | null> {

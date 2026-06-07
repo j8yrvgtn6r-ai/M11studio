@@ -23,6 +23,7 @@ import { SoAConfigurationAssessmentsTab } from './SoAConfigurationAssessmentsTab
 import { SoAConfigurationMatrixTab } from './SoAConfigurationMatrixTab';
 import { SoAConfigurationPlaceholderTab } from './SoAConfigurationPlaceholderTab';
 import { SoAConfigurationVisitsTab } from './SoAConfigurationVisitsTab';
+import { SoAProposalActions } from '../soa-knowledge/SoAProposalReviewPanel';
 import { CHANGE_CONTROL_PLACEHOLDER, SOA_CONFIGURATION_TABS } from './soaConfigurationTabs';
 
 interface SoAConfigurationShellProps {
@@ -78,6 +79,9 @@ export function SoAConfigurationShell({ onCellClick }: SoAConfigurationShellProp
               {document.metadata.authoringMode ? ` • ${document.metadata.authoringMode}` : ''}
             </p>
             <p className="text-[11px] text-muted-foreground/80 mt-0.5">Section 1.3 Schedule of Activities</p>
+            <div className="mt-2">
+              <SoAProposalActions compact />
+            </div>
           </div>
 
           <div className="flex flex-col items-end gap-2 shrink-0">

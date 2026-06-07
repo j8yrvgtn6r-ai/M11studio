@@ -62,7 +62,15 @@ import type { DependencyNode } from './types/dependencyGraph';
 import { SoAAssessmentAuthoringProvider } from './components/soa-configuration/SoAAssessmentAuthoringContext';
 import { SettingsWorkspace, type SettingsView } from './components/settings/SettingsWorkspace';
 import { SectionAuthoringCanvas } from './components/m11-template-reference/SectionAuthoringCanvas';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from './components/ui/dropdown-menu';
+import { NewProjectDialog } from './components/protocol-import/NewProjectDialog';
 import { ImportProtocolDialog } from './components/protocol-import/ImportProtocolDialog';
+import { resolveProtocolDisplayIdentity } from './domain/protocol/import/protocolIdentity';
 import { ImportStorageRecoveryBanner } from './components/protocol-import/ImportStorageRecoveryBanner';
 import { ProtocolImportReviewWorkspace } from './components/protocol-import/ProtocolImportReviewWorkspace';
 import {
@@ -113,6 +121,7 @@ export default function App() {
     return localStorage.getItem('m11-study-model-enabled') === 'true';
   });
   const [importDialogOpen, setImportDialogOpen] = useState(false);
+  const [newProjectDialogOpen, setNewProjectDialogOpen] = useState(false);
   const [importReviewOpen, setImportReviewOpen] = useState(false);
   const [importCompleteBanner, setImportCompleteBanner] = useState<string | null>(null);
   const [studyModelUpdatedBanner, setStudyModelUpdatedBanner] = useState<string | null>(null);
@@ -302,6 +311,10 @@ export default function App() {
   };
 
   const totalValidationIssues = headerValidationFindings.length;
+  const protocolDisplayIdentity = resolveProtocolDisplayIdentity({
+    importedSourceSummary: importState.importedSourceSummary,
+    fallbackProtocolId: importState.protocolId,
+  });
 
   return (
     <SoAAssessmentAuthoringProvider>
@@ -311,6 +324,27 @@ export default function App() {
         <div className="flex items-center gap-2">
           <FileText className="h-5 w-5 text-primary" />
           <h1 className="font-semibold">M11 Studio</h1>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="sm" className="h-8 text-xs" data-testid="app-file-menu">
+                File
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start">
+              <DropdownMenuItem
+                data-testid="app-new-project-menu-item"
+                onSelect={() => setNewProjectDialogOpen(true)}
+              >
+                New Project
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                data-testid="app-import-protocol-menu-item"
+                onSelect={() => setImportDialogOpen(true)}
+              >
+                Import Protocol
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
 
         <div className="flex-1" />
@@ -590,7 +624,6 @@ export default function App() {
                         });
                       }
                     }}
-                    onOpenImportReview={() => setImportReviewOpen(true)}
                   />
                 )}
               </SectionAuthoringCanvas>
@@ -710,13 +743,28 @@ export default function App() {
         }}
       />
 
+      <NewProjectDialog
+        open={newProjectDialogOpen}
+        onOpenChange={setNewProjectDialogOpen}
+        onProjectReset={() => {
+          setImportReviewOpen(false);
+          setImportCompleteBanner(null);
+          setProtocolSections(getProtocolSections());
+          setFields(getFieldDefinitions());
+          setSelectedSectionId('1');
+        }}
+      />
+
       {/* Welcome Dialog */}
       <WelcomeDialog open={welcomeOpen} onOpenChange={setWelcomeOpen} />
 
       {/* Build Console + Status Bar */}
-      <ProtocolBuildConsole />
+      <ProtocolBuildConsole
+        showReviewWorkspace={Boolean(importState.lastImportCompletedAt)}
+        onOpenReviewWorkspace={() => setImportReviewOpen(true)}
+      />
       <StatusBar
-        protocolId="PROTO-XYZ-301"
+        protocolId={protocolDisplayIdentity}
         currentUser="Dr. Sarah Chen"
         autosaveStatus={autosaveStatus}
         lastSaved={lastSaved}

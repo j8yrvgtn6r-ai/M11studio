@@ -68,7 +68,13 @@ function resolveActivePhase(build: ReturnType<typeof useProtocolBuildConsole>): 
   return 'Waiting';
 }
 
-export function ProtocolBuildConsole() {
+export function ProtocolBuildConsole({
+  onOpenReviewWorkspace,
+  showReviewWorkspace = false,
+}: {
+  onOpenReviewWorkspace?: () => void;
+  showReviewWorkspace?: boolean;
+}) {
   const build = useProtocolBuildConsole();
   const { state: importState } = useProtocolImport();
   const pendingSections = countPendingM11Sections(importState.sectionDrafts);
@@ -214,6 +220,18 @@ export function ProtocolBuildConsole() {
             </>
           ) : null}
 
+          {showReviewWorkspace && onOpenReviewWorkspace ? (
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-7 text-[10px] px-2"
+              data-testid="protocol-build-open-review-workspace"
+              onClick={onOpenReviewWorkspace}
+            >
+              Open Review Workspace
+            </Button>
+          ) : null}
+
           {build.status === 'complete' && build.failedSectionIds.length > 0 ? (
             <Button
               size="sm"
@@ -297,6 +315,21 @@ export function ProtocolBuildConsole() {
                 mode={build.mode}
                 schedule={build.generationSchedule}
               />
+            </div>
+          ) : null}
+
+          {build.status === 'complete' && importState.importSummaryReport ? (
+            <div
+              className="px-3 pt-2 shrink-0 border-b border-border/60 text-[10px] text-muted-foreground space-y-0.5"
+              data-testid="import-summary-dashboard"
+            >
+              <p className="font-medium text-foreground">Import Summary</p>
+              <p>Imported Sections: {importState.importSummaryReport.importedSections}</p>
+              <p>Validated Sections: {importState.importSummaryReport.validatedSections}</p>
+              <p>Generated Sections: {importState.importSummaryReport.generatedSections}</p>
+              <p>Needs Generation: {importState.importSummaryReport.needsGeneration}</p>
+              <p>Suspicious Mappings: {importState.importSummaryReport.suspiciousMappings}</p>
+              <p>No Match: {importState.importSummaryReport.noMatch}</p>
             </div>
           ) : null}
 

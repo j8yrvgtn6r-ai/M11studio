@@ -6,7 +6,6 @@ import {
   DocxExtractionError,
   ImportProcessingAbortedError,
   isDocxFile,
-  prepareProtocolImportOverwrite,
   retryFailedM11SectionGeneration,
   runProtocolImportProcessing,
   setProtocolImportArtifact,
@@ -19,6 +18,7 @@ import {
   generateRemainingSectionImportDraftsAsync,
   isPriorityGenerationContextReady,
 } from '../../domain/protocol/import';
+import { resetImportWorkspace } from '../../domain/protocol/import/projectReset';
 import {
   endProtocolBuildSession,
   getProtocolBuildConsoleState,
@@ -192,7 +192,7 @@ export function ImportProtocolDialog({
     setProcessingActive(true);
     setProcessingSteps(createInitialProcessingSteps());
     reconstructionStartedRef.current = false;
-    prepareProtocolImportOverwrite();
+    resetImportWorkspace();
     startProtocolBuildSession({ mode: 'Quick' });
     onOpenChange(false);
 

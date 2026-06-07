@@ -251,6 +251,67 @@ function resolveCurrentGenerationBlocker(
   return `Section ${sectionId} generation blocked (${eligibility}).`;
 }
 
+function classifyOrphanInvestigation(input: {
+  mapping: Pick<SectionImportDiagnostics, 'mappingStatus' | 'mappingReason' | 'foundInSource'>;
+  generationEligibility: SectionGenerationEligibility;
+  generationAttempted: boolean;
+  generationState?: SectionGenerationState;
+  foundInSource: boolean;
+  generationSkipReason?: string;
+}): Pick<SectionImportDiagnostics, 'orphanClassification' | 'nextRecommendedAction' | 'mappingRejected'> {
+  const mappingRejected =
+    input.mapping.mappingStatus === 'rejected' || input.mapping.mappingStatus === 'suspicious';
+
+  if (mappingRejected) {
+    return {
+      mappingRejected: true,
+      orphanClassification: 'mappingFailure',
+      nextRecommendedAction: 'Review structural mapping and source heading match',
+    };
+  }
+
+  if (input.generationAttempted && input.generationState === 'failed') {
+    return {
+      mappingRejected: false,
+      orphanClassification: 'generationFailure',
+      nextRecommendedAction: 'Retry generation from Protocol Reconstruction Progress',
+    };
+  }
+
+  if (!input.foundInSource && input.mapping.mappingStatus === 'noMatch') {
+    return {
+      mappingRejected: false,
+      orphanClassification: 'trueMissing',
+      nextRecommendedAction: 'Author section manually or verify source protocol coverage',
+    };
+  }
+
+  if (
+    input.generationEligibility === 'alreadyGenerated' &&
+    (input.generationState === 'notGenerated' || input.generationState === 'needsGeneration')
+  ) {
+    return {
+      mappingRejected: false,
+      orphanClassification: 'staleState',
+      nextRecommendedAction: 'Reset import workspace or re-import protocol to refresh section state',
+    };
+  }
+
+  if (input.generationEligibility === 'skippedByGenerationAgent' || input.generationEligibility === 'noSourceContext') {
+    return {
+      mappingRejected: false,
+      orphanClassification: input.foundInSource ? 'generationFailure' : 'trueMissing',
+      nextRecommendedAction: input.generationSkipReason ?? 'Review generation eligibility in import diagnostics',
+    };
+  }
+
+  return {
+    mappingRejected: false,
+    orphanClassification: 'unknown',
+    nextRecommendedAction: 'Inspect import diagnostics for mapping and generation blockers',
+  };
+}
+
 function buildDiagnosticSummary(diagnostics: Omit<SectionImportDiagnostics, 'diagnosticSummary'>): string {
   const parts: string[] = [];
   parts.push(`Mapping: ${mappingStatusLabel(diagnostics.mappingStatus)} (${mappingReasonLabel(diagnostics.mappingReason)})`);
@@ -424,6 +485,14 @@ export function buildSectionImportDiagnosticsForSection(
   const generationAttempted = generated || (queued && !skipped);
   const generationSkipReason = resolveCurrentGenerationBlocker(sectionId, generationEligibility, skipReason);
   const canonicalFields = enrichWithCanonicalDiagnostics(sectionId, sectionTitle, input.importedSource, mapping);
+  const orphanMeta = classifyOrphanInvestigation({
+    mapping,
+    generationEligibility,
+    generationAttempted,
+    generationState,
+    foundInSource: mapping.foundInSource,
+    generationSkipReason,
+  });
 
   const base: Omit<SectionImportDiagnostics, 'diagnosticSummary'> = {
     sectionId,
@@ -435,6 +504,7 @@ export function buildSectionImportDiagnosticsForSection(
     generationAttempted,
     generationEligibility,
     generationSkipReason,
+    ...orphanMeta,
   };
 
   return {
@@ -534,6 +604,8 @@ export function formatImportDiagnosticsTooltip(diagnostics: SectionImportDiagnos
     `Generation: ${generationEligibilityLabel(diagnostics.generationEligibility)}`,
     diagnostics.generationAttempted ? 'Import generation: attempted' : 'Import generation: not attempted',
     diagnostics.generationSkipReason ? `Blocker: ${diagnostics.generationSkipReason}` : null,
+    diagnostics.orphanClassification ? `Orphan class: ${diagnostics.orphanClassification}` : null,
+    diagnostics.nextRecommendedAction ? `Next: ${diagnostics.nextRecommendedAction}` : null,
     diagnostics.diagnosticSummary,
   ].filter((line): line is string => Boolean(line));
 }

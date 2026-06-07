@@ -7,13 +7,7 @@ import {
   type SectionGenerationState,
 } from '../domain/protocol/build/protocolBuildConsoleStore';
 import type { ProtocolSection } from '../types/protocol';
-import {
-  sectionGenerationOverlayClass,
-  sectionGenerationStateLabel,
-  SectionGenerationStateIndicator,
-  sectionGenerationDotClass,
-} from './SectionGenerationStateIndicator';
-import { importedSectionTooltip } from '../domain/protocol/import/sectionWorkflowState';
+import { formatMapSectionTooltip, SectionGenerationStateIndicator, sectionGenerationDotClass, sectionGenerationOverlayClass } from './SectionGenerationStateIndicator';
 import { formatBuildDurationMs } from '../domain/protocol/build/formatBuildDuration';
 import { ScrollArea } from './ui/scroll-area';
 
@@ -98,29 +92,24 @@ export function DocumentMinimap({
                 ? sectionGenerationDotClass(generationState)
                 : 'bg-muted/40';
             const importDiagnostics = sectionImportDiagnostics[section.id];
-            const tooltipLines = [
-              `Section: ${section?.title ?? section?.id ?? 'Section'}`,
-              `Status: ${sectionGenerationStateLabel(generationState)}`,
-              importedSectionTooltip(importDraft),
-              importDraft?.contentOrigin
-                ? `Source: ${importDraft.contentOrigin === 'imported' ? 'Imported' : 'Generated'}`
-                : null,
-              importDraft?.importedTextLength
-                ? `Imported length: ${importDraft.importedTextLength} characters`
-                : null,
-              importDraft?.sourcePreview ? `Preview: ${importDraft.sourcePreview}` : null,
-              ...(importDiagnostics ? formatImportDiagnosticsTooltip(importDiagnostics) : []),
-              !importDiagnostics && sectionSkipReasons[section.id]
-                ? `Skip reason: ${sectionSkipReasons[section.id]}`
-                : null,
-              generationProgress?.providerLabel
-                ? `Provider: ${generationProgress.providerLabel}${generationProgress.model ? ` / ${generationProgress.model}` : ''}`
-                : null,
-              generationState === 'generating' && generationProgress?.currentRequestDurationMs !== undefined
-                ? `Elapsed: ${formatBuildDurationMs(generationProgress.currentRequestDurationMs)}`
-                : null,
-              importDraft?.validationMessages?.[0] ? `Error: ${importDraft.validationMessages[0]}` : null,
-            ].filter(Boolean);
+            const tooltipText = formatMapSectionTooltip({
+              sectionTitle: section?.title ?? section?.id ?? 'Section',
+              state: generationState,
+              draft: importDraft,
+              extraLines: [
+                ...(importDiagnostics ? formatImportDiagnosticsTooltip(importDiagnostics) : []),
+                !importDiagnostics && sectionSkipReasons[section.id]
+                  ? `Skip reason: ${sectionSkipReasons[section.id]}`
+                  : null,
+                generationProgress?.providerLabel
+                  ? `Provider: ${generationProgress.providerLabel}${generationProgress.model ? ` / ${generationProgress.model}` : ''}`
+                  : null,
+                generationState === 'generating' && generationProgress?.currentRequestDurationMs !== undefined
+                  ? `Elapsed: ${formatBuildDurationMs(generationProgress.currentRequestDurationMs)}`
+                  : null,
+                importDraft?.validationMessages?.[0] ? `Error: ${importDraft.validationMessages[0]}` : null,
+              ].filter((line): line is string => Boolean(line)),
+            });
 
             return (
               <button
@@ -129,7 +118,7 @@ export function DocumentMinimap({
                 className={`w-full h-8 rounded flex items-center justify-center relative group transition-all ${
                   isSelected ? 'ring-2 ring-primary' : ''
                 } ${tileBackground} hover:brightness-110 ${overlayClass}`}
-                title={tooltipLines.join('\n')}
+                title={tooltipText}
                 data-testid={`map-section-${section.id}`}
                 data-generation-state={generationState}
               >
@@ -148,12 +137,12 @@ export function DocumentMinimap({
                       data-testid={`map-processing-${section.id}`}
                     />
                   ) : !neutralImportTile && (buildActive || importDraft) ? (
-                    <SectionGenerationStateIndicator state={generationState} compact animate />
+                    <SectionGenerationStateIndicator state={generationState} compact animate draft={importDraft} />
                   ) : null}
                 </div>
 
                 <div className="absolute right-full mr-2 px-2 py-1 bg-popover text-popover-foreground text-xs rounded shadow-lg opacity-0 group-hover:opacity-100 pointer-events-none whitespace-pre-line z-10 transition-opacity max-w-[220px]">
-                  {tooltipLines.join('\n')}
+                  {tooltipText}
                 </div>
               </button>
             );

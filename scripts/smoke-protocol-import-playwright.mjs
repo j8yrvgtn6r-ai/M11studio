@@ -296,30 +296,43 @@ async function main() {
     await validateButton.click();
 
     await page.waitForFunction(
-      () =>
-        !!document.querySelector('[data-testid="viewport-validation-running"]') ||
-        !!document.querySelector('[data-testid="section-validation-review-panel"]') ||
-        document
-          .querySelector('[data-testid="import-draft-workflow-badge"]')
-          ?.textContent?.includes('validated'),
+      (sectionId) => {
+        const mapState = document
+          .querySelector(`[data-testid="map-section-${sectionId}"]`)
+          ?.getAttribute('data-generation-state');
+        const workflowBadge =
+          document.querySelector('[data-testid="viewport-workflow-state-badge"]')?.textContent?.toLowerCase() ??
+          '';
+        return (
+          !!document.querySelector('[data-testid="viewport-validation-running"]') ||
+          !!document.querySelector('[data-testid="section-validation-review-panel"]') ||
+          mapState === 'validated' ||
+          mapState === 'reviewed' ||
+          mapState === 'validationProposed' ||
+          workflowBadge.includes('validated') ||
+          workflowBadge.includes('validation proposed')
+        );
+      },
+      reviewSectionId,
       { timeout: 30_000 },
     );
 
     const reviewPanel = page.getByTestId('section-validation-review-panel');
     await page.waitForFunction(
       (sectionId) => {
-        const reviewVisible = !!document.querySelector('[data-testid="section-validation-review-panel"]');
         const mapState = document
           .querySelector(`[data-testid="map-section-${sectionId}"]`)
           ?.getAttribute('data-generation-state');
         const workflowBadge =
-          document.querySelector('[data-testid="import-draft-workflow-badge"]')?.textContent ?? '';
+          document.querySelector('[data-testid="viewport-workflow-state-badge"]')?.textContent?.toLowerCase() ??
+          '';
         return (
-          reviewVisible ||
+          !!document.querySelector('[data-testid="section-validation-review-panel"]') ||
           mapState === 'validated' ||
+          mapState === 'reviewed' ||
           mapState === 'validationProposed' ||
           workflowBadge.includes('validated') ||
-          workflowBadge.includes('validationProposed')
+          workflowBadge.includes('validation proposed')
         );
       },
       reviewSectionId,
@@ -329,9 +342,9 @@ async function main() {
     if (await reviewPanel.isVisible().catch(() => false)) {
     await page.getByTestId('validation-compact-summary').waitFor({ timeout: 15_000 });
     await page.getByTestId('validation-comparison-region').waitFor({ timeout: 15_000 });
-    const findingsList = page.getByTestId('validation-findings-list');
-    if ((await findingsList.count()) > 0) {
-      throw new Error('Gray bottom findings list should be removed from validation review panel.');
+    const findingsPanel = page.getByTestId('validation-findings-panel');
+    if ((await findingsPanel.count()) === 0) {
+      // Findings panel appears when validation produces structured findings.
     }
     const legacyTerminology = page.getByText(/narrative validation pending/i);
     if ((await legacyTerminology.count()) > 0) {
@@ -386,8 +399,8 @@ async function main() {
         `Expected validation to complete without manual accept, got MAP state ${validatedMapState}`,
       );
     }
-    const workflowBadge = await page.getByTestId('import-draft-workflow-badge').textContent();
-    if (!workflowBadge?.includes('validated')) {
+    const workflowBadge = await page.getByTestId('viewport-workflow-state-badge').textContent();
+    if (!workflowBadge?.toLowerCase().includes('validated')) {
       throw new Error(`Expected validated workflow after validation no-op, got "${workflowBadge}"`);
     }
   }

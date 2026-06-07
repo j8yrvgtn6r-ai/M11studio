@@ -36,6 +36,8 @@ export type {
   SectionMappingReason,
   SectionGenerationEligibility,
   SuspiciousMappingRecord,
+  ImportSummaryReport,
+  LlmRoutingAuditReport,
 } from './types';
 
 export type { ProtocolKnowledgeModel, ProtocolKnowledgeProvider, ProtocolKnowledgeProviderId } from './protocolKnowledgeTypes';
@@ -92,7 +94,25 @@ export {
   applyConsistencyAgentResults,
   clearSectionOutOfSyncState,
   getSectionImportDrafts,
+  getImportSummaryReport,
+  getLlmRoutingAuditReport,
+  stageImportSummaryReports,
 } from './protocolImportStore';
+
+export { resetImportWorkspace, resetProject } from './projectReset';
+export {
+  resolveSectionWorkflowDisplayBadge,
+  sectionWorkflowDisplayBadgeClass,
+  shouldShowRequiredMissing,
+  sectionHasAuthorableContent,
+} from './sectionDisplayStatus';
+export { resolveProtocolDisplayIdentity } from './protocolIdentity';
+export {
+  buildImportSummaryReport,
+  buildLlmRoutingAuditReport,
+  formatImportSummaryLines,
+  formatLlmRoutingAuditLines,
+} from './importSummaryReport';
 
 export {
   createInitialProcessingSteps,

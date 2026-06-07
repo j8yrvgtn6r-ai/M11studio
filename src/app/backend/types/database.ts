@@ -201,3 +201,67 @@ export type KnowledgeRelationshipInsert = Pick<
 export type KnowledgeRelationshipUpdate = Partial<
   Omit<KnowledgeRelationshipRow, 'id' | 'protocol_id' | 'created_at'>
 >;
+
+export interface SoAKnowledgeModelRow {
+  id: string;
+  protocol_id: string;
+  version: number;
+  model: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+}
+
+export type SoAKnowledgeModelInsert = Pick<SoAKnowledgeModelRow, 'protocol_id' | 'model'> &
+  Partial<Pick<SoAKnowledgeModelRow, 'version'>>;
+
+export type SoAKnowledgeModelUpdate = Partial<
+  Omit<SoAKnowledgeModelRow, 'id' | 'protocol_id' | 'created_at'>
+>;
+
+export interface SoAEntityRow {
+  id: string;
+  protocol_id: string;
+  entity_type: string;
+  name: string;
+  normalized_name: string;
+  payload: Record<string, unknown>;
+  source_section_ids: string[];
+  created_at: string;
+  updated_at: string;
+}
+
+export type SoAEntityInsert = Pick<
+  SoAEntityRow,
+  'protocol_id' | 'entity_type' | 'name' | 'normalized_name'
+> &
+  Partial<Omit<SoAEntityRow, 'id' | 'created_at' | 'updated_at'>>;
+
+export type SoAEntityUpdate = Partial<Omit<SoAEntityRow, 'id' | 'protocol_id' | 'created_at'>>;
+
+export interface SoAScheduleRuleRow {
+  id: string;
+  protocol_id: string;
+  assessment_id: string | null;
+  procedure_id: string | null;
+  activity_id: string | null;
+  visit_id: string | null;
+  arm_id: string | null;
+  epoch_id: string | null;
+  condition_id: string | null;
+  timing_window_id: string | null;
+  required: boolean;
+  notes: string | null;
+  source_section_ids: string[];
+  payload: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+}
+
+export type SoAScheduleRuleInsert = Pick<SoAScheduleRuleRow, 'protocol_id'> &
+  Partial<
+    Omit<SoAScheduleRuleRow, 'id' | 'protocol_id' | 'created_at' | 'updated_at'>
+  >;
+
+export type SoAScheduleRuleUpdate = Partial<
+  Omit<SoAScheduleRuleRow, 'id' | 'protocol_id' | 'created_at'>
+>;

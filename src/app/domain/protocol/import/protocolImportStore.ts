@@ -75,6 +75,10 @@ import type {
 
   ImportedProtocolSourceSummary,
 
+  ImportSummaryReport,
+
+  LlmRoutingAuditReport,
+
   MappedProtocolSection,
 
   ProtocolImportReviewSummary,
@@ -256,6 +260,10 @@ function persistMetadata(): void {
 
         sectionImportDiagnostics: state.sectionImportDiagnostics,
 
+        importSummaryReport: state.importSummaryReport,
+
+        llmRoutingAudit: state.llmRoutingAudit,
+
         lastImportCompletedAt: state.lastImportCompletedAt,
 
         protocolKnowledgeModel: state.protocolKnowledgeModelId
@@ -341,6 +349,10 @@ function loadPersistedMetadata(): void {
       suspiciousMappings: parsed.suspiciousMappings,
 
       sectionImportDiagnostics: parsed.sectionImportDiagnostics,
+
+      importSummaryReport: parsed.importSummaryReport,
+
+      llmRoutingAudit: parsed.llmRoutingAudit,
 
       lastImportCompletedAt: normalized.lastImportCompletedAt,
 
@@ -661,6 +673,22 @@ export function setProtocolImportExtractionFailed(
 
 /** Clears persisted import/review state when the user confirms a new protocol overwrite. */
 export function prepareProtocolImportOverwrite(): void {
+  persistImportWorkspaceReset();
+}
+
+/** Clears in-memory import caches (extractions, blobs, knowledge models). */
+export function clearImportInMemoryCaches(): void {
+  for (const url of blobUrlCache.values()) {
+    URL.revokeObjectURL(url);
+  }
+  blobUrlCache.clear();
+  extractionCache.clear();
+  knowledgeCache.clear();
+}
+
+/** Resets import workspace persisted state before a replacement import. */
+export function persistImportWorkspaceReset(): void {
+  clearImportInMemoryCaches();
   state.sectionDrafts = {};
   state.importedSourceSummary = null;
   state.protocolKnowledgeModelId = null;
@@ -670,11 +698,52 @@ export function prepareProtocolImportOverwrite(): void {
   state.structuralMappings = undefined;
   state.suspiciousMappings = undefined;
   state.sectionImportDiagnostics = undefined;
+  state.importSummaryReport = undefined;
+  state.llmRoutingAudit = undefined;
   state.importContextPhase = 'idle';
   clearCanonicalDocuments();
   clearStudyModel();
   persistMetadata();
   notify();
+}
+
+/** Resets all persisted import metadata for a blank project. */
+export function persistProjectReset(): void {
+  clearImportInMemoryCaches();
+  state = {
+    artifact: null,
+    importedSourceSummary: null,
+    protocolKnowledgeModelId: null,
+    protocolId: defaultProtocolId(),
+    sectionDrafts: {},
+    lastImportCompletedAt: null,
+    storageWarnings: [],
+    importContextPhase: 'idle',
+  };
+  if (typeof localStorage !== 'undefined') {
+    localStorage.removeItem(STORAGE_KEY);
+    localStorage.removeItem('m11-protocol-import-v2');
+    localStorage.removeItem('m11-protocol-import-v1');
+  }
+  notify();
+}
+
+export async function stageImportSummaryReports(
+  importSummaryReport: ImportSummaryReport,
+  llmRoutingAudit: LlmRoutingAuditReport,
+): Promise<void> {
+  state.importSummaryReport = importSummaryReport;
+  state.llmRoutingAudit = llmRoutingAudit;
+  persistMetadata();
+  notify();
+}
+
+export function getImportSummaryReport(): ImportSummaryReport | null {
+  return state.importSummaryReport ?? null;
+}
+
+export function getLlmRoutingAuditReport(): LlmRoutingAuditReport | null {
+  return state.llmRoutingAudit ?? null;
 }
 
 /** Persists structural mapping results for the active import session. */

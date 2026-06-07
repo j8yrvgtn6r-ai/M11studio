@@ -2,6 +2,8 @@ import { useProtocolImport } from '../../domain/protocol/import/ProtocolImportCo
 import { isRealLlmProvider } from '../../domain/protocol/import/llm/llmConfig';
 import { Badge } from '../ui/badge';
 import { ScrollArea } from '../ui/scroll-area';
+import { SoAKnowledgeSummaryPanel } from '../soa-knowledge/SoAKnowledgeSummaryPanel';
+import { SoAProposalActions } from '../soa-knowledge/SoAProposalReviewPanel';
 
 function FieldRow({ label, value }: { label: string; value?: string }) {
   if (!value) return null;
@@ -89,6 +91,8 @@ export function ProtocolKnowledgePanel() {
               ))}
             </div>
           ) : null}
+          <SoAProposalActions />
+          <SoAKnowledgeSummaryPanel />
         </div>
       </ScrollArea>
     </div>

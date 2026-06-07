@@ -163,3 +163,16 @@ export {
   scheduleGenerationSync,
 } from './generationAgentRunner';
 
+export { SOA_AGENT_ID, soaAgent } from './SoAAgent';
+export type { SoAAgentInput, SoAAgentOutput, SoAAgentTrigger, SoAExtractedItem } from './SoAAgent';
+export { evaluateSoAScheduleExtraction, countSoAKnowledgePatch } from './soaAgentRules';
+export {
+  acceptCurrentSoAProposal,
+  ensureSoAAgentRegistered,
+  generateFirstPassSoA,
+  getCurrentSoAProposal,
+  rejectCurrentSoAProposal,
+  runSoAAgent,
+  runSoAAgentFromImport,
+} from './soaAgentRunner';
+

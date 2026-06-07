@@ -277,6 +277,30 @@ export function clearProtocolBuildEvents(): void {
   notify();
 }
 
+/** Resets build console workspace state without clearing provider/UI preferences elsewhere. */
+export function resetImportBuildConsoleWorkspace(): void {
+  clearPinnedBuildEvents();
+  pauseRequested = false;
+  resumePromise = null;
+  resumeResolve = null;
+  prioritySectionQueue = [];
+  injectedSectionQueue = [];
+  state = {
+    ...state,
+    status: 'idle',
+    events: [],
+    generationProgress: null,
+    studyModelEnrichment: { status: 'idle', completedSlices: 0, totalSlices: 7 },
+    sectionStates: {},
+    visualizationPhase: 'idle',
+    failedSectionIds: [],
+    sectionSkipReasons: {},
+    generationSchedule: null,
+    completionSummary: null,
+  };
+  notify();
+}
+
 export function startProtocolBuildSession(options?: {
   mode?: ProtocolBuildMode;
   filename?: string;

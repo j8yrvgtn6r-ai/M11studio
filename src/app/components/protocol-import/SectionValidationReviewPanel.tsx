@@ -231,29 +231,11 @@ export function SectionValidationReviewPanel({
         </div>
 
         {showDeterministicProvider ? (
-          <div className="flex flex-wrap items-center gap-2">
-            <Button
-              size="sm"
-              variant="outline"
-              data-testid="validation-run-llm-button"
-              disabled={llmRunning}
-              onClick={handleRunLlmValidation}
-            >
-              {llmRunning ? (
-                <>
-                  <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />
-                  Running LLM Validation…
-                </>
-              ) : (
-                'Run LLM Validation'
-              )}
-            </Button>
-            {!llmAvailability.available ? (
-              <p className="text-xs text-muted-foreground" data-testid="validation-llm-unavailable-message">
-                {llmAvailability.message}
-              </p>
-            ) : null}
-          </div>
+          !llmAvailability.available ? (
+            <p className="text-xs text-muted-foreground" data-testid="validation-llm-unavailable-message">
+              {llmAvailability.message}
+            </p>
+          ) : null
         ) : null}
 
         {llmMessage ? (
@@ -336,8 +318,24 @@ export function SectionValidationReviewPanel({
         )}
       </div>
 
+      {findings.length > 0 ? (
+        <div
+          className="shrink-0 border-t border-border bg-muted/20 px-3 py-2 max-h-32 overflow-y-auto"
+          data-testid="validation-findings-panel"
+        >
+          <p className="text-xs font-medium mb-1">Validation findings</p>
+          <ul className="space-y-1 text-xs text-muted-foreground">
+            {findings.map((finding) => (
+              <li key={finding.id}>
+                <span className="font-medium text-foreground">{finding.code}</span>: {finding.message}
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+
       <div
-        className="shrink-0 border-t border-border bg-card/95 backdrop-blur px-3 py-2 flex flex-wrap justify-end gap-2"
+        className="sticky bottom-0 shrink-0 border-t border-border bg-card/95 backdrop-blur px-3 py-2 flex flex-wrap justify-end gap-2 z-10"
         data-testid="validation-action-bar"
       >
         {showLlmProposalActions ? (
@@ -350,15 +348,22 @@ export function SectionValidationReviewPanel({
             Revert to deterministic proposal
           </Button>
         ) : null}
-        {showDeterministicProvider && llmAvailability.available ? (
+        {showDeterministicProvider ? (
           <Button
             size="sm"
             variant="outline"
-            data-testid="validation-run-llm-button-footer"
+            data-testid="validation-run-llm-button"
             disabled={llmRunning}
             onClick={handleRunLlmValidation}
           >
-            Run LLM Validation
+            {llmRunning ? (
+              <>
+                <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />
+                Running LLM Validation…
+              </>
+            ) : (
+              'Run LLM Validation'
+            )}
           </Button>
         ) : null}
         <Button size="sm" variant="outline" data-testid="validation-reject-button" onClick={onReject}>

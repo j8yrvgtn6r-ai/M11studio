@@ -45,7 +45,11 @@ import { useProtocolImport } from '../domain/protocol/import/ProtocolImportConte
 
 import type { SectionGenerationState } from '../domain/protocol/build/protocolBuildConsoleStore';
 
-import { sectionGenerationStateLabel } from './SectionGenerationStateIndicator';
+import {
+  resolveSectionWorkflowDisplayBadge,
+  sectionWorkflowDisplayBadgeClass,
+  shouldShowRequiredMissing,
+} from '../domain/protocol/import/sectionDisplayStatus';
 
 import type { ProtocolSection, FieldDefinition } from '../types/protocol';
 
@@ -71,8 +75,6 @@ interface DocumentViewportProps {
 
   onImportDraftTextChange?: (text: string) => void;
 
-  onOpenImportReview?: () => void;
-
   sectionGenerationState?: SectionGenerationState;
 
   buildActive?: boolean;
@@ -92,8 +94,6 @@ export function DocumentViewport({
   importDraft,
 
   onImportDraftTextChange,
-
-  onOpenImportReview,
 
   sectionGenerationState,
 
@@ -131,6 +131,16 @@ export function DocumentViewport({
 
 
   const statusColor = getStatusColor(section.status);
+  const workflowBadge = resolveSectionWorkflowDisplayBadge({
+    draft: importDraft,
+    generationState: sectionGenerationState,
+  });
+  const showLegacyRequiredMissing =
+    shouldShowRequiredMissing({
+      draft: importDraft,
+      generationState: sectionGenerationState,
+      hasValidatedText: Boolean(importDraft?.validatedTargetText?.trim()),
+    }) && section.status === 'requiredMissing';
 
   const showQueuedState = buildActive && !importDraft && sectionGenerationState === 'queued';
 
@@ -176,22 +186,24 @@ export function DocumentViewport({
 
             <h2 className="font-semibold">{section?.title ?? section.id}</h2>
 
-            <Badge variant="outline" className={`${statusColor.text} ${statusColor.border}`}>
-
-              <div className={`w-1.5 h-1.5 rounded-full ${statusColor.dot} mr-1.5`} />
-
-              {getStatusLabel(section.status)}
-
-            </Badge>
-
-            {sectionGenerationState ? (
-
-              <Badge variant="outline" className="text-xs" data-testid="viewport-generation-state-badge">
-
-                {sectionGenerationStateLabel(sectionGenerationState)}
-
+            {workflowBadge ? (
+              <Badge
+                variant="outline"
+                className={`text-xs ${sectionWorkflowDisplayBadgeClass(workflowBadge)}`}
+                data-testid="viewport-workflow-state-badge"
+              >
+                {workflowBadge}
               </Badge>
-
+            ) : showLegacyRequiredMissing ? (
+              <Badge variant="outline" className={`${statusColor.text} ${statusColor.border}`}>
+                <div className={`w-1.5 h-1.5 rounded-full ${statusColor.dot} mr-1.5`} />
+                {getStatusLabel(section.status)}
+              </Badge>
+            ) : section.status !== 'complete' ? (
+              <Badge variant="outline" className={`${statusColor.text} ${statusColor.border}`}>
+                <div className={`w-1.5 h-1.5 rounded-full ${statusColor.dot} mr-1.5`} />
+                {getStatusLabel(section.status)}
+              </Badge>
             ) : null}
 
           </div>
@@ -201,24 +213,6 @@ export function DocumentViewport({
             {importDraft ? (
 
               <>
-
-                <Badge variant="outline" className="text-xs" data-testid="import-draft-review-badge">
-
-                  Import: {importDraft.state}
-
-                </Badge>
-
-                <Badge variant="outline" className="text-xs" data-testid="import-draft-validation-badge">
-
-                  Validation: {importDraft.validationStatus}
-
-                </Badge>
-
-                <Badge variant="outline" className="text-xs" data-testid="import-draft-workflow-badge">
-
-                  {importDraft.workflowState ?? importDraft.contentOrigin ?? importDraft.state}
-
-                </Badge>
 
                 {canShowValidateButton ? (
 
@@ -293,16 +287,6 @@ export function DocumentViewport({
                   {regenerating ? 'Regenerating…' : 'Regenerate'}
 
                 </Button>
-
-                ) : null}
-
-                {onOpenImportReview ? (
-
-                  <Button variant="outline" size="sm" className="h-7 text-xs" onClick={onOpenImportReview}>
-
-                    Open review workspace
-
-                  </Button>
 
                 ) : null}
 

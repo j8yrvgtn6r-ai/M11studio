@@ -305,6 +305,9 @@ export interface SectionImportDiagnostics {
   canonicalBlockCount?: number;
   mappingSimilarityScore?: number;
   mappingSimilarityReasons?: string[];
+  orphanClassification?: 'trueMissing' | 'mappingFailure' | 'generationFailure' | 'staleState' | 'unknown';
+  nextRecommendedAction?: string;
+  mappingRejected?: boolean;
 }
 
 export interface GeneratedSectionDraft {
@@ -421,6 +424,35 @@ export interface ProtocolImportReviewSummary {
   validationErrors: number;
 }
 
+export interface ImportSummaryReport {
+  capturedAt: string;
+  importedSections: number;
+  validatedSections: number;
+  generatedSections: number;
+  needsGeneration: number;
+  suspiciousMappings: number;
+  noMatch: number;
+  orphanSections: number;
+  knowledgeGraphEntities: number;
+  knowledgeGraphRelationships: number;
+  generationQueued: number;
+  generationSkipped: number;
+  mappedSections: number;
+}
+
+export interface LlmRoutingAuditEntry {
+  sectionId: string;
+  reason: string;
+}
+
+export interface LlmRoutingAuditReport {
+  capturedAt: string;
+  mappedDeterministically: number;
+  generatedByLlm: number;
+  generatedByLocalDeterministic: number;
+  unnecessaryLlmRouting: LlmRoutingAuditEntry[];
+}
+
 export interface ProtocolImportState {
   artifact: ProtocolSourceArtifact | null;
   importedSourceSummary: ImportedProtocolSourceSummary | null;
@@ -430,6 +462,8 @@ export interface ProtocolImportState {
   structuralMappings?: MappedProtocolSection[];
   suspiciousMappings?: SuspiciousMappingRecord[];
   sectionImportDiagnostics?: Record<string, SectionImportDiagnostics>;
+  importSummaryReport?: ImportSummaryReport;
+  llmRoutingAudit?: LlmRoutingAuditReport;
   lastImportCompletedAt: string | null;
   storageWarnings: string[];
   /** In-memory staging phase for the active import session. */

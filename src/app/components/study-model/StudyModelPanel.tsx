@@ -7,6 +7,7 @@ import {
 } from '../../domain/study-model/studyModelSelectors';
 import { useStudyModel } from '../../domain/study-model/useStudyModel';
 import { useKnowledgeGraphSummary } from '../../domain/knowledge-graph/useKnowledgeGraph';
+import { SoAKnowledgeSummaryPanel } from '../soa-knowledge/SoAKnowledgeSummaryPanel';
 import type { StudyModelCollectionKey, StudyModelPhase } from '../../domain/study-model/studyModelTypes';
 import { ScrollArea } from '../ui/scroll-area';
 
@@ -83,6 +84,8 @@ export function StudyModelPanel({ sectionId, sectionTitle }: StudyModelPanelProp
               {graphSummary.updatedAt ? new Date(graphSummary.updatedAt).toLocaleString() : 'Not built yet'}
             </p>
           </div>
+
+          <SoAKnowledgeSummaryPanel compact />
 
           {sectionId ? (
             <div className="rounded-md border border-border bg-muted/20 p-3">

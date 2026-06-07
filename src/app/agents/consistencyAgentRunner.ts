@@ -10,6 +10,7 @@ import {
 import { evaluateConsistencyImpacts } from './consistencyRules';
 import type { KnowledgeExtractedItem } from './knowledgeAgentHeuristics';
 import { knowledgeAgent } from './KnowledgeAgent';
+import { soaAgent } from './SoAAgent';
 import { appendProtocolBuildEvent } from '../domain/protocol/build/protocolBuildConsoleStore';
 import { getProtocolBuildConsoleState } from '../domain/protocol/build/protocolBuildConsoleStore';
 import { getProtocolDocument } from '../domain/protocol/store/protocolStore';
@@ -39,6 +40,7 @@ function ensureAgentsRegistered(): void {
   }
   agentManager.register(knowledgeAgent);
   agentManager.register(consistencyAgent);
+  agentManager.register(soaAgent);
   initialized = true;
 }
 

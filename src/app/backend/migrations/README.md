@@ -22,3 +22,4 @@ Using the Supabase dashboard SQL editor: paste and run `001_initial_schema.sql`.
 |------|---------|
 | `001_initial_schema.sql` | Core tables for protocols, sections, study models, knowledge, versions, agents, validation, source documents |
 | `002_knowledge_graph.sql` | Knowledge graph entities and relationships (apply after 001) |
+| `003_soa_knowledge.sql` | SoA Knowledge Model tables — models, entities, schedule rules (apply after 001) |
