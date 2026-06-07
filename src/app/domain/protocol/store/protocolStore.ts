@@ -1,5 +1,6 @@
 import type { ProtocolDocument } from '../types';
 import { createBlankProtocolDocument } from '../blankProtocolDocument';
+import { migrateTitlePageElements } from '../authoring/titlePageMigration';
 import { mergeProtocolSectionsWithIchM11 } from '../ichM11';
 import seedProtocol from '../seed/PROTO-XYZ-301.json';
 import { logDevProtocolValidation } from '../validateProtocol';
@@ -15,6 +16,7 @@ let blankProjectMode = true;
 function loadSeedDocument(): ProtocolDocument {
   const document = structuredClone(seedProtocol as ProtocolDocument);
   document.sections = mergeProtocolSectionsWithIchM11(document.sections, document);
+  migrateTitlePageElements(document);
   return document;
 }
 

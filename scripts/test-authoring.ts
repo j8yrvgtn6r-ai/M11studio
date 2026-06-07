@@ -426,7 +426,7 @@ function testCompletedTitlePageFieldsShowCompleteBadge() {
   const field = getFieldDefinitions().find((entry) => entry.id === 'title_page.full_title');
   assert.ok(field);
   const badges = resolveTitlePageFieldDisplayBadges(field);
-  assert.ok(badges.includes('Complete'));
+  assert.ok(badges.includes('Required'));
   assert.equal(badges.includes('Required Missing'), false);
 }
 

@@ -1,5 +1,18 @@
 [
   {
+    "id": "title_page.sponsor_confidentiality_statement",
+    "sectionId": "title",
+    "label": "Sponsor Confidentiality Statement",
+    "kind": "data",
+    "dataType": "text",
+    "requiredness": "optional",
+    "cardinality": "one_to_one",
+    "repeatable": false,
+    "aiHints": [
+      "Optional sponsor confidentiality language when included on the title page."
+    ]
+  },
+  {
     "id": "title_page.full_title",
     "sectionId": "title",
     "label": "Full Title",
@@ -17,6 +30,19 @@
     "value": "A Phase 3, Randomized, Double-Blind, Placebo-Controlled Study Evaluating the Efficacy and Safety of Investigational Drug XYZ in Patients with Advanced Non-Small Cell Lung Cancer"
   },
   {
+    "id": "title_page.trial_acronym",
+    "sectionId": "title",
+    "label": "Trial Acronym",
+    "kind": "data",
+    "dataType": "text",
+    "requiredness": "optional",
+    "cardinality": "one_to_one",
+    "repeatable": false,
+    "aiHints": [
+      "Short acronym or mnemonic for the trial."
+    ]
+  },
+  {
     "id": "title_page.sponsor_protocol_identifier",
     "sectionId": "title",
     "label": "Sponsor Protocol Identifier",
@@ -24,7 +50,132 @@
     "dataType": "text",
     "requiredness": "required",
     "cardinality": "one_to_one",
+    "repeatable": false,
+    "validationRules": [
+      "must_have_at_least_one_non_space_character"
+    ],
     "value": "PROTO-XYZ-301"
+  },
+  {
+    "id": "title_page.original_protocol_indicator",
+    "sectionId": "title",
+    "label": "Original Protocol",
+    "kind": "value",
+    "dataType": "valid_value",
+    "requiredness": "required",
+    "cardinality": "one_to_one",
+    "repeatable": false,
+    "controlledTerminology": {
+      "codeList": "C217046",
+      "values": [
+        {
+          "label": "No",
+          "code": "C49487"
+        },
+        {
+          "label": "Yes",
+          "code": "C49488"
+        }
+      ]
+    },
+    "validationRules": [
+      "if_no_then_amendment_fields_required"
+    ],
+    "value": "No"
+  },
+  {
+    "id": "title_page.version_number",
+    "sectionId": "title",
+    "label": "Version Number",
+    "kind": "data",
+    "dataType": "text",
+    "requiredness": "optional",
+    "cardinality": "one_to_one",
+    "repeatable": false,
+    "aiHints": [
+      "Protocol version number."
+    ]
+  },
+  {
+    "id": "title_page.version_date",
+    "sectionId": "title",
+    "label": "Version Date",
+    "kind": "data",
+    "dataType": "text",
+    "requiredness": "optional",
+    "cardinality": "one_to_one",
+    "repeatable": false,
+    "aiHints": [
+      "Date associated with the protocol version."
+    ]
+  },
+  {
+    "id": "title_page.amendment_identifier",
+    "sectionId": "title",
+    "label": "Amendment Identifier",
+    "kind": "data",
+    "dataType": "text",
+    "requiredness": "conditional",
+    "cardinality": "one_to_one",
+    "repeatable": false,
+    "validationRules": [
+      "required_when_visible"
+    ],
+    "aiHints": [
+      "Required when the document is not an original protocol."
+    ]
+  },
+  {
+    "id": "title_page.amendment_scope",
+    "sectionId": "title",
+    "label": "Amendment Scope",
+    "kind": "value",
+    "dataType": "valid_value",
+    "requiredness": "conditional",
+    "cardinality": "one_to_one",
+    "repeatable": false,
+    "controlledTerminology": {
+      "codeList": "C217047",
+      "values": [
+        {
+          "label": "Global",
+          "code": "C68846"
+        },
+        {
+          "label": "Not Global",
+          "code": "C217026"
+        }
+      ]
+    },
+    "validationRules": [
+      "if_not_global_then_scope_identifiers_required"
+    ]
+  },
+  {
+    "id": "title_page.sponsor_investigational_product_codes",
+    "sectionId": "title",
+    "label": "Sponsor Investigational Product Code(s)",
+    "kind": "data",
+    "dataType": "text",
+    "requiredness": "optional",
+    "cardinality": "one_to_many",
+    "repeatable": true,
+    "aiHints": [
+      "Sponsor code(s) for investigational product(s)."
+    ]
+  },
+  {
+    "id": "title_page.investigational_product_names",
+    "sectionId": "title",
+    "label": "Investigational Product Name(s)",
+    "kind": "data",
+    "dataType": "text",
+    "requiredness": "optional",
+    "cardinality": "one_to_many",
+    "repeatable": true,
+    "aiHints": [
+      "Name(s) of investigational product(s)."
+    ]
   },
   {
     "id": "title_page.trial_phase",
@@ -33,6 +184,8 @@
     "kind": "value",
     "dataType": "valid_value",
     "requiredness": "required",
+    "cardinality": "one_to_one",
+    "repeatable": false,
     "controlledTerminology": {
       "codeList": "C217045",
       "values": [
@@ -49,55 +202,174 @@
         "Phase 4"
       ]
     },
+    "validationRules": [
+      "controlled_terminology_required"
+    ],
     "value": "Phase 3"
   },
   {
-    "id": "title_page.original_protocol_indicator",
+    "id": "title_page.short_title",
     "sectionId": "title",
-    "label": "Original Protocol",
-    "kind": "value",
-    "dataType": "valid_value",
-    "requiredness": "required",
-    "controlledTerminology": {
-      "codeList": "C217046",
-      "values": [
-        {
-          "label": "No",
-          "code": "C49487"
-        },
-        {
-          "label": "Yes",
-          "code": "C49488"
-        }
-      ]
-    },
-    "validationRules": [
-      "if_no_then_amendment_identifier_required"
-    ],
-    "value": "No"
+    "label": "Short Title",
+    "kind": "data",
+    "dataType": "text",
+    "requiredness": "optional",
+    "cardinality": "one_to_one",
+    "repeatable": false,
+    "aiHints": [
+      "Brief title for operational use."
+    ]
   },
   {
-    "id": "title_page.amendment_scope",
-    "sectionId": "amendment",
-    "label": "Amendment Scope",
-    "kind": "value",
-    "dataType": "valid_value",
+    "id": "title_page.sponsor_name_and_address",
+    "sectionId": "title",
+    "label": "Sponsor Name and Address",
+    "kind": "data",
+    "dataType": "text",
+    "requiredness": "optional",
+    "cardinality": "one_to_one",
+    "repeatable": false,
+    "aiHints": [
+      "Primary sponsor name and address."
+    ]
+  },
+  {
+    "id": "title_page.co_sponsor_name_and_address",
+    "sectionId": "title",
+    "label": "Co-Sponsor Name and Address",
+    "kind": "data",
+    "dataType": "text",
+    "requiredness": "optional",
+    "cardinality": "one_to_many",
+    "repeatable": true,
+    "aiHints": [
+      "Co-sponsor name and address when applicable."
+    ]
+  },
+  {
+    "id": "title_page.local_sponsor_name_and_address",
+    "sectionId": "title",
+    "label": "Local Sponsor Name and Address",
+    "kind": "data",
+    "dataType": "text",
+    "requiredness": "optional",
+    "cardinality": "one_to_many",
+    "repeatable": true,
+    "aiHints": [
+      "Local sponsor name and address when applicable."
+    ]
+  },
+  {
+    "id": "title_page.device_manufacturer_name_and_address",
+    "sectionId": "title",
+    "label": "Device Manufacturer Name and Address",
+    "kind": "data",
+    "dataType": "text",
+    "requiredness": "optional",
+    "cardinality": "one_to_many",
+    "repeatable": true,
+    "aiHints": [
+      "Device manufacturer when the trial involves a device."
+    ]
+  },
+  {
+    "id": "title_page.regulatory_or_clinical_trial_identifiers",
+    "sectionId": "title",
+    "label": "Regulatory or Clinical Trial Identifier(s)",
+    "kind": "data",
+    "dataType": "text",
+    "requiredness": "optional",
+    "cardinality": "one_to_many",
+    "repeatable": true,
+    "aiHints": [
+      "Registry or regulatory identifiers (e.g. NCT, EudraCT)."
+    ]
+  },
+  {
+    "id": "title_page.sponsor_approval",
+    "sectionId": "title",
+    "label": "Sponsor Approval",
+    "kind": "data",
+    "dataType": "text",
+    "requiredness": "optional",
+    "cardinality": "one_to_one",
+    "repeatable": false,
+    "aiHints": [
+      "Sponsor approval statement or signature block."
+    ]
+  },
+  {
+    "id": "title_page.sponsor_signatory",
+    "sectionId": "title",
+    "label": "Sponsor Signatory",
+    "kind": "data",
+    "dataType": "text",
+    "requiredness": "optional",
+    "cardinality": "one_to_one",
+    "repeatable": false,
+    "aiHints": [
+      "Name and role of sponsor signatory."
+    ]
+  },
+  {
+    "id": "title_page.medical_expert_contact",
+    "sectionId": "title",
+    "label": "Medical Expert Contact",
+    "kind": "data",
+    "dataType": "text",
+    "requiredness": "optional",
+    "cardinality": "one_to_one",
+    "repeatable": false,
+    "aiHints": [
+      "Contact details for the medical expert."
+    ]
+  },
+  {
+    "id": "title_page.country_identifier",
+    "sectionId": "title",
+    "label": "Country Identifier",
+    "kind": "data",
+    "dataType": "text",
     "requiredness": "conditional",
-    "controlledTerminology": {
-      "codeList": "C217047",
-      "values": [
-        {
-          "label": "Global",
-          "code": "C68846"
-        },
-        {
-          "label": "Not Global",
-          "code": "C217026"
-        }
-      ]
-    },
+    "cardinality": "one_to_one",
+    "repeatable": false,
     "validationRules": [
-      "if_not_global_then_country_region_or_site_identifier_required"
+      "required_when_visible"
+    ],
+    "aiHints": [
+      "Country scope identifier when amendment scope is not global."
+    ]
+  },
+  {
+    "id": "title_page.region_identifier",
+    "sectionId": "title",
+    "label": "Region Identifier",
+    "kind": "data",
+    "dataType": "text",
+    "requiredness": "conditional",
+    "cardinality": "one_to_one",
+    "repeatable": false,
+    "validationRules": [
+      "required_when_visible"
+    ],
+    "aiHints": [
+      "Region scope identifier when amendment scope is not global."
+    ]
+  },
+  {
+    "id": "title_page.site_identifier",
+    "sectionId": "title",
+    "label": "Site Identifier",
+    "kind": "data",
+    "dataType": "text",
+    "requiredness": "conditional",
+    "cardinality": "one_to_one",
+    "repeatable": false,
+    "validationRules": [
+      "required_when_visible"
+    ],
+    "aiHints": [
+      "Site scope identifier when amendment scope is not global."
     ]
   }
 ]

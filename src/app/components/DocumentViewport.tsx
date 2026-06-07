@@ -37,6 +37,7 @@ import { getStatusColor, getStatusLabel } from '../utils/statusColors';
 import { Alert, AlertDescription, AlertTitle } from './ui/alert';
 import { Button } from './ui/button';
 import { RichTextEditor, RichTextReadOnlyView } from './authoring/RichTextEditor';
+import { TitlePageViewport } from './authoring/TitlePageViewport';
 import { ProtocolIdeEditor } from './protocol-ide/ProtocolIdeEditor';
 import {
   buildEditorGutterIndicators,
@@ -676,18 +677,29 @@ export function DocumentViewport({
           ) : null}
 
           {fields.length > 0 ? (
+            isTitlePageSection ? (
+              <TitlePageViewport
+                fields={fields}
+                mode={titlePageMode}
+                readOnly={titlePageMode === 'viewing'}
+                onFieldChange={onFieldChange}
+                onFieldFocus={onFieldFocus}
+                onFieldBlur={onFieldBlur}
+              />
+            ) : (
             <div className="space-y-6">
               {fields.map((field) => (
                 <FieldEditor
                   key={field.id}
                   field={field}
-                  readOnly={isTitlePageSection && titlePageMode === 'viewing'}
+                  readOnly={false}
                   onFieldChange={onFieldChange}
                   onFieldFocus={onFieldFocus}
                   onFieldBlur={onFieldBlur}
                 />
               ))}
             </div>
+            )
           ) : section.ichM11InstructionOnly ? (
             <div className="text-center py-12 max-w-lg mx-auto">
               <FileText className="h-10 w-10 mx-auto mb-4 opacity-50 text-muted-foreground" />

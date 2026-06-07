@@ -1,14 +1,21 @@
 import type { FieldDefinition, ProtocolDocument, ProtocolSection, StatusType } from '../../../types/protocol';
 import { TITLE_PAGE_PLACEHOLDERS } from './titlePagePlaceholders';
+import {
+  isTitlePageFieldVisible,
+  normalizeTitlePageFieldValue,
+  readTitlePageFieldValues,
+  TITLE_PAGE_FIELD_CATALOG,
+  TITLE_PAGE_REQUIRED_FIELD_IDS,
+  TITLE_PAGE_SECTION_ID,
+  type TitlePageFieldSpec,
+} from './titlePageModel';
 
-export const TITLE_PAGE_SECTION_ID = 'title';
-
-export const TITLE_PAGE_REQUIRED_FIELD_IDS = [
-  'title_page.full_title',
-  'title_page.sponsor_protocol_identifier',
-  'title_page.trial_phase',
-  'title_page.original_protocol_indicator',
-] as const;
+export {
+  TITLE_PAGE_SECTION_ID,
+  TITLE_PAGE_REQUIRED_FIELD_IDS,
+  TITLE_PAGE_FIELD_CATALOG,
+  orderedTitlePageFieldDefinitions,
+} from './titlePageModel';
 
 export type TitlePageRequiredFieldId = (typeof TITLE_PAGE_REQUIRED_FIELD_IDS)[number];
 
@@ -20,43 +27,57 @@ export type TitlePageWorkflowBadge =
   | 'Validated'
   | 'Reviewed';
 
-export type TitlePageFieldDisplayBadge = 'Required Missing' | 'Complete' | 'Controlled Terminology';
+export type TitlePageFieldDisplayBadge = 'Required' | 'Optional' | 'Controlled Terminology' | 'Required Missing';
 
 export interface TitlePageCompletionSummary {
   requiredTotal: number;
   requiredComplete: number;
-  missingFieldIds: TitlePageRequiredFieldId[];
+  missingFieldIds: string[];
   allRequiredComplete: boolean;
   sectionStatus: StatusType;
   displayBadge: TitlePageWorkflowBadge;
 }
 
-function stripHtml(value: string): string {
-  return value.replace(/<[^>]*>/g, '').replace(/&nbsp;/g, ' ').trim();
+function fieldHasPlaceholder(fieldId: string, text: string): boolean {
+  const placeholder = TITLE_PAGE_PLACEHOLDERS[fieldId as TitlePageRequiredFieldId];
+  return Boolean(placeholder && text === placeholder);
+}
+
+function isSpecValueComplete(spec: TitlePageFieldSpec, value: unknown): boolean {
+  if (spec.repeatable || spec.cardinality === 'one_to_many') {
+    const entries = Array.isArray(value) ? value : value ? [value] : [];
+    return entries.some((entry) => {
+      const text = normalizeTitlePageFieldValue(entry);
+      return text.length > 0 && !fieldHasPlaceholder(spec.id, text);
+    });
+  }
+  const text = normalizeTitlePageFieldValue(value);
+  return text.length > 0 && !fieldHasPlaceholder(spec.id, text);
 }
 
 /** True when a title-page field has a real user value (not blank or placeholder copy). */
 export function isTitlePageFieldValueComplete(fieldId: string, value: unknown): boolean {
-  const raw = value === undefined || value === null ? '' : String(value);
-  const text = fieldId === 'title_page.full_title' ? stripHtml(raw) : raw.trim();
-  if (!text) {
-    return false;
+  const spec = TITLE_PAGE_FIELD_CATALOG.find((entry) => entry.id === fieldId);
+  if (!spec) {
+    return normalizeTitlePageFieldValue(value).length > 0;
   }
-  const placeholder = TITLE_PAGE_PLACEHOLDERS[fieldId as TitlePageRequiredFieldId];
-  if (placeholder && text === placeholder) {
-    return false;
-  }
-  return true;
+  return isSpecValueComplete(spec, value);
 }
 
 export function evaluateTitlePageCompletion(fields: FieldDefinition[]): TitlePageCompletionSummary {
   const titleFields = fields.filter((field) => field.sectionId === TITLE_PAGE_SECTION_ID);
-  const missingFieldIds: TitlePageRequiredFieldId[] = [];
+  const values = readTitlePageFieldValues(titleFields);
+  const missingFieldIds: string[] = [];
 
-  for (const fieldId of TITLE_PAGE_REQUIRED_FIELD_IDS) {
-    const field = titleFields.find((entry) => entry.id === fieldId);
-    if (!isTitlePageFieldValueComplete(fieldId, field?.value)) {
-      missingFieldIds.push(fieldId);
+  for (const spec of TITLE_PAGE_FIELD_CATALOG) {
+    if (spec.conformance !== 'required') {
+      continue;
+    }
+    if (!isTitlePageFieldVisible(spec, values)) {
+      continue;
+    }
+    if (!isSpecValueComplete(spec, values[spec.id])) {
+      missingFieldIds.push(spec.id);
     }
   }
 
@@ -107,14 +128,17 @@ export function syncTitlePageSectionStatus(document: ProtocolDocument, fields: F
 /** Field-level badge labels for Title Page structured controls. */
 export function resolveTitlePageFieldDisplayBadges(field: FieldDefinition): TitlePageFieldDisplayBadge[] {
   const badges: TitlePageFieldDisplayBadge[] = [];
-  const complete = isTitlePageFieldValueComplete(field.id, field.value);
-
-  if (field.requiredness === 'required') {
-    badges.push(complete ? 'Complete' : 'Required Missing');
-  }
 
   if (field.controlledTerminology) {
     badges.push('Controlled Terminology');
+  }
+
+  if (field.requiredness === 'required') {
+    badges.push(isTitlePageFieldValueComplete(field.id, field.value) ? 'Required' : 'Required Missing');
+  } else if (field.requiredness === 'conditional') {
+    badges.push(isTitlePageFieldValueComplete(field.id, field.value) ? 'Required' : 'Required Missing');
+  } else if (field.requiredness === 'optional') {
+    badges.push('Optional');
   }
 
   return badges;
@@ -122,12 +146,13 @@ export function resolveTitlePageFieldDisplayBadges(field: FieldDefinition): Titl
 
 export function titlePageFieldBadgeClass(badge: TitlePageFieldDisplayBadge): string {
   switch (badge) {
+    case 'Required':
     case 'Required Missing':
       return 'text-red-600 dark:text-red-400 border-red-500/30';
-    case 'Complete':
-      return 'text-green-700 dark:text-green-300 border-green-600/40';
-    case 'Controlled Terminology':
+    case 'Optional':
       return 'text-muted-foreground border-border';
+    case 'Controlled Terminology':
+      return 'text-sky-700 dark:text-sky-300 border-sky-500/40';
     default:
       return 'text-muted-foreground border-border';
   }

@@ -1,6 +1,7 @@
 import type { ProtocolDocument, SectionNode } from './types';
 import { mergeProtocolSectionsWithIchM11 } from './ichM11';
 import { syncTitlePageSectionStatus } from './authoring/titlePageAuthoring';
+import { migrateTitlePageElements } from './authoring/titlePageMigration';
 import { selectFieldDefinitions } from './selectors/toFieldDefinitions';
 import seedProtocol from './seed/PROTO-XYZ-301.json';
 
@@ -55,6 +56,7 @@ export function createBlankProtocolDocument(): ProtocolDocument {
     defaultUser: 'Current user',
   };
   document.sections = mergeProtocolSectionsWithIchM11(document.sections, document);
+  migrateTitlePageElements(document);
   resetSectionTree(document.sections);
   document.elements = document.elements.map((element) => {
     const next = { ...element };

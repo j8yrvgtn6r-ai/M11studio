@@ -82,6 +82,7 @@ import {
   countAuthoringCompletedSections,
   countAuthoringTotalSections,
 } from './domain/protocol/authoring/sectionAuthoringCompletion';
+import { orderedTitlePageFieldDefinitions } from './domain/protocol/authoring/titlePageAuthoring';
 import {
   getProtocolDocumentLastPersistedAt,
   isBlankProjectMode,
@@ -262,8 +263,11 @@ export default function App() {
 
   const selectedSection = selectedSectionId ? findSection(protocolSections, selectedSectionId) : null;
   const isScheduleOfActivities = selectedSection?.viewKind === 'schedule-of-activities';
-  const sectionFields = fields.filter((f) => f.sectionId === selectedSectionId);
-  const titlePageFields = fields.filter((field) => field.sectionId === 'title');
+  const sectionFields =
+    selectedSectionId === 'title'
+      ? orderedTitlePageFieldDefinitions(fields.filter((field) => field.sectionId === 'title'))
+      : fields.filter((f) => f.sectionId === selectedSectionId);
+  const titlePageFields = orderedTitlePageFieldDefinitions(fields.filter((field) => field.sectionId === 'title'));
   const selectedField = selectedFieldId ? fields.find((f) => f.id === selectedFieldId) || null : null;
   const selectedStructuralMapping =
     selectedSectionId && importState.structuralMappings

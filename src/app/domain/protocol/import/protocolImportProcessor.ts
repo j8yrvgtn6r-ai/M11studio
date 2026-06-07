@@ -55,6 +55,7 @@ import {
   formatLlmRoutingAuditLines,
 } from './importSummaryReport';
 import { runSoAAgentFromImport } from '../../../agents/soaAgentRunner';
+import { runTitlePageExtractionAgent } from '../../../agents/titlePageExtractionRunner';
 import {
   assertPriorityGenerationContextReady,
   getPriorityGenerationContextDiagnostics,
@@ -355,6 +356,9 @@ export async function runProtocolImportProcessing(
       metadata: { usedLlm: coreStudyModel.usedLlm },
     });
     markStudyModelCoreComplete();
+
+    appendProtocolBuildEvent({ type: 'progress', message: 'Extracting M11 Title Page fields before narrative reconstruction...' });
+    await runTitlePageExtractionAgent(importedSource, protocolKnowledgeModel);
 
     await stageProtocolImportCoreUnderstanding(artifact, importedSource, protocolKnowledgeModel);
     setStudyModelPhase('core');
