@@ -1,5 +1,7 @@
 import type { ProtocolDocument, SectionNode } from './types';
 import { mergeProtocolSectionsWithIchM11 } from './ichM11';
+import { syncTitlePageSectionStatus } from './authoring/titlePageAuthoring';
+import { selectFieldDefinitions } from './selectors/toFieldDefinitions';
 import seedProtocol from './seed/PROTO-XYZ-301.json';
 
 function resetSectionTree(sections: SectionNode[]): void {
@@ -66,5 +68,6 @@ export function createBlankProtocolDocument(): ProtocolDocument {
     auditEvents: [],
   };
   clearSoAScheduleSeedData(document);
+  syncTitlePageSectionStatus(document, selectFieldDefinitions(document));
   return document;
 }

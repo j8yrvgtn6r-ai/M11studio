@@ -64,6 +64,7 @@ export {
   regenerateSectionImportDraftAsync,
   rejectSectionValidation,
   runSectionValidation,
+  runTitlePageValidation,
   runLlmSectionValidation,
   revertToDeterministicValidationProposal,
   clearLlmValidationInProgress,

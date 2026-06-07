@@ -255,12 +255,14 @@ async function main() {
     await page.getByTestId('protocol-build-cancel').waitFor();
   }
 
+  const narrativeSectionIndicatorSelector =
+    '[data-testid^="import-section-indicator-"]:not([data-testid="import-section-indicator-title"]):not([data-testid="import-section-indicator-amendment"])';
   const importedIndicator = page
-    .locator('[data-testid^="import-section-indicator-"][data-generation-state="importedUnvalidated"]')
+    .locator(`${narrativeSectionIndicatorSelector}[data-generation-state="importedUnvalidated"]`)
     .first();
   const generatedIndicator = page
     .locator(
-      '[data-testid^="import-section-indicator-"][data-generation-state="generated"], [data-testid^="import-section-indicator-"][data-generation-state="needsReview"]',
+      `${narrativeSectionIndicatorSelector}[data-generation-state="generated"], ${narrativeSectionIndicatorSelector}[data-generation-state="needsReview"]`,
     )
     .first();
   const contentIndicator = (await importedIndicator.count()) > 0 ? importedIndicator : generatedIndicator;
@@ -311,6 +313,7 @@ async function main() {
           mapState === 'reviewed' ||
           mapState === 'validationProposed' ||
           workflowBadge.includes('validated') ||
+          workflowBadge.includes('reviewed') ||
           workflowBadge.includes('validation proposed')
         );
       },
@@ -333,6 +336,7 @@ async function main() {
           mapState === 'reviewed' ||
           mapState === 'validationProposed' ||
           workflowBadge.includes('validated') ||
+          workflowBadge.includes('reviewed') ||
           workflowBadge.includes('validation proposed')
         );
       },
@@ -401,7 +405,8 @@ async function main() {
       );
     }
     const workflowBadge = await page.getByTestId('viewport-workflow-state-badge').textContent();
-    if (!workflowBadge?.toLowerCase().includes('validated')) {
+    const normalizedBadge = workflowBadge?.toLowerCase() ?? '';
+    if (!normalizedBadge.includes('validated') && !normalizedBadge.includes('reviewed')) {
       throw new Error(`Expected validated workflow after validation no-op, got "${workflowBadge}"`);
     }
   }

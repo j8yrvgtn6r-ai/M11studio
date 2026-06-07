@@ -1,4 +1,4 @@
-const TITLE_PAGE_PLACEHOLDERS: Record<string, string> = {
+export const TITLE_PAGE_PLACEHOLDERS: Record<string, string> = {
   'title_page.full_title': 'Enter the full scientific title of the trial.',
   'title_page.sponsor_protocol_identifier': 'Enter sponsor protocol identifier.',
   'title_page.trial_phase': 'Select trial phase.',

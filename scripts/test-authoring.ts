@@ -31,6 +31,42 @@ import {
   resetProtocolStoreToBlank,
 } from '../src/app/domain/protocol/store/protocolStore';
 import { isSoAConfigurationEmpty } from '../src/app/components/soa-configuration/soaConfigurationEmpty';
+import {
+  evaluateTitlePageCompletion,
+  isTitlePageFieldValueComplete,
+  resolveTitlePageFieldDisplayBadges,
+  resolveViewportAuthoringModeLabel,
+  TITLE_PAGE_REQUIRED_FIELD_IDS,
+} from '../src/app/domain/protocol/authoring/titlePageAuthoring';
+import {
+  resolveSectionWorkflowDisplayBadge,
+  resolveTitlePageViewportBadge,
+  shouldShowRequiredMissing,
+} from '../src/app/domain/protocol/import/sectionDisplayStatus';
+import { runSectionValidation, runTitlePageValidation } from '../src/app/domain/protocol/import';
+import type { ProtocolSection } from '../src/app/types/protocol';
+
+function findSectionById(sections: ProtocolSection[], id: string): ProtocolSection | null {
+  for (const section of sections) {
+    if (section.id === id) {
+      return section;
+    }
+    if (section.children?.length) {
+      const found = findSectionById(section.children, id);
+      if (found) {
+        return found;
+      }
+    }
+  }
+  return null;
+}
+
+function fillRequiredTitlePageFields() {
+  updateElementValue('title_page.full_title', 'A randomized study of example therapy.');
+  updateElementValue('title_page.sponsor_protocol_identifier', 'SP-001');
+  updateElementValue('title_page.trial_phase', 'Phase 3');
+  updateElementValue('title_page.original_protocol_indicator', 'Yes');
+}
 
 function testBlankProjectIdentityAndCompletion() {
   resetProtocolStoreToBlank();
@@ -270,6 +306,160 @@ async function testResetProjectUsesBlankDocument() {
   assert.equal(isSoAConfigurationEmpty(getProtocolDocument()), true);
 }
 
+function testTitlePageCompletionRemovesRequiredMissing() {
+  resetProtocolStoreToBlank();
+  const titleSection = findSectionById(getProtocolSections(), 'title');
+  assert.equal(titleSection?.status, 'requiredMissing');
+  fillRequiredTitlePageFields();
+  const updatedTitle = findSectionById(getProtocolSections(), 'title');
+  assert.equal(updatedTitle?.status, 'complete');
+  const fields = getFieldDefinitions().filter((field) => field.sectionId === 'title');
+  const summary = evaluateTitlePageCompletion(fields);
+  assert.equal(summary.allRequiredComplete, true);
+  assert.equal(summary.displayBadge, 'Pending Validation');
+  const viewportBadge = resolveTitlePageViewportBadge({ fields });
+  assert.notEqual(viewportBadge, 'Required Missing');
+}
+
+function testTitlePageFullTitleUpdatesAutosaveTimestamp() {
+  resetProtocolStoreToBlank();
+  const before = getProtocolDocument().metadata.updatedAt;
+  updateElementValue('title_page.full_title', 'Updated study title');
+  const after = getProtocolDocument().metadata.updatedAt;
+  assert.ok(after);
+  assert.equal(getFieldDefinitions().find((field) => field.id === 'title_page.full_title')?.value, 'Updated study title');
+  assert.ok(
+    !before || new Date(after!).getTime() >= new Date(before).getTime(),
+    'updatedAt should advance after field edit',
+  );
+}
+
+function testTitlePageControlledSelectOptions() {
+  resetProtocolStoreToBlank();
+  const trialPhase = getFieldDefinitions().find((field) => field.id === 'title_page.trial_phase');
+  const originalProtocol = getFieldDefinitions().find((field) => field.id === 'title_page.original_protocol_indicator');
+  assert.ok(trialPhase?.controlledTerminology?.values.includes('Phase 3'));
+  assert.ok(
+    originalProtocol?.controlledTerminology?.values.some((value) =>
+      typeof value === 'string' ? value === 'Yes' : value.label === 'Yes',
+    ),
+  );
+  updateElementValue('title_page.trial_phase', 'Phase 2');
+  updateElementValue('title_page.original_protocol_indicator', 'No');
+  assert.equal(getFieldDefinitions().find((field) => field.id === 'title_page.trial_phase')?.value, 'Phase 2');
+  assert.equal(
+    getFieldDefinitions().find((field) => field.id === 'title_page.original_protocol_indicator')?.value,
+    'No',
+  );
+}
+
+function testTitlePageCompletionIncrementsFooterCount() {
+  resetProtocolStoreToBlank();
+  const sections = getProtocolSections();
+  assert.equal(countAuthoringCompletedSections(sections, {}), 0);
+  fillRequiredTitlePageFields();
+  assert.equal(countAuthoringCompletedSections(getProtocolSections(), {}), 1);
+}
+
+function testManualDraftRemovesRequiredMissingAndShowsDraftBadge() {
+  resetProtocolStoreToBlank();
+  persistProjectReset();
+  applyManualSectionContentEdit('2', 'Introduction', '<p>Substantive draft text for section 2.</p>');
+  const draft = getProtocolImportState().sectionDrafts['2'];
+  assert.ok(draft);
+  assert.equal(
+    shouldShowRequiredMissing({
+      draft,
+      generationState: 'notGenerated',
+    }),
+    false,
+  );
+  assert.equal(
+    resolveSectionWorkflowDisplayBadge({
+      draft,
+      generationState: 'notGenerated',
+    }),
+    'Draft',
+  );
+}
+
+function testTitlePagePlaceholderIsNotComplete() {
+  resetProtocolStoreToBlank();
+  for (const fieldId of TITLE_PAGE_REQUIRED_FIELD_IDS) {
+    assert.equal(isTitlePageFieldValueComplete(fieldId, ''), false);
+  }
+}
+
+function testTitlePageValidatedImportDraftShowsWorkflowBadge() {
+  resetProtocolStoreToBlank();
+  const fields = getFieldDefinitions().filter((field) => field.sectionId === 'title');
+  assert.equal(
+    resolveTitlePageViewportBadge({ fields }).toLowerCase(),
+    'required missing',
+  );
+  const badge = resolveTitlePageViewportBadge({
+    fields,
+    importDraft: {
+      sectionId: 'title',
+      title: 'Title Page',
+      generatedText: 'Imported title page narrative.',
+      contentOrigin: 'imported',
+      workflowState: 'validated',
+      state: 'validationPassed',
+      provenance: { generationModel: 'structural-mapping-v1' },
+      stateHistory: [],
+    } as never,
+    generationState: 'validated',
+  });
+  assert.match(badge.toLowerCase(), /validated|reviewed/);
+}
+
+function testCompletedTitlePageFieldsShowCompleteBadge() {
+  resetProtocolStoreToBlank();
+  fillRequiredTitlePageFields();
+  const field = getFieldDefinitions().find((entry) => entry.id === 'title_page.full_title');
+  assert.ok(field);
+  const badges = resolveTitlePageFieldDisplayBadges(field);
+  assert.ok(badges.includes('Complete'));
+  assert.equal(badges.includes('Required Missing'), false);
+}
+
+function testTitlePageValidationRunsAndMarksValidated() {
+  resetProtocolStoreToBlank();
+  persistProjectReset();
+  fillRequiredTitlePageFields();
+  runTitlePageValidation();
+  const draft = getProtocolImportState().sectionDrafts.title;
+  assert.ok(draft, 'Title Page validation should create a section draft');
+  assert.equal(draft.workflowState, 'validated');
+  assert.equal(draft.state, 'validationPassed');
+  assert.equal((draft.validationChanges ?? []).length, 0);
+}
+
+function testRunSectionValidationDelegatesToTitlePage() {
+  resetProtocolStoreToBlank();
+  persistProjectReset();
+  fillRequiredTitlePageFields();
+  runSectionValidation('title');
+  const draft = getProtocolImportState().sectionDrafts.title;
+  assert.ok(draft);
+  assert.equal(draft.workflowState, 'validated');
+}
+
+function testViewportAuthoringModeLabelOmitsSavingState() {
+  assert.equal(
+    resolveViewportAuthoringModeLabel({
+      isTitlePageSection: true,
+      titlePageMode: 'editing',
+      editorSession: 'viewing',
+      showBlankAuthoring: false,
+      canShowNarrativeSurface: false,
+      showNarrativeReadOnly: false,
+    }),
+    'Editing',
+  );
+}
+
 async function main() {
   testBlankProjectIdentityAndCompletion();
   testTitlePagePlaceholdersNotSeedValues();
@@ -280,6 +470,17 @@ async function main() {
   testImportedSectionCancelBaselineUnchanged();
   testBlankProjectClearsSoASeedData();
   testFooterIdentityUpdatesFromTitlePage();
+  testTitlePageCompletionRemovesRequiredMissing();
+  testTitlePageFullTitleUpdatesAutosaveTimestamp();
+  testTitlePageControlledSelectOptions();
+  testTitlePageCompletionIncrementsFooterCount();
+  testManualDraftRemovesRequiredMissingAndShowsDraftBadge();
+  testTitlePagePlaceholderIsNotComplete();
+  testTitlePageValidatedImportDraftShowsWorkflowBadge();
+  testCompletedTitlePageFieldsShowCompleteBadge();
+  testTitlePageValidationRunsAndMarksValidated();
+  testRunSectionValidationDelegatesToTitlePage();
+  testViewportAuthoringModeLabelOmitsSavingState();
   await testResetProjectUsesBlankDocument();
   console.log('test-authoring: PASS');
 }

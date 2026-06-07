@@ -20,15 +20,10 @@ import {
 } from './components/ui/popover';
 import { ScrollArea } from './components/ui/scroll-area';
 import { Badge } from './components/ui/badge';
-import {
-  Command,
-  CommandDialog,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-  CommandList,
-} from './components/ui/command';
+import { ProtocolSearchDialog } from './components/protocol-ide/ProtocolSearchDialog';
+import { FindReplacePanel } from './components/protocol-ide/FindReplacePanel';
+import type { ProtocolSearchMatch } from './domain/protocol/search/protocolSearch';
+import { resolveProtocolIdeShortcut } from './domain/protocol/authoring/protocolIdeShortcuts';
 import {
   FileText,
   Search,
@@ -108,13 +103,18 @@ const auditEvents = getAuditEvents();
 const comments = getComments();
 
 export default function App() {
-  const [selectedSectionId, setSelectedSectionId] = useState<string | null>('1');
+  const [selectedSectionId, setSelectedSectionId] = useState<string | null>('title');
   const [selectedFieldId, setSelectedFieldId] = useState<string | null>(null);
   const [fields, setFields] = useState(() => getFieldDefinitions());
   const [commandOpen, setCommandOpen] = useState(false);
+  const [findReplaceOpen, setFindReplaceOpen] = useState(false);
+  const [findReplaceMode, setFindReplaceMode] = useState<'find' | 'replace'>('find');
+  const [highlightQuery, setHighlightQuery] = useState<string | undefined>();
+  const [forceSaveSignal, setForceSaveSignal] = useState(0);
   const [welcomeOpen, setWelcomeOpen] = useState(false);
   const [protocolValidationIssues, setProtocolValidationIssues] = useState(() => getValidationIssues());
   const [autosaveStatus, setAutosaveStatus] = useState<AutosaveStatus>('idle');
+  const [autosaveError, setAutosaveError] = useState<string | null>(null);
   const [lastSaved, setLastSaved] = useState<Date | null>(() => {
     const importPersisted = getLastPersistedAt();
     const documentPersisted = getProtocolDocumentLastPersistedAt();
@@ -178,9 +178,28 @@ export default function App() {
 
   useEffect(() => {
     const down = (e: KeyboardEvent) => {
-      if (e.key === 'k' && (e.metaKey || e.ctrlKey)) {
-        e.preventDefault();
-        setCommandOpen((open) => !open);
+      const action = resolveProtocolIdeShortcut(e);
+      if (!action) {
+        return;
+      }
+      e.preventDefault();
+      switch (action) {
+        case 'toggle-protocol-search':
+          setCommandOpen((open) => !open);
+          break;
+        case 'open-find':
+          setFindReplaceMode('find');
+          setCommandOpen(true);
+          break;
+        case 'open-replace':
+          setFindReplaceMode('replace');
+          setFindReplaceOpen(true);
+          break;
+        case 'force-save':
+          setForceSaveSignal((value) => value + 1);
+          break;
+        default:
+          break;
       }
     };
 
@@ -207,6 +226,7 @@ export default function App() {
   useEffect(() => {
     let savingTimer: ReturnType<typeof setTimeout> | undefined;
     const handlePersist = (timestamp: string) => {
+      setAutosaveError(null);
       setAutosaveStatus('saving');
       if (savingTimer) {
         clearTimeout(savingTimer);
@@ -241,6 +261,7 @@ export default function App() {
   const selectedSection = selectedSectionId ? findSection(protocolSections, selectedSectionId) : null;
   const isScheduleOfActivities = selectedSection?.viewKind === 'schedule-of-activities';
   const sectionFields = fields.filter((f) => f.sectionId === selectedSectionId);
+  const titlePageFields = fields.filter((field) => field.sectionId === 'title');
   const selectedField = selectedFieldId ? fields.find((f) => f.id === selectedFieldId) || null : null;
   const selectedStructuralMapping =
     selectedSectionId && importState.structuralMappings
@@ -289,14 +310,24 @@ export default function App() {
   const autosaveLabel =
     autosaveStatus === 'saving'
       ? 'Saving…'
-      : lastSaved
-        ? `Autosaved ${lastSaved.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`
-        : autosaveStatus === 'saved'
-          ? 'Autosaved'
-          : '';
+      : autosaveStatus === 'error'
+        ? autosaveError ?? 'Save failed'
+        : lastSaved
+          ? `Autosaved ${lastSaved.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`
+          : autosaveStatus === 'saved'
+            ? 'Autosaved'
+            : '';
 
-  const handleFieldChange = (fieldId: string, value: any) => {
+  const handleFieldChange = (fieldId: string, value: unknown) => {
     updateElementValue(fieldId, value);
+  };
+
+  const handleFieldFocus = (fieldId: string) => {
+    setSelectedFieldId(fieldId);
+  };
+
+  const handleFieldBlur = () => {
+    // Keep last focused field selected so metadata remains visible after blur.
   };
 
   const handleSectionSelect = (sectionId: string) => {
@@ -384,7 +415,7 @@ export default function App() {
           className="h-8 text-xs text-muted-foreground"
         >
           <Search className="h-3.5 w-3.5 mr-1.5" />
-          Quick actions... <kbd className="ml-2 pointer-events-none inline-flex h-5 select-none items-center gap-1 rounded border bg-muted px-1.5 font-mono text-[10px] font-medium opacity-100">⌘K</kbd>
+          Protocol Search <kbd className="ml-2 pointer-events-none inline-flex h-5 select-none items-center gap-1 rounded border bg-muted px-1.5 font-mono text-[10px] font-medium opacity-100">⌘K</kbd>
         </Button>
 
         <div className="flex items-center gap-2">
@@ -632,9 +663,25 @@ export default function App() {
                     section={selectedSection}
                     fields={sectionFields}
                     onFieldChange={handleFieldChange}
+                    onFieldFocus={handleFieldFocus}
+                    onFieldBlur={handleFieldBlur}
                     importDraft={sectionImportDraft}
                     sectionGenerationState={selectedSectionGenerationState}
                     buildActive={buildActive || buildState.status === 'complete'}
+                    autosaveStatus={autosaveStatus}
+                    lastSaved={lastSaved}
+                    validationIssues={protocolValidationIssues}
+                    allSections={protocolSections}
+                    highlightQuery={highlightQuery}
+                    forceSaveSignal={forceSaveSignal}
+                    onFind={() => {
+                      setFindReplaceMode('find');
+                      setCommandOpen(true);
+                    }}
+                    onReplace={() => {
+                      setFindReplaceMode('replace');
+                      setFindReplaceOpen(true);
+                    }}
                     onApplyManualSectionSave={(text) => {
                       if (selectedSectionId && selectedSection) {
                         applyManualSectionContentEdit(
@@ -667,6 +714,7 @@ export default function App() {
                             selectedField={selectedField}
                             selectedSectionId={selectedSectionId}
                             selectedSectionTitle={selectedSection?.title}
+                            titlePageFields={titlePageFields}
                             sectionDraft={sectionImportDraft}
                             sectionGenerationState={selectedSectionGenerationState}
                             structuralMapping={selectedStructuralMapping}
@@ -677,6 +725,7 @@ export default function App() {
                             auditEvents={auditEvents}
                             comments={comments}
                             isScheduleOfActivitiesView={isScheduleOfActivities}
+                            allSections={protocolSections}
                           />
                           </div>
                         </ResizablePanel>
@@ -711,38 +760,28 @@ export default function App() {
         )}
       </div>
 
-      {/* Command Palette */}
-      <CommandDialog open={commandOpen} onOpenChange={setCommandOpen}>
-        <CommandInput placeholder="Search sections, fields, or actions..." />
-        <CommandList>
-          <CommandEmpty>No results found.</CommandEmpty>
-          <CommandGroup heading="Sections">
-            {protocolSections.slice(0, 5).map((section) => (
-              <CommandItem
-                key={section.id}
-                onSelect={() => {
-                  handleSectionSelect(section.id);
-                  setCommandOpen(false);
-                }}
-              >
-                <FileText className="mr-2 h-4 w-4" />
-                {section.title}
-              </CommandItem>
-            ))}
-          </CommandGroup>
-          <CommandGroup heading="Actions">
-            <CommandItem
-              onSelect={() => {
-                downloadProtocolJson();
-                setCommandOpen(false);
-              }}
-            >
-              <Download className="mr-2 h-4 w-4" />
-              Export Protocol
-            </CommandItem>
-          </CommandGroup>
-        </CommandList>
-      </CommandDialog>
+      <ProtocolSearchDialog
+        open={commandOpen}
+        onOpenChange={setCommandOpen}
+        sections={protocolSections}
+        sectionDrafts={importState.sectionDrafts}
+        fields={fields}
+        currentSectionId={selectedSectionId}
+        onNavigateToMatch={(match: ProtocolSearchMatch, query: string) => {
+          setSelectedSectionId(match.sectionId);
+          setSelectedFieldId(null);
+          setHighlightQuery(query);
+        }}
+      />
+
+      <FindReplacePanel
+        open={findReplaceOpen}
+        onOpenChange={setFindReplaceOpen}
+        sections={protocolSections}
+        sectionDrafts={importState.sectionDrafts}
+        currentSectionId={selectedSectionId}
+        initialMode={findReplaceMode}
+      />
 
       <ImportProtocolDialog
         open={importDialogOpen}
@@ -782,6 +821,7 @@ export default function App() {
         protocolId={protocolDisplayIdentity}
         autosaveStatus={autosaveStatus}
         lastSaved={lastSaved}
+        autosaveError={autosaveError}
         totalSections={totalSections}
         completedSections={completedSections}
       />

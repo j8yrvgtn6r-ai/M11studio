@@ -1,15 +1,11 @@
 import { useCallback, useEffect, useRef } from 'react';
 import {
-  Bold,
-  Italic,
-  List,
-  ListOrdered,
-  Redo2,
-  Type,
-  Underline,
-  Undo2,
-} from 'lucide-react';
-import { Button } from '../ui/button';
+  hasRichFormatting,
+  isEmptyRichText,
+  normalizeEditorOutput,
+  normalizeStoredRichText,
+  storedValueToEditorDom,
+} from '../../domain/protocol/authoring/richTextContent';
 import { cn } from '../ui/utils';
 
 interface RichTextEditorProps {
@@ -20,29 +16,35 @@ interface RichTextEditorProps {
   className?: string;
   editorKey?: string;
   onBlurCommit?: (value: string) => void;
+  ideMode?: boolean;
+  hideToolbar?: boolean;
+  highlightQuery?: string;
+  surfaceRef?: React.RefObject<HTMLDivElement | null>;
   'data-testid'?: string;
 }
 
-function stripHtml(html: string): string {
-  return html.replace(/<[^>]*>/g, '').replace(/&nbsp;/g, ' ').trim();
-}
-
-function isEmptyHtml(html: string): boolean {
-  return stripHtml(html).length === 0;
-}
-
-function isPlainTextValue(value: string): boolean {
-  return Boolean(value.trim()) && !/<[a-z][\s\S]*>/i.test(value);
-}
-
-function editorContentMatches(node: HTMLDivElement, value: string): boolean {
-  if (!value.trim()) {
-    return isEmptyHtml(node.innerHTML);
+function editorDomMatches(node: HTMLDivElement, value: string): boolean {
+  const normalized = normalizeStoredRichText(value);
+  if (!normalized.trim()) {
+    return isEmptyRichText(node.innerHTML) && !(node.textContent ?? '').trim();
   }
-  if (isPlainTextValue(value)) {
-    return (node.textContent ?? '').trim() === value.trim();
+  if (hasRichFormatting(normalized)) {
+    return normalizeEditorOutput(node.innerHTML) === normalized;
   }
-  return stripHtml(node.innerHTML) === stripHtml(value);
+  return (node.textContent ?? '').replace(/\u00a0/g, ' ') === normalized.replace(/\u00a0/g, ' ');
+}
+
+function writeEditorDom(node: HTMLDivElement, value: string): void {
+  const domValue = storedValueToEditorDom(value);
+  if (!domValue.trim()) {
+    node.textContent = '';
+    return;
+  }
+  if (hasRichFormatting(domValue)) {
+    node.innerHTML = domValue;
+    return;
+  }
+  node.textContent = domValue;
 }
 
 export function RichTextEditor({
@@ -53,103 +55,83 @@ export function RichTextEditor({
   className,
   editorKey,
   onBlurCommit,
+  ideMode = false,
+  hideToolbar = false,
+  highlightQuery,
+  surfaceRef,
   'data-testid': dataTestId = 'rich-text-editor',
 }: RichTextEditorProps) {
-  const editorRef = useRef<HTMLDivElement>(null);
-  const lastEmitted = useRef(value);
+  const internalRef = useRef<HTMLDivElement>(null);
+  const editorRef = surfaceRef ?? internalRef;
+  const lastEmitted = useRef(normalizeStoredRichText(value));
+  const isFocusedRef = useRef(false);
 
   useEffect(() => {
     const node = editorRef.current;
-    if (!node || editorContentMatches(node, value)) {
-      lastEmitted.current = value;
+    if (!node) {
+      lastEmitted.current = normalizeStoredRichText(value);
       return;
     }
-    if (isPlainTextValue(value)) {
-      node.textContent = value;
-    } else {
-      node.innerHTML = value || '';
+    const normalized = normalizeStoredRichText(value);
+    if (isFocusedRef.current || editorDomMatches(node, normalized)) {
+      lastEmitted.current = normalized;
+      return;
     }
-    lastEmitted.current = value;
-  }, [value, editorKey]);
+    writeEditorDom(node, normalized);
+    lastEmitted.current = normalized;
+  }, [value, editorKey, editorRef]);
 
   const emitChange = useCallback(() => {
-    const node = editorRef.current;
-    if (!node) {
-      return;
-    }
-    const html = isEmptyHtml(node.innerHTML) ? '' : node.innerHTML;
-    if (html !== lastEmitted.current) {
-      lastEmitted.current = html;
-      onChange(html);
-    }
-  }, [onChange]);
-
-  const handleBlur = useCallback(() => {
     const node = editorRef.current;
     if (!node || readOnly) {
       return;
     }
-    const html = isEmptyHtml(node.innerHTML) ? '' : node.innerHTML;
-    lastEmitted.current = html;
-    onChange(html);
-    onBlurCommit?.(html);
-  }, [onBlurCommit, onChange, readOnly]);
+    const normalized = normalizeEditorOutput(node.innerHTML);
+    if (normalized !== lastEmitted.current) {
+      lastEmitted.current = normalized;
+      onChange(normalized);
+    }
+  }, [onChange, readOnly, editorRef]);
 
-  const runCommand = (command: string, commandValue?: string) => {
-    editorRef.current?.focus();
-    document.execCommand(command, false, commandValue);
-    emitChange();
-  };
+  const handleBlur = useCallback(() => {
+    isFocusedRef.current = false;
+    const node = editorRef.current;
+    if (!node || readOnly) {
+      return;
+    }
+    const normalized = normalizeEditorOutput(node.innerHTML);
+    lastEmitted.current = normalized;
+    onChange(normalized);
+    onBlurCommit?.(normalized);
+  }, [onBlurCommit, onChange, readOnly, editorRef]);
+
+  const handleFocus = useCallback(() => {
+    isFocusedRef.current = true;
+  }, []);
+
+  if (hideToolbar && readOnly) {
+    // read-only path unchanged
+  }
 
   return (
     <div className={cn('space-y-2', className)} data-testid={dataTestId}>
-      {!readOnly ? (
-        <div
-          className="flex flex-wrap items-center gap-1 rounded-md border border-border bg-muted/40 p-1 text-foreground"
-          data-testid={`${dataTestId}-toolbar`}
-        >
-          <Button type="button" variant="ghost" size="sm" className="h-7 w-7 px-0 text-foreground" onClick={() => runCommand('bold')} aria-label="Bold">
-            <Bold className="h-3.5 w-3.5" />
-          </Button>
-          <Button type="button" variant="ghost" size="sm" className="h-7 w-7 px-0 text-foreground" onClick={() => runCommand('italic')} aria-label="Italic">
-            <Italic className="h-3.5 w-3.5" />
-          </Button>
-          <Button type="button" variant="ghost" size="sm" className="h-7 w-7 px-0 text-foreground" onClick={() => runCommand('underline')} aria-label="Underline">
-            <Underline className="h-3.5 w-3.5" />
-          </Button>
-          <Button type="button" variant="ghost" size="sm" className="h-7 w-7 px-0 text-foreground" onClick={() => runCommand('insertUnorderedList')} aria-label="Bulleted list">
-            <List className="h-3.5 w-3.5" />
-          </Button>
-          <Button type="button" variant="ghost" size="sm" className="h-7 w-7 px-0 text-foreground" onClick={() => runCommand('insertOrderedList')} aria-label="Numbered list">
-            <ListOrdered className="h-3.5 w-3.5" />
-          </Button>
-          <Button type="button" variant="ghost" size="sm" className="h-7 w-7 px-0 text-foreground" onClick={() => runCommand('formatBlock', 'h3')} aria-label="Heading">
-            <Type className="h-3.5 w-3.5" />
-          </Button>
-          <Button type="button" variant="ghost" size="sm" className="h-7 w-7 px-0 text-foreground" onClick={() => runCommand('formatBlock', 'p')} aria-label="Paragraph">
-            <span className="text-[10px] font-semibold">P</span>
-          </Button>
-          <Button type="button" variant="ghost" size="sm" className="h-7 w-7 px-0 text-foreground" onClick={() => runCommand('undo')} aria-label="Undo">
-            <Undo2 className="h-3.5 w-3.5" />
-          </Button>
-          <Button type="button" variant="ghost" size="sm" className="h-7 w-7 px-0 text-foreground" onClick={() => runCommand('redo')} aria-label="Redo">
-            <Redo2 className="h-3.5 w-3.5" />
-          </Button>
-        </div>
-      ) : null}
-
       <div
         ref={editorRef}
         contentEditable={!readOnly}
         suppressContentEditableWarning
         className={cn(
-          'min-h-[240px] rounded-md border border-border bg-card px-3 py-2 text-sm leading-relaxed text-foreground caret-foreground',
-          'focus:outline-none focus:ring-2 focus:ring-ring dark:bg-input/30',
-          readOnly && 'bg-muted/20',
+          'min-h-[240px] px-3 py-2 text-sm leading-6 text-foreground caret-foreground',
+          ideMode
+            ? 'bg-transparent font-mono focus:outline-none'
+            : 'rounded-md border border-border bg-card focus:outline-none focus:ring-2 focus:ring-ring dark:bg-input/30',
+          readOnly && !ideMode && 'bg-muted/20',
+          highlightQuery && 'ring-1 ring-amber-500/40',
         )}
         data-placeholder={placeholder}
         data-testid={`${dataTestId}-surface`}
+        data-highlight-query={highlightQuery || undefined}
         onInput={readOnly ? undefined : emitChange}
+        onFocus={readOnly ? undefined : handleFocus}
         onBlur={readOnly ? undefined : handleBlur}
       />
       {!readOnly && placeholder ? (
@@ -166,14 +148,25 @@ export function RichTextEditor({
 }
 
 export function RichTextReadOnlyView({ value, className }: { value: string; className?: string }) {
-  if (!value.trim()) {
+  const normalized = normalizeStoredRichText(value);
+  if (!normalized.trim()) {
     return <p className={cn('text-sm text-muted-foreground italic', className)}>No content authored yet.</p>;
+  }
+  if (hasRichFormatting(normalized)) {
+    return (
+      <div
+        className={cn('prose prose-sm dark:prose-invert max-w-none whitespace-pre-wrap font-mono text-foreground', className)}
+        data-testid="rich-text-readonly-view"
+        dangerouslySetInnerHTML={{ __html: normalized }}
+      />
+    );
   }
   return (
     <div
-      className={cn('prose prose-sm dark:prose-invert max-w-none whitespace-pre-wrap text-foreground', className)}
+      className={cn('prose prose-sm dark:prose-invert max-w-none whitespace-pre-wrap font-mono text-foreground', className)}
       data-testid="rich-text-readonly-view"
-      dangerouslySetInnerHTML={{ __html: value }}
-    />
+    >
+      {normalized}
+    </div>
   );
 }

@@ -1,4 +1,5 @@
 import { updateSectionGenerationState } from '../build/protocolBuildConsoleStore';
+import { normalizeEditorOutput, normalizeStoredRichText } from '../authoring/richTextContent';
 import type { GeneratedSectionDraft, SectionGenerationProvenance } from './types';
 import { getProtocolImportState, updateSectionImportDraft, upsertSectionImportDraft } from './protocolImportStore';
 import { flagSoARefreshNeededForNarrativeSection } from '../../soa-knowledge/soaNarrativeSyncStore';
@@ -62,15 +63,17 @@ export function resolveSectionEditorContent(draft: GeneratedSectionDraft | undef
     return '';
   }
   if (draft.generatedText?.trim()) {
-    return draft.generatedText;
+    return normalizeStoredRichText(draft.generatedText);
   }
   if (draft.sourceText?.trim()) {
-    return draft.sourceText;
+    return normalizeStoredRichText(draft.sourceText);
   }
   if (draft.validatedTargetText?.trim()) {
-    return draft.validatedTargetText;
+    return normalizeStoredRichText(draft.validatedTargetText);
   }
-  return draft.generatedText ?? draft.sourceText ?? draft.validatedTargetText ?? '';
+  return normalizeStoredRichText(
+    draft.generatedText ?? draft.sourceText ?? draft.validatedTargetText ?? '',
+  );
 }
 
 /** Ensures a manual section draft exists for blank authoring. */
@@ -95,14 +98,15 @@ export function applyManualSectionContentEdit(
   generatedText: string,
   previousText?: string,
 ): void {
+  const normalizedText = normalizeEditorOutput(generatedText);
   const current = getProtocolImportState().sectionDrafts[sectionId];
   if (!current) {
-    upsertSectionImportDraft(sectionId, createManualDraft(sectionId, sectionTitle, generatedText));
+    upsertSectionImportDraft(sectionId, createManualDraft(sectionId, sectionTitle, normalizedText));
     return;
   }
 
   const baselineText = previousText ?? resolveSectionEditorContent(current);
-  const textChanged = generatedText !== baselineText;
+  const textChanged = normalizedText !== baselineText;
   const wasValidated =
     current.workflowState === 'validated' ||
     current.state === 'validationPassed' ||
@@ -122,7 +126,7 @@ export function applyManualSectionContentEdit(
       : current.provenance;
 
   updateSectionImportDraft(sectionId, {
-    generatedText,
+    generatedText: normalizedText,
     generatedAt: now,
     contentOrigin: isImported ? 'imported' : current.contentOrigin ?? 'manual',
     sourceText: current.sourceText,

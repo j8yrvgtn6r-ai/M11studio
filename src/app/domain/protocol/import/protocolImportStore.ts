@@ -66,6 +66,12 @@ import {
 import { validateGeneratedSectionDraft } from './sectionDraftValidation';
 import { buildValidatedTarget } from './sectionValidationTargetEngine';
 import type { ValidationAgentOutput } from '../../../agents/validationRules';
+import { TITLE_PAGE_SECTION_ID } from '../authoring/titlePageAuthoring';
+import {
+  buildTitlePageValidationOutput,
+  ensureTitlePageAuthoringDraft,
+} from '../authoring/titlePageValidation';
+import { selectFieldDefinitions } from '../selectors/toFieldDefinitions';
 
 import type {
 
@@ -1074,7 +1080,57 @@ export function updateSectionImportDraft(
 
 
 
+export function runTitlePageValidation(actor = 'Current user'): void {
+  const fields = selectFieldDefinitions(getProtocolDocument());
+  const output = buildTitlePageValidationOutput(fields);
+
+  if (output.validationSummary.status === 'failed') {
+    return;
+  }
+
+  let draft = state.sectionDrafts[TITLE_PAGE_SECTION_ID];
+  if (!draft) {
+    draft = ensureTitlePageAuthoringDraft(fields);
+    state.sectionDrafts[TITLE_PAGE_SECTION_ID] = draft;
+    updateSectionGenerationState(TITLE_PAGE_SECTION_ID, 'importedUnvalidated');
+  }
+
+  if (draft.workflowState === 'validationRunning' || draft.workflowState === 'validationProposed') {
+    return;
+  }
+
+  const now = new Date().toISOString();
+  state.sectionDrafts[TITLE_PAGE_SECTION_ID] = {
+    ...draft,
+    generatedText: output.validatedText,
+    sourceText: draft.sourceText ?? output.originalText,
+    workflowState: 'validationRunning',
+    state: 'validationPending',
+    stateChangedAt: now,
+    stateChangedBy: actor,
+    stateHistory: [
+      ...draft.stateHistory,
+      { state: 'validationPending', changedAt: now, changedBy: actor, note: 'Title Page validation running' },
+    ],
+  };
+  updateSectionGenerationState(TITLE_PAGE_SECTION_ID, 'validationRunning');
+  persistMetadata();
+  notify();
+
+  if (output.changes.length === 0) {
+    applyValidationNoChangesRequired(TITLE_PAGE_SECTION_ID, output, actor);
+    return;
+  }
+
+  applyValidationAgentProposal(TITLE_PAGE_SECTION_ID, output, actor);
+}
+
 export function runSectionValidation(sectionId: string, actor = 'Current user'): void {
+  if (sectionId === TITLE_PAGE_SECTION_ID) {
+    runTitlePageValidation(actor);
+    return;
+  }
+
   const draft = state.sectionDrafts[sectionId];
   if (!draft) {
     return;

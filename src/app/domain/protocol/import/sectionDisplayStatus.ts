@@ -1,7 +1,9 @@
 import type { SectionGenerationState } from '../build/protocolBuildConsoleStore';
+import type { FieldDefinition } from '../../../types/protocol';
 import type { GeneratedSectionDraft } from './types';
 import { resolveSectionEditorContent } from './sectionAuthoring';
 import { inferWorkflowState } from './sectionWorkflowState';
+import { evaluateTitlePageCompletion } from '../authoring/titlePageAuthoring';
 
 export type SectionWorkflowDisplayBadge =
   | 'Imported from DOCX'
@@ -10,9 +12,11 @@ export type SectionWorkflowDisplayBadge =
   | 'Generated'
   | 'Validated'
   | 'Reviewed'
+  | 'Draft'
   | 'Out of Sync'
   | 'Needs Generation'
-  | 'Required Missing';
+  | 'Required Missing'
+  | 'Complete';
 
 export function sectionHasAuthorableContent(draft: GeneratedSectionDraft | undefined): boolean {
   if (!draft) {
@@ -58,8 +62,25 @@ export function resolveSectionWorkflowDisplayBadge(options: {
 }): SectionWorkflowDisplayBadge | null {
   const { draft, generationState } = options;
 
+  if (generationState === 'validated') {
+    return 'Validated';
+  }
+  if (generationState === 'reviewed' || generationState === 'approved') {
+    return 'Reviewed';
+  }
+
   if (draft) {
     const workflow = inferWorkflowState(draft);
+    if (
+      draft.contentOrigin === 'manual' &&
+      sectionHasAuthorableContent(draft) &&
+      workflow !== 'validated' &&
+      workflow !== 'reviewed' &&
+      draft.state !== 'approved' &&
+      draft.state !== 'validationPassed'
+    ) {
+      return 'Draft';
+    }
     switch (workflow) {
       case 'importedUnvalidated':
       case 'imported':
@@ -98,12 +119,6 @@ export function resolveSectionWorkflowDisplayBadge(options: {
   if (generationState === 'validationProposed' || generationState === 'unvalidated') {
     return 'Validation Proposed';
   }
-  if (generationState === 'validated') {
-    return 'Validated';
-  }
-  if (generationState === 'reviewed' || generationState === 'approved') {
-    return 'Reviewed';
-  }
   if (generationState === 'generated' || generationState === 'needsReview') {
     return 'Generated';
   }
@@ -112,6 +127,43 @@ export function resolveSectionWorkflowDisplayBadge(options: {
   }
 
   return null;
+}
+
+/** Title Page viewport badge: field completion + validation workflow (never autosave). */
+export function resolveTitlePageViewportBadge(options: {
+  fields: FieldDefinition[];
+  importDraft?: GeneratedSectionDraft;
+  generationState?: SectionGenerationState;
+}): SectionWorkflowDisplayBadge {
+  const completion = evaluateTitlePageCompletion(options.fields);
+
+  if (options.importDraft) {
+    const workflowBadge = resolveSectionWorkflowDisplayBadge({
+      draft: options.importDraft,
+      generationState: options.generationState,
+    });
+    if (workflowBadge === 'Validated' || workflowBadge === 'Reviewed' || workflowBadge === 'Validation Proposed') {
+      return workflowBadge;
+    }
+    if (workflowBadge === 'Pending Validation' && completion.allRequiredComplete) {
+      return 'Pending Validation';
+    }
+  }
+
+  if (!completion.allRequiredComplete) {
+    return completion.displayBadge;
+  }
+
+  if (
+    options.importDraft &&
+    (options.importDraft.workflowState === 'validated' ||
+      options.importDraft.state === 'validationPassed' ||
+      options.importDraft.state === 'approved')
+  ) {
+    return options.importDraft.state === 'approved' ? 'Reviewed' : 'Validated';
+  }
+
+  return 'Pending Validation';
 }
 
 export function sectionWorkflowDisplayBadgeClass(badge: SectionWorkflowDisplayBadge): string {
@@ -132,6 +184,10 @@ export function sectionWorkflowDisplayBadgeClass(badge: SectionWorkflowDisplayBa
       return 'text-amber-700 dark:text-amber-300 border-amber-500/40';
     case 'Needs Generation':
       return 'text-muted-foreground border-border';
+    case 'Draft':
+      return 'text-blue-700 dark:text-blue-300 border-blue-500/40';
+    case 'Complete':
+      return 'text-green-700 dark:text-green-300 border-green-500/40';
     case 'Required Missing':
       return 'text-red-700 dark:text-red-300 border-red-500/40';
     default:

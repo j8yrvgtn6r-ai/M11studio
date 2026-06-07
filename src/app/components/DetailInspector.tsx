@@ -3,7 +3,7 @@ import { ScrollArea } from './ui/scroll-area';
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
 import { AlertCircle, Info, AlertTriangle, MessageSquare, Clock, Database, Link2, CheckCircle2 } from 'lucide-react';
-import type { FieldDefinition, ValidationIssue, AuditEvent, Comment } from '../types/protocol';
+import type { FieldDefinition, ProtocolSection, ValidationIssue, AuditEvent, Comment } from '../types/protocol';
 import type { GeneratedSectionDraft, MappedProtocolSection, SectionImportDiagnostics, ValidationChange } from '../domain/protocol/import/types';
 import {
   generationEligibilityLabel,
@@ -20,11 +20,24 @@ import { getSeverityColor } from '../utils/statusColors';
 import { format } from 'date-fns';
 import { SoAAssessmentMetadataPanel } from './soa-configuration/SoAAssessmentMetadataPanel';
 import type { CanonicalDocument, CanonicalSourceSection } from '../domain/document-ingestion/canonicalDocumentTypes';
+import {
+  evaluateTitlePageCompletion,
+  isTitlePageFieldValueComplete,
+  TITLE_PAGE_REQUIRED_FIELD_IDS,
+  TITLE_PAGE_SECTION_ID,
+} from '../domain/protocol/authoring/titlePageAuthoring';
+import { getProtocolDocument } from '../domain/protocol';
+import {
+  buildSectionValidationSummary,
+  getSectionDependencyReferences,
+} from '../domain/protocol/authoring/editorIntegration';
+import { SectionIdeValidationPanel } from './protocol-ide/SectionIdeValidationPanel';
 
 interface DetailInspectorProps {
   selectedField: FieldDefinition | null;
   selectedSectionId: string | null;
   selectedSectionTitle?: string | null;
+  titlePageFields?: FieldDefinition[];
   sectionDraft?: GeneratedSectionDraft | null;
   sectionGenerationState?: SectionGenerationState;
   structuralMapping?: MappedProtocolSection | null;
@@ -35,12 +48,14 @@ interface DetailInspectorProps {
   auditEvents: AuditEvent[];
   comments: Comment[];
   isScheduleOfActivitiesView?: boolean;
+  allSections?: ProtocolSection[];
 }
 
 export function DetailInspector({
   selectedField,
   selectedSectionId,
   selectedSectionTitle,
+  titlePageFields = [],
   sectionDraft,
   sectionGenerationState,
   structuralMapping,
@@ -51,6 +66,7 @@ export function DetailInspector({
   auditEvents,
   comments,
   isScheduleOfActivitiesView = false,
+  allSections = [],
 }: DetailInspectorProps) {
   const sectionValidationIssues = validationIssues.filter((issue) => issue.sectionId === selectedSectionId);
   const draftFindings = sectionDraft?.validationFindings ?? [];
@@ -60,6 +76,34 @@ export function DetailInspector({
   const sectionComments = comments.filter((comment) => comment.sectionId === selectedSectionId);
   const hasComments = sectionComments.length > 0;
   const hasAudit = sectionAuditEvents.length > 0;
+
+  const findSection = (sections: ProtocolSection[], id: string): ProtocolSection | null => {
+    for (const entry of sections) {
+      if (entry.id === id) {
+        return entry;
+      }
+      if (entry.children?.length) {
+        const found = findSection(entry.children.filter(Boolean) as ProtocolSection[], id);
+        if (found) {
+          return found;
+        }
+      }
+    }
+    return null;
+  };
+  const selectedSection =
+    selectedSectionId && allSections.length ? findSection(allSections, selectedSectionId) : null;
+  const validationSummary = buildSectionValidationSummary(
+    selectedSectionId,
+    selectedSection,
+    sectionDraft ?? undefined,
+    validationIssues,
+  );
+  const dependencyReferences = getSectionDependencyReferences(
+    selectedSectionId,
+    getProtocolDocument(),
+    allSections,
+  );
 
   return (
     <div className="flex flex-col h-full min-h-0 bg-card border-t border-border" data-testid="detail-inspector-panel">
@@ -105,6 +149,7 @@ export function DetailInspector({
                 field={selectedField}
                 sectionId={selectedSectionId}
                 sectionTitle={selectedSectionTitle}
+                titlePageFields={titlePageFields}
                 sectionDraft={sectionDraft}
                 sectionGenerationState={sectionGenerationState}
                 sectionImportDiagnostics={sectionImportDiagnostics}
@@ -115,6 +160,10 @@ export function DetailInspector({
           </TabsContent>
 
           <TabsContent value="validation" className="p-3 mt-0">
+            <SectionIdeValidationPanel
+              summary={validationSummary}
+              dependencyReferences={dependencyReferences}
+            />
             <ValidationTab
               issues={sectionValidationIssues}
               draft={sectionDraft}
@@ -153,6 +202,7 @@ function MetadataTab({
   field,
   sectionId,
   sectionTitle,
+  titlePageFields,
   sectionDraft,
   sectionGenerationState,
   sectionImportDiagnostics,
@@ -162,12 +212,26 @@ function MetadataTab({
   field: FieldDefinition | null;
   sectionId: string | null;
   sectionTitle?: string | null;
+  titlePageFields?: FieldDefinition[];
   sectionDraft?: GeneratedSectionDraft | null;
   sectionGenerationState?: SectionGenerationState;
   sectionImportDiagnostics?: SectionImportDiagnostics | null;
   canonicalDocument?: CanonicalDocument | null;
   canonicalSourceSection?: CanonicalSourceSection | null;
 }) {
+  if (field) {
+    return <FieldMetadataPanel field={field} />;
+  }
+
+  if (sectionId === TITLE_PAGE_SECTION_ID) {
+    return (
+      <TitlePageMetadataSummary
+        fields={titlePageFields ?? []}
+        lastUpdated={getProtocolDocument().metadata.updatedAt}
+      />
+    );
+  }
+
   if (sectionId && sectionDraft) {
     const showImportDiagnostics =
       sectionImportDiagnostics &&
@@ -315,9 +379,98 @@ function MetadataTab({
     );
   }
 
-  if (field) {
-    return (
-      <div className="space-y-3">
+  return (
+    <div className="text-center py-8 text-sm text-muted-foreground" data-testid="metadata-empty-state">
+      <Database className="h-8 w-8 mx-auto mb-2 opacity-50" />
+      <p>Select a section to view metadata</p>
+    </div>
+  );
+}
+
+function TitlePageMetadataSummary({
+  fields,
+  lastUpdated,
+}: {
+  fields: FieldDefinition[];
+  lastUpdated?: string;
+}) {
+  const summary = evaluateTitlePageCompletion(fields);
+
+  return (
+    <div className="space-y-3" data-testid="title-page-metadata-summary">
+      <div>
+        <h4 className="text-xs font-semibold text-muted-foreground mb-1">Title Page</h4>
+        <p className="text-sm font-medium">Structured title-page authoring</p>
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <h4 className="text-xs font-semibold text-muted-foreground mb-1">Completion</h4>
+          <Badge variant="outline" className="text-xs" data-testid="title-page-completion-badge">
+            {summary.displayBadge}
+          </Badge>
+        </div>
+        <div>
+          <h4 className="text-xs font-semibold text-muted-foreground mb-1">Required fields</h4>
+          <p className="text-xs" data-testid="title-page-required-progress">
+            {summary.requiredComplete}/{summary.requiredTotal} complete
+          </p>
+        </div>
+      </div>
+      <div>
+        <h4 className="text-xs font-semibold text-muted-foreground mb-1">Missing required</h4>
+        {summary.missingFieldIds.length === 0 ? (
+          <p className="text-xs text-green-600 dark:text-green-400">All required title-page fields are complete.</p>
+        ) : (
+          <ul className="space-y-1">
+            {summary.missingFieldIds.map((fieldId) => {
+              const field = fields.find((entry) => entry.id === fieldId);
+              return (
+                <li key={fieldId} className="text-xs text-red-600 dark:text-red-400">
+                  {field?.label ?? fieldId}
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </div>
+      <div>
+        <h4 className="text-xs font-semibold text-muted-foreground mb-1">Source</h4>
+        <p className="text-xs">User-authored</p>
+      </div>
+      {lastUpdated ? (
+        <div>
+          <h4 className="text-xs font-semibold text-muted-foreground mb-1">Last updated</h4>
+          <p className="text-xs" data-testid="title-page-last-updated">
+            {format(new Date(lastUpdated), 'MMM d, yyyy h:mm a')}
+          </p>
+        </div>
+      ) : null}
+      <div>
+        <h4 className="text-xs font-semibold text-muted-foreground mb-1">Field checklist</h4>
+        <ul className="space-y-1">
+          {TITLE_PAGE_REQUIRED_FIELD_IDS.map((fieldId) => {
+            const field = fields.find((entry) => entry.id === fieldId);
+            const complete = isTitlePageFieldValueComplete(fieldId, field?.value);
+            return (
+              <li key={fieldId} className="text-xs flex items-center gap-1.5">
+                {complete ? (
+                  <CheckCircle2 className="h-3 w-3 text-green-500" />
+                ) : (
+                  <AlertCircle className="h-3 w-3 text-red-500" />
+                )}
+                <span>{field?.label ?? fieldId}</span>
+              </li>
+            );
+          })}
+        </ul>
+      </div>
+    </div>
+  );
+}
+
+function FieldMetadataPanel({ field }: { field: FieldDefinition }) {
+  return (
+    <div className="space-y-3" data-testid="field-metadata-panel">
       <div>
         <h4 className="text-xs font-semibold text-muted-foreground mb-1">Field Label</h4>
         <p className="text-sm">{field.label}</p>
@@ -424,14 +577,6 @@ function MetadataTab({
           </ul>
         </div>
       )}
-    </div>
-    );
-  }
-
-  return (
-    <div className="text-center py-8 text-sm text-muted-foreground">
-      <Database className="h-8 w-8 mx-auto mb-2 opacity-50" />
-      <p>Select a section to view metadata</p>
     </div>
   );
 }

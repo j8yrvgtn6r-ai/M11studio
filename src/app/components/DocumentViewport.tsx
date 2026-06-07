@@ -24,6 +24,7 @@ import { useProtocolImport } from '../domain/protocol/import/ProtocolImportConte
 import type { SectionGenerationState } from '../domain/protocol/build/protocolBuildConsoleStore';
 import {
   resolveSectionWorkflowDisplayBadge,
+  resolveTitlePageViewportBadge,
   sectionWorkflowDisplayBadgeClass,
   shouldShowRequiredMissing,
 } from '../domain/protocol/import/sectionDisplayStatus';
@@ -36,67 +37,167 @@ import { getStatusColor, getStatusLabel } from '../utils/statusColors';
 import { Alert, AlertDescription, AlertTitle } from './ui/alert';
 import { Button } from './ui/button';
 import { RichTextEditor, RichTextReadOnlyView } from './authoring/RichTextEditor';
+import { ProtocolIdeEditor } from './protocol-ide/ProtocolIdeEditor';
+import {
+  buildEditorGutterIndicators,
+  buildSectionValidationSummary,
+  getSectionDependencyReferences,
+} from '../domain/protocol/authoring/editorIntegration';
+import { getProtocolDocument } from '../domain/protocol';
+import type { ValidationIssue } from '../types/protocol';
 import { resolveSectionEditorContent } from '../domain/protocol/import/sectionAuthoring';
-import { useEffect, useRef, useState } from 'react';
+import {
+  evaluateTitlePageCompletion,
+  isTitlePageFieldValueComplete,
+  resolveTitlePageFieldDisplayBadges,
+  resolveViewportAuthoringModeLabel,
+  titlePageFieldBadgeClass,
+  TITLE_PAGE_SECTION_ID,
+} from '../domain/protocol/authoring/titlePageAuthoring';
+import type { AutosaveStatus } from './StatusBar';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 interface DocumentViewportProps {
   section: ProtocolSection | null;
   fields: FieldDefinition[];
   onFieldChange: (fieldId: string, value: unknown) => void;
+  onFieldFocus?: (fieldId: string) => void;
+  onFieldBlur?: () => void;
   importDraft?: GeneratedSectionDraft;
   onImportDraftTextChange?: (text: string) => void;
   onManualSectionEdit?: (text: string) => void;
   onApplyManualSectionSave?: (text: string) => void;
   sectionGenerationState?: SectionGenerationState;
   buildActive?: boolean;
+  autosaveStatus?: AutosaveStatus;
+  lastSaved?: Date | null;
+  onFind?: () => void;
+  onReplace?: () => void;
+  onForceSave?: () => void;
+  highlightQuery?: string;
+  validationIssues?: ValidationIssue[];
+  allSections?: ProtocolSection[];
+  forceSaveSignal?: number;
 }
+
+type TitlePageMode = 'viewing' | 'editing';
+type NarrativeEditorSession = 'viewing' | 'editing';
 
 export function DocumentViewport({
   section,
   fields,
   onFieldChange,
+  onFieldFocus,
+  onFieldBlur,
   importDraft,
   onImportDraftTextChange,
   onManualSectionEdit,
   onApplyManualSectionSave,
   sectionGenerationState,
   buildActive = false,
+  autosaveStatus = 'idle',
+  lastSaved = null,
+  onFind,
+  onReplace,
+  onForceSave,
+  highlightQuery,
+  validationIssues = [],
+  allSections = [],
+  forceSaveSignal = 0,
 }: DocumentViewportProps) {
   const [regenerating, setRegenerating] = useState(false);
-  const [isEditing, setIsEditing] = useState(false);
-  const [editBuffer, setEditBuffer] = useState('');
-  const [editBaseline, setEditBaseline] = useState('');
-  const [blankBuffer, setBlankBuffer] = useState('');
-  const blankPersistTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const draftPersistTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [editorSession, setEditorSession] = useState<NarrativeEditorSession>('viewing');
+  const [editorBuffer, setEditorBuffer] = useState('');
+  const [editorBaseline, setEditorBaseline] = useState('');
+  const [titlePageMode, setTitlePageMode] = useState<TitlePageMode>('editing');
+  const [titlePageBaseline, setTitlePageBaseline] = useState<Record<string, unknown>>({});
+  const persistTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const editorSessionRef = useRef(editorSession);
+  const editorBufferRef = useRef(editorBuffer);
   const { revision: importRevision } = useProtocolImport();
   const generationContextReady = isPriorityGenerationContextReady();
   void importRevision;
 
-  const sectionText = resolveSectionEditorContent(importDraft);
-  const hasSectionContent = Boolean(sectionText.trim());
+  useEffect(() => {
+    editorSessionRef.current = editorSession;
+  }, [editorSession]);
 
   useEffect(() => {
-    setIsEditing(false);
-    setEditBuffer('');
-    setEditBaseline('');
-    setBlankBuffer('');
-    if (blankPersistTimer.current) {
-      clearTimeout(blankPersistTimer.current);
-      blankPersistTimer.current = null;
+    editorBufferRef.current = editorBuffer;
+  }, [editorBuffer]);
+
+  const flushPendingPersist = useCallback(() => {
+    if (persistTimer.current) {
+      clearTimeout(persistTimer.current);
+      persistTimer.current = null;
     }
-    if (draftPersistTimer.current) {
-      clearTimeout(draftPersistTimer.current);
-      draftPersistTimer.current = null;
+    if (editorSessionRef.current === 'editing') {
+      onApplyManualSectionSave?.(editorBufferRef.current);
     }
+  }, [onApplyManualSectionSave]);
+
+  const queueEditorPersist = useCallback(
+    (text: string) => {
+      if (persistTimer.current) {
+        clearTimeout(persistTimer.current);
+      }
+      persistTimer.current = setTimeout(() => {
+        onApplyManualSectionSave?.(text);
+        persistTimer.current = null;
+      }, 400);
+    },
+    [onApplyManualSectionSave],
+  );
+
+  const sectionText = resolveSectionEditorContent(importDraft);
+  const hasSectionContent = Boolean(sectionText.trim());
+  const isTitlePageSection = section?.id === TITLE_PAGE_SECTION_ID;
+  const titlePageCompletion = useMemo(
+    () => (isTitlePageSection ? evaluateTitlePageCompletion(fields) : null),
+    [fields, isTitlePageSection],
+  );
+
+  useEffect(() => {
+    return () => {
+      flushPendingPersist();
+    };
+  }, [section?.id, flushPendingPersist]);
+
+  useEffect(() => {
+    const text = sectionText;
+    setEditorBuffer(text);
+    setEditorBaseline(text);
+    editorBufferRef.current = text;
+    setTitlePageMode('editing');
+    setTitlePageBaseline({});
+    if (persistTimer.current) {
+      clearTimeout(persistTimer.current);
+      persistTimer.current = null;
+    }
+
+    const isBlankNarrative =
+      !importDraft &&
+      fields.length === 0 &&
+      !section?.ichM11InstructionOnly;
+    const nextSession: NarrativeEditorSession =
+      isBlankNarrative || !hasSectionContent ? 'editing' : 'viewing';
+    setEditorSession(nextSession);
+    editorSessionRef.current = nextSession;
   }, [section?.id]);
 
   useEffect(() => {
-    if (!isEditing) {
-      setEditBuffer(sectionText);
-      setEditBaseline(sectionText);
+    if (editorSession === 'viewing') {
+      setEditorBuffer(sectionText);
+      setEditorBaseline(sectionText);
+      editorBufferRef.current = sectionText;
     }
-  }, [section?.id, importDraft?.sectionId, sectionText, isEditing]);
+  }, [sectionText, editorSession, importDraft?.sectionId]);
+
+  useEffect(() => {
+    if (forceSaveSignal > 0) {
+      flushPendingPersist();
+    }
+  }, [forceSaveSignal, flushPendingPersist]);
 
   if (!section) {
     return (
@@ -115,11 +216,13 @@ export function DocumentViewport({
     generationState: sectionGenerationState,
   });
   const showLegacyRequiredMissing =
-    shouldShowRequiredMissing({
-      draft: importDraft,
-      generationState: sectionGenerationState,
-      hasValidatedText: Boolean(importDraft?.validatedTargetText?.trim()),
-    }) && section.status === 'requiredMissing';
+    isTitlePageSection
+      ? !titlePageCompletion?.allRequiredComplete
+      : shouldShowRequiredMissing({
+          draft: importDraft,
+          generationState: sectionGenerationState,
+          hasValidatedText: Boolean(importDraft?.validatedTargetText?.trim()),
+        }) && section.status === 'requiredMissing';
 
   const showQueuedState = buildActive && !importDraft && sectionGenerationState === 'queued';
   const showGeneratingState = buildActive && !importDraft && sectionGenerationState === 'generating';
@@ -131,71 +234,122 @@ export function DocumentViewport({
     !section.ichM11InstructionOnly;
 
   const workflowState = importDraft ? inferWorkflowState(importDraft) : null;
+  const isValidationRunning = workflowState === 'validationRunning';
+  const isValidationProposedSection = isValidationReviewReady(importDraft ?? undefined);
+
+  const canShowNarrativeSurface =
+    !isTitlePageSection &&
+    !showQueuedState &&
+    !showGeneratingState &&
+    (importDraft || showBlankAuthoring);
+
+  const isNarrativeEditorActive =
+    canShowNarrativeSurface &&
+    editorSession === 'editing' &&
+    !isValidationProposedSection &&
+    !isValidationRunning;
+
+  const showNarrativeReadOnly =
+    canShowNarrativeSurface &&
+    editorSession === 'viewing' &&
+    hasSectionContent &&
+    !isValidationProposedSection &&
+    !isValidationRunning;
+
   const isImportedUnvalidatedSection =
     workflowState === 'importedUnvalidated' || workflowState === 'imported';
   const isGeneratedSection = importDraft?.contentOrigin === 'generated' || workflowState === 'generated';
-  const isValidationRunning = workflowState === 'validationRunning';
-  const isValidationProposedSection = isValidationReviewReady(importDraft ?? undefined);
   const isUnvalidatedSection = workflowState === 'unvalidated' || isValidationProposedSection;
-  const canShowValidateButton =
-    importDraft &&
+  const isManualDraftSection = importDraft?.contentOrigin === 'manual' && hasSectionContent;
+  const titlePageReadyForValidation =
+    isTitlePageSection &&
+    Boolean(titlePageCompletion?.allRequiredComplete) &&
     !isValidationRunning &&
     !isValidationProposedSection &&
-    (isImportedUnvalidatedSection || isGeneratedSection);
+    workflowState !== 'validated' &&
+    workflowState !== 'reviewed';
+  const canShowValidateButton =
+    titlePageReadyForValidation ||
+    Boolean(
+      importDraft &&
+        !isValidationRunning &&
+        !isValidationProposedSection &&
+        (isImportedUnvalidatedSection || isGeneratedSection || isManualDraftSection),
+    );
   const isOutOfSyncSection =
     sectionGenerationState === 'outOfSync' ||
     workflowState === 'outOfSync' ||
     importDraft?.workflowState === 'outOfSync';
 
-  const showDraftEditor =
-    Boolean(importDraft) &&
-    !isValidationProposedSection &&
-    !isValidationRunning &&
-    (isEditing || !hasSectionContent);
-
-  const showDraftReadOnly =
-    Boolean(importDraft) &&
-    !isValidationProposedSection &&
-    !isValidationRunning &&
-    !isEditing &&
-    hasSectionContent;
-
-  const queueBlankPersist = (text: string) => {
-    if (blankPersistTimer.current) {
-      clearTimeout(blankPersistTimer.current);
-    }
-    blankPersistTimer.current = setTimeout(() => {
-      onApplyManualSectionSave?.(text);
-      blankPersistTimer.current = null;
-    }, 400);
-  };
-
-  const queueDraftPersist = (text: string) => {
-    if (draftPersistTimer.current) {
-      clearTimeout(draftPersistTimer.current);
-    }
-    draftPersistTimer.current = setTimeout(() => {
-      onApplyManualSectionSave?.(text);
-      draftPersistTimer.current = null;
-    }, 400);
-  };
-
   const startEditing = () => {
     const baseline = sectionText;
-    setEditBaseline(baseline);
-    setEditBuffer(baseline);
-    setIsEditing(true);
+    setEditorBaseline(baseline);
+    setEditorBuffer(baseline);
+    editorBufferRef.current = baseline;
+    setEditorSession('editing');
+    editorSessionRef.current = 'editing';
   };
 
-  const saveEditing = () => {
-    onApplyManualSectionSave?.(editBuffer);
-    setIsEditing(false);
+  const finishEditing = () => {
+    if (persistTimer.current) {
+      clearTimeout(persistTimer.current);
+      persistTimer.current = null;
+    }
+    onApplyManualSectionSave?.(editorBufferRef.current);
+    setEditorSession('viewing');
+    editorSessionRef.current = 'viewing';
+  };
+
+  const startTitlePageEditing = () => {
+    const baseline = Object.fromEntries(fields.map((field) => [field.id, field.value ?? '']));
+    setTitlePageBaseline(baseline);
+    setTitlePageMode('editing');
+  };
+
+  const finishTitlePageEditing = () => {
+    setTitlePageMode('viewing');
+  };
+
+  const cancelTitlePageEditing = () => {
+    for (const [fieldId, value] of Object.entries(titlePageBaseline)) {
+      onFieldChange(fieldId, value);
+    }
+    setTitlePageMode('viewing');
   };
 
   const cancelEditing = () => {
-    setEditBuffer(editBaseline);
-    setIsEditing(false);
+    setEditorBuffer(editorBaseline);
+    editorBufferRef.current = editorBaseline;
+    setEditorSession('viewing');
+    editorSessionRef.current = 'viewing';
   };
+
+  const authoringModeLabel = resolveViewportAuthoringModeLabel({
+    isTitlePageSection,
+    titlePageMode,
+    editorSession,
+    showBlankAuthoring,
+    canShowNarrativeSurface,
+    showNarrativeReadOnly,
+  });
+
+  const titlePageBadge = isTitlePageSection
+    ? resolveTitlePageViewportBadge({
+        fields,
+        importDraft,
+        generationState: sectionGenerationState,
+      })
+    : null;
+
+  const validationSummary = buildSectionValidationSummary(
+    section.id,
+    section,
+    importDraft,
+    validationIssues,
+  );
+  const dependencyReferences = getSectionDependencyReferences(section.id, getProtocolDocument(), allSections);
+  const gutterIndicators = buildEditorGutterIndicators(editorBuffer, validationSummary);
+  const narrativeSectionState = editorSession === 'editing' ? authoringModeLabel : 'Viewing';
 
   return (
     <div className="flex flex-col h-full min-h-0 bg-background">
@@ -203,7 +357,18 @@ export function DocumentViewport({
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <h2 className="font-semibold">{section.title ?? section.id}</h2>
-            {workflowBadge ? (
+            <Badge variant="secondary" className="text-xs" data-testid="viewport-authoring-mode">
+              {authoringModeLabel}
+            </Badge>
+            {titlePageBadge ? (
+              <Badge
+                variant="outline"
+                className={`text-xs ${sectionWorkflowDisplayBadgeClass(titlePageBadge)}`}
+                data-testid="viewport-workflow-state-badge"
+              >
+                {titlePageBadge}
+              </Badge>
+            ) : workflowBadge ? (
               <Badge
                 variant="outline"
                 className={`text-xs ${sectionWorkflowDisplayBadgeClass(workflowBadge)}`}
@@ -214,7 +379,7 @@ export function DocumentViewport({
             ) : showLegacyRequiredMissing ? (
               <Badge variant="outline" className={`${statusColor.text} ${statusColor.border}`}>
                 <div className={`w-1.5 h-1.5 rounded-full ${statusColor.dot} mr-1.5`} />
-                {getStatusLabel(section.status)}
+                Required Missing
               </Badge>
             ) : section.status !== 'complete' ? (
               <Badge variant="outline" className={`${statusColor.text} ${statusColor.border}`}>
@@ -225,26 +390,44 @@ export function DocumentViewport({
           </div>
 
           <div className="flex items-center gap-2 flex-wrap justify-end">
-            {showDraftReadOnly ? (
-              <Button size="sm" variant="outline" data-testid="viewport-section-edit" onClick={startEditing}>
-                <Pencil className="h-3.5 w-3.5 mr-1" />
-                Edit
-              </Button>
+            {isTitlePageSection ? (
+              titlePageMode === 'viewing' ? (
+                <Button size="sm" variant="outline" data-testid="viewport-title-edit" onClick={startTitlePageEditing}>
+                  <Pencil className="h-3.5 w-3.5 mr-1" />
+                  Edit
+                </Button>
+              ) : (
+                <>
+                  <Button size="sm" data-testid="viewport-title-done" onClick={finishTitlePageEditing}>
+                    Done
+                  </Button>
+                  <Button size="sm" variant="outline" data-testid="viewport-title-cancel" onClick={cancelTitlePageEditing}>
+                    Cancel
+                  </Button>
+                </>
+              )
             ) : null}
-            {isEditing ? (
-              <>
-                <Button size="sm" data-testid="viewport-section-save" onClick={saveEditing}>
-                  Save
+            {canShowNarrativeSurface ? (
+              editorSession === 'viewing' ? (
+                <Button size="sm" variant="outline" data-testid="viewport-section-edit" onClick={startEditing}>
+                  <Pencil className="h-3.5 w-3.5 mr-1" />
+                  Edit
                 </Button>
-                <Button size="sm" variant="outline" data-testid="viewport-section-cancel-edit" onClick={cancelEditing}>
-                  Cancel
-                </Button>
-              </>
+              ) : (
+                <>
+                  <Button size="sm" data-testid="viewport-section-save" onClick={finishEditing}>
+                    Done
+                  </Button>
+                  <Button size="sm" variant="outline" data-testid="viewport-section-cancel-edit" onClick={cancelEditing}>
+                    Cancel
+                  </Button>
+                </>
+              )
             ) : null}
 
-            {importDraft ? (
+            {(importDraft || titlePageReadyForValidation) ? (
               <>
-                {canShowValidateButton ? (
+                {canShowValidateButton && !isNarrativeEditorActive ? (
                   <Button size="sm" data-testid="viewport-validate-section" onClick={() => runSectionValidation(section.id)}>
                     Validate
                   </Button>
@@ -293,33 +476,66 @@ export function DocumentViewport({
         <div
           className={`p-6 max-w-5xl ${importDraft && isValidationProposedSection ? 'flex flex-col min-h-[calc(100vh-14rem)]' : ''}`}
         >
-          {showBlankAuthoring ? (
-            <div className="space-y-3 mb-8" data-testid="viewport-blank-authoring">
-              <RichTextEditor
-                value={blankBuffer}
+          {isNarrativeEditorActive ? (
+            <div
+              className="space-y-3 mb-8"
+              data-testid={showBlankAuthoring ? 'viewport-blank-authoring' : undefined}
+            >
+              <Label htmlFor="viewport-narrative-editor">
+                {showBlankAuthoring
+                  ? 'Section content'
+                  : isImportedUnvalidatedSection
+                    ? 'Imported protocol text (pending validation)'
+                    : isGeneratedSection && !isUnvalidatedSection
+                      ? 'Generated M11 section (pending approval)'
+                      : 'Section content'}
+              </Label>
+              <ProtocolIdeEditor
+                value={editorBuffer}
+                editorKey={`narrative-${section.id}`}
                 onChange={(text) => {
-                  setBlankBuffer(text);
-                  queueBlankPersist(text);
+                  setEditorBuffer(text);
+                  editorBufferRef.current = text;
+                  queueEditorPersist(text);
                 }}
-                onBlurCommit={(text) => onApplyManualSectionSave?.(text)}
-                placeholder="Start writing this section…"
-                data-testid="viewport-blank-authoring-editor"
+                placeholder={showBlankAuthoring ? 'Start writing this section…' : undefined}
+                readOnly={false}
+                sectionState={narrativeSectionState}
+                autosaveStatus={autosaveStatus}
+                lastSaved={lastSaved}
+                validationSummary={validationSummary}
+                dependencyCount={dependencyReferences.length}
+                gutterIndicators={gutterIndicators}
+                highlightQuery={highlightQuery}
+                onValidate={
+                  canShowValidateButton ? () => runSectionValidation(section.id) : undefined
+                }
+                validateDisabled={!canShowValidateButton}
+                validateRunning={isValidationRunning}
+                onFind={onFind}
+                onReplace={onReplace}
+                onForceSave={onForceSave}
+                data-testid={
+                  showBlankAuthoring ? 'viewport-blank-authoring-editor' : 'viewport-import-generated-text'
+                }
               />
-              <Button
-                size="sm"
-                variant="outline"
-                data-testid="viewport-generate-section"
-                disabled={regenerating || !generationContextReady}
-                onClick={() => {
-                  if (!generationContextReady) {
-                    return;
-                  }
-                  setRegenerating(true);
-                  void generateSectionImportDraftOnDemandAsync(section.id).finally(() => setRegenerating(false));
-                }}
-              >
-                {regenerating ? 'Generating…' : 'Generate Section'}
-              </Button>
+              {showBlankAuthoring ? (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  data-testid="viewport-generate-section"
+                  disabled={regenerating || !generationContextReady}
+                  onClick={() => {
+                    if (!generationContextReady) {
+                      return;
+                    }
+                    setRegenerating(true);
+                    void generateSectionImportDraftOnDemandAsync(section.id).finally(() => setRegenerating(false));
+                  }}
+                >
+                  {regenerating ? 'Generating…' : 'Generate Section'}
+                </Button>
+              ) : null}
             </div>
           ) : null}
 
@@ -371,7 +587,7 @@ export function DocumentViewport({
             </div>
           ) : null}
 
-          {showDraftReadOnly ? (
+          {showNarrativeReadOnly ? (
             <div className="space-y-3 mb-8" data-testid="viewport-section-readonly">
               <Label>Section content</Label>
               <div data-testid="viewport-import-generated-text">
@@ -380,42 +596,17 @@ export function DocumentViewport({
             </div>
           ) : null}
 
-          {showDraftEditor ? (
-            <div className="space-y-3 mb-8">
-              <Label htmlFor="viewport-import-generated-text">
-                {isImportedUnvalidatedSection
-                  ? 'Imported protocol text (pending validation)'
-                  : isGeneratedSection && !isUnvalidatedSection
-                    ? 'Generated M11 section (pending approval)'
-                    : 'Section content'}
-              </Label>
-              <RichTextEditor
-                value={editBuffer}
-                editorKey={isEditing ? `editing-${section.id}` : `draft-${section.id}`}
-                onChange={(text) => {
-                  setEditBuffer(text);
-                  if (!isEditing && !hasSectionContent) {
-                    queueDraftPersist(text);
-                  }
-                }}
-                onBlurCommit={(text) => {
-                  if (isEditing) {
-                    return;
-                  }
-                  if (!hasSectionContent) {
-                    onApplyManualSectionSave?.(text);
-                  }
-                }}
-                readOnly={hasSectionContent && !isEditing}
-                data-testid="viewport-import-generated-text"
-              />
-            </div>
-          ) : null}
-
           {fields.length > 0 ? (
             <div className="space-y-6">
               {fields.map((field) => (
-                <FieldEditor key={field.id} field={field} onFieldChange={onFieldChange} />
+                <FieldEditor
+                  key={field.id}
+                  field={field}
+                  readOnly={isTitlePageSection && titlePageMode === 'viewing'}
+                  onFieldChange={onFieldChange}
+                  onFieldFocus={onFieldFocus}
+                  onFieldBlur={onFieldBlur}
+                />
               ))}
             </div>
           ) : section.ichM11InstructionOnly ? (
@@ -441,57 +632,85 @@ export function DocumentViewport({
 
 function FieldEditor({
   field,
+  readOnly = false,
   onFieldChange,
+  onFieldFocus,
+  onFieldBlur,
 }: {
   field: FieldDefinition;
+  readOnly?: boolean;
   onFieldChange: (fieldId: string, value: unknown) => void;
+  onFieldFocus?: (fieldId: string) => void;
+  onFieldBlur?: () => void;
 }) {
-  const hasValue = Boolean(field.value && String(field.value).trim());
+  const hasValue = isTitlePageFieldValueComplete(field.id, field.value);
+  const isControlledSelect = Boolean(field.controlledTerminology);
+  const isFullTitle = field.id === 'title_page.full_title';
 
-  const renderFieldBadges = () => (
-    <div className="flex flex-wrap items-center gap-1.5 mt-1">
-      {field.requiredness === 'required' && (
-        <Badge variant="outline" className="text-xs text-red-600 dark:text-red-400 border-red-500/30">
-          Required
-        </Badge>
-      )}
-      {field.requiredness === 'conditional' && (
-        <Badge variant="outline" className="text-xs text-amber-600 dark:text-amber-400 border-amber-500/30">
-          Conditional
-        </Badge>
-      )}
-      {field.repeatable && (
-        <Badge variant="outline" className="text-xs">
-          <RefreshCw className="h-2.5 w-2.5 mr-1" />
-          Repeatable
-        </Badge>
-      )}
-      {field.reusable && (
-        <Badge variant="outline" className="text-xs text-purple-600 dark:text-purple-400 border-purple-500/30">
-          <Link2 className="h-2.5 w-2.5 mr-1" />
-          Reused
-        </Badge>
-      )}
-      {field.controlledTerminology && (
-        <Badge variant="outline" className="text-xs">
-          Controlled Terminology
-        </Badge>
-      )}
-    </div>
-  );
+  const renderFieldBadges = () => {
+    if (field.sectionId === TITLE_PAGE_SECTION_ID) {
+      const titlePageBadges = resolveTitlePageFieldDisplayBadges(field);
+      return (
+        <div className="flex flex-wrap items-center gap-1.5 mt-1">
+          {titlePageBadges.map((badge) => (
+            <Badge key={badge} variant="outline" className={`text-xs ${titlePageFieldBadgeClass(badge)}`}>
+              {badge}
+            </Badge>
+          ))}
+        </div>
+      );
+    }
+
+    return (
+      <div className="flex flex-wrap items-center gap-1.5 mt-1">
+        {field.requiredness === 'required' && (
+          <Badge variant="outline" className="text-xs text-red-600 dark:text-red-400 border-red-500/30">
+            Required
+          </Badge>
+        )}
+        {field.requiredness === 'conditional' && (
+          <Badge variant="outline" className="text-xs text-amber-600 dark:text-amber-400 border-amber-500/30">
+            Conditional
+          </Badge>
+        )}
+        {field.repeatable && (
+          <Badge variant="outline" className="text-xs">
+            <RefreshCw className="h-2.5 w-2.5 mr-1" />
+            Repeatable
+          </Badge>
+        )}
+        {field.reusable && (
+          <Badge variant="outline" className="text-xs text-purple-600 dark:text-purple-400 border-purple-500/30">
+            <Link2 className="h-2.5 w-2.5 mr-1" />
+            Reused
+          </Badge>
+        )}
+        {field.controlledTerminology && (
+          <Badge variant="outline" className="text-xs">
+            Controlled Terminology
+          </Badge>
+        )}
+      </div>
+    );
+  };
 
   const renderField = () => {
-    if (field.controlledTerminology) {
+    if (isControlledSelect) {
+      const currentValue = field.value ? String(field.value) : '';
       return (
-        <Select value={field.value ? String(field.value) : undefined} onValueChange={(value) => onFieldChange(field.id, value)}>
-          <SelectTrigger className="bg-input-background">
+        <Select
+          value={currentValue || undefined}
+          disabled={readOnly}
+          onValueChange={(value) => onFieldChange(field.id, value)}
+        >
+          <SelectTrigger className="bg-card text-foreground dark:bg-input/30" data-testid={`field-select-${field.id}`}>
             <SelectValue placeholder={resolveTitlePageSelectPlaceholder(field.id, field.label)} />
           </SelectTrigger>
           <SelectContent>
-            {field.controlledTerminology.values.map((value, index) => {
+            {field.controlledTerminology!.values.map((value, index) => {
               const label = typeof value === 'string' ? value : value.label;
               return (
-                <SelectItem key={index} value={label}>
+                <SelectItem key={`${field.id}-${index}`} value={label}>
                   {label}
                 </SelectItem>
               );
@@ -501,13 +720,29 @@ function FieldEditor({
       );
     }
 
-    if (field.dataType === 'rich_text' || field.kind === 'data') {
+    if (isFullTitle) {
       return (
         <Textarea
           value={field.value ? String(field.value) : ''}
+          readOnly={readOnly}
           onChange={(e) => onFieldChange(field.id, e.target.value)}
+          onFocus={() => onFieldFocus?.(field.id)}
+          onBlur={() => onFieldBlur?.()}
           placeholder={resolveTitlePagePlaceholder(field.id, field.label)}
-          className="min-h-[100px] bg-input-background"
+          className="min-h-[120px] bg-card text-foreground dark:bg-input/30"
+          data-testid={`field-input-${field.id}`}
+        />
+      );
+    }
+
+    if (field.dataType === 'rich_text') {
+      return (
+        <RichTextEditor
+          value={field.value ? String(field.value) : ''}
+          onChange={(text) => onFieldChange(field.id, text)}
+          readOnly={readOnly}
+          placeholder={resolveTitlePagePlaceholder(field.id, field.label)}
+          data-testid={`field-input-${field.id}`}
         />
       );
     }
@@ -516,15 +751,23 @@ function FieldEditor({
       <Input
         type="text"
         value={field.value ? String(field.value) : ''}
+        readOnly={readOnly}
         onChange={(e) => onFieldChange(field.id, e.target.value)}
+        onFocus={() => onFieldFocus?.(field.id)}
+        onBlur={() => onFieldBlur?.()}
         placeholder={resolveTitlePagePlaceholder(field.id, field.label)}
-        className="bg-input-background"
+        className="bg-card text-foreground dark:bg-input/30"
+        data-testid={`field-input-${field.id}`}
       />
     );
   };
 
   return (
-    <div className="space-y-2 p-4 rounded-lg border border-border bg-card/50">
+    <div
+      className="space-y-2 p-4 rounded-lg border border-border bg-card/50"
+      data-testid={`field-editor-${field.id}`}
+      onFocusCapture={() => onFieldFocus?.(field.id)}
+    >
       <div className="flex items-start justify-between">
         <div className="flex-1">
           <Label htmlFor={field.id} className="text-sm font-medium">
