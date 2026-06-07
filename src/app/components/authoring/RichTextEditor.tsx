@@ -2,8 +2,8 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   hasRichFormatting,
   isEmptyRichText,
-  normalizeEditorOutput,
   normalizeStoredRichText,
+  sanitizeEditorContentForStorage,
   stripHtmlToPlainText,
   storedValueToEditorDom,
 } from '../../domain/protocol/authoring/richTextContent';
@@ -11,7 +11,6 @@ import type { LineDiagnostic } from '../../domain/protocol/authoring/editorInteg
 import {
   diagnosticHighlightsFromLineDiagnostics,
   scrollToDiagnosticOffset,
-  stripDiagnosticHighlights,
   wrapPlainTextWithHighlights,
 } from '../../domain/protocol/authoring/diagnosticHighlights';
 import {
@@ -61,31 +60,50 @@ interface RichTextEditorProps {
   'data-testid'?: string;
 }
 
+function readEditorSurfaceContent(node: HTMLDivElement): string {
+  return sanitizeEditorContentForStorage(node.innerHTML);
+}
+
 function editorDomMatches(node: HTMLDivElement, value: string): boolean {
   const normalized = normalizeStoredRichText(value);
   if (!normalized.trim()) {
     return isEmptyRichText(node.innerHTML) && !(node.textContent ?? '').trim();
   }
-  if (hasRichFormatting(normalized)) {
-    return normalizeEditorOutput(node.innerHTML) === normalized;
-  }
-  return (node.textContent ?? '').replace(/\u00a0/g, ' ') === normalized.replace(/\u00a0/g, ' ');
+  return readEditorSurfaceContent(node) === normalized;
 }
 
-function writeEditorDom(node: HTMLDivElement, value: string, withHighlights = false, diagnostics: LineDiagnostic[] = []): void {
+function writeEditorDom(
+  node: HTMLDivElement,
+  value: string,
+  options: { readOnly?: boolean; diagnostics?: LineDiagnostic[] } = {},
+): void {
   const domValue = storedValueToEditorDom(value);
+  const readOnly = options.readOnly ?? false;
+  const diagnostics = options.diagnostics ?? [];
+
   if (!domValue.trim()) {
     node.textContent = '';
     return;
   }
-  if (withHighlights && diagnostics.length > 0 && !hasRichFormatting(domValue)) {
+
+  if (!readOnly) {
+    if (hasRichFormatting(domValue)) {
+      node.innerHTML = sanitizeEditorContentForStorage(domValue);
+      return;
+    }
+    node.textContent = stripHtmlToPlainText(domValue);
+    return;
+  }
+
+  if (diagnostics.length > 0 && !hasRichFormatting(domValue)) {
     const plain = stripHtmlToPlainText(domValue);
     const highlights = diagnosticHighlightsFromLineDiagnostics(plain, diagnostics);
     node.innerHTML = wrapPlainTextWithHighlights(plain, highlights);
     return;
   }
+
   if (hasRichFormatting(domValue)) {
-    node.innerHTML = domValue;
+    node.innerHTML = sanitizeEditorContentForStorage(domValue);
     return;
   }
   node.textContent = domValue;
@@ -127,6 +145,7 @@ export function RichTextEditor({
   const editorRef = surfaceRef ?? internalRef;
   const lastEmitted = useRef(normalizeStoredRichText(value));
   const isFocusedRef = useRef(false);
+  const [isFocused, setIsFocused] = useState(false);
   const [suggestions, setSuggestions] = useState<ProtocolIntellisenseSuggestion[]>([]);
   const [ghostText, setGhostText] = useState<ProtocolIntellisenseSuggestion | null>(null);
   const [selectedIndex, setSelectedIndex] = useState(0);
@@ -156,9 +175,23 @@ export function RichTextEditor({
       lastEmitted.current = normalized;
       return;
     }
-    writeEditorDom(node, normalized, true, lineDiagnostics);
+    writeEditorDom(node, normalized, { readOnly, diagnostics: readOnly ? lineDiagnostics : [] });
     lastEmitted.current = normalized;
-  }, [value, editorKey, editorRef, lineDiagnostics]);
+  }, [value, editorKey, editorRef, lineDiagnostics, readOnly]);
+
+  const overlayPlain = normalizeStoredRichText(value);
+  const diagnosticOverlayHtml =
+    ideMode &&
+    !readOnly &&
+    !isFocused &&
+    lineDiagnostics.length > 0 &&
+    overlayPlain.trim() &&
+    !hasRichFormatting(overlayPlain)
+      ? wrapPlainTextWithHighlights(
+          overlayPlain,
+          diagnosticHighlightsFromLineDiagnostics(overlayPlain, lineDiagnostics),
+        )
+      : '';
 
   useEffect(() => {
     if (scrollToOffset == null || !editorRef.current) {
@@ -173,11 +206,7 @@ export function RichTextEditor({
     if (!node || readOnly) {
       return;
     }
-    const cleaned = stripDiagnosticHighlights(node.innerHTML);
-    if (cleaned !== node.innerHTML) {
-      node.innerHTML = cleaned;
-    }
-    const normalized = normalizeEditorOutput(node.innerHTML);
+    const normalized = readEditorSurfaceContent(node);
     if (normalized !== lastEmitted.current) {
       lastEmitted.current = normalized;
       onChange(normalized);
@@ -205,7 +234,7 @@ export function RichTextEditor({
         return;
       }
 
-      const plain = stripHtmlToPlainText(normalizeEditorOutput(node.innerHTML));
+      const plain = stripHtmlToPlainText(readEditorSurfaceContent(node.innerHTML));
       const context = buildProtocolIntellisenseContext({
         sectionId,
         sectionTitle,
@@ -264,14 +293,14 @@ export function RichTextEditor({
       if (!node) {
         return;
       }
-      const plain = stripHtmlToPlainText(normalizeEditorOutput(node.innerHTML));
+      const plain = stripHtmlToPlainText(readEditorSurfaceContent(node.innerHTML));
       const originalText = suggestion.replacementRange
         ? plain.slice(suggestion.replacementRange.startOffset, suggestion.replacementRange.endOffset)
         : fallbackRange
           ? plain.slice(fallbackRange.startOffset, fallbackRange.endOffset)
           : '';
       const next = applyIntellisenseSuggestion(plain, suggestion, fallbackRange ?? undefined);
-      writeEditorDom(node, next, false);
+      writeEditorDom(node, next, { readOnly: false });
       lastEmitted.current = next;
       onChange(next);
 
@@ -340,32 +369,30 @@ export function RichTextEditor({
 
   const handleBlur = useCallback(() => {
     isFocusedRef.current = false;
+    setIsFocused(false);
     const node = editorRef.current;
     if (!node || readOnly) {
       return;
     }
-    const cleaned = stripDiagnosticHighlights(node.innerHTML);
-    if (cleaned !== node.innerHTML) {
-      node.innerHTML = cleaned;
-    }
-    const normalized = normalizeEditorOutput(node.innerHTML);
+    const normalized = readEditorSurfaceContent(node);
+    writeEditorDom(node, normalized, { readOnly: false });
     lastEmitted.current = normalized;
     onChange(normalized);
     onBlurCommit?.(normalized);
-    writeEditorDom(node, normalized, true, lineDiagnostics);
     dismissIntellisense();
     setHoverCard(null);
     setEntityHover(null);
-  }, [dismissIntellisense, onBlurCommit, onChange, readOnly, editorRef, lineDiagnostics]);
+  }, [dismissIntellisense, onBlurCommit, onChange, readOnly, editorRef]);
 
   const handleFocus = useCallback(() => {
     isFocusedRef.current = true;
+    setIsFocused(true);
     const node = editorRef.current;
     if (!node || readOnly) {
       return;
     }
-    const plain = stripHtmlToPlainText(normalizeEditorOutput(node.innerHTML));
-    writeEditorDom(node, plain, false);
+    const plain = stripHtmlToPlainText(readEditorSurfaceContent(node.innerHTML));
+    writeEditorDom(node, plain, { readOnly: false });
   }, [readOnly, editorRef]);
 
   const handleKeyDown = useCallback(
@@ -417,7 +444,7 @@ export function RichTextEditor({
       const preRange = range.cloneRange();
       preRange.selectNodeContents(node);
       preRange.setEnd(range.startContainer, range.startOffset);
-      const plain = stripHtmlToPlainText(normalizeEditorOutput(node.innerHTML));
+      const plain = stripHtmlToPlainText(readEditorSurfaceContent(node.innerHTML));
       const offset = preRange.toString().length;
       const tokenRange = getTokenRangeAtOffset(plain, offset);
       if (!tokenRange) {
@@ -455,34 +482,49 @@ export function RichTextEditor({
 
   return (
     <div className={cn('relative space-y-2', className)} data-testid={dataTestId}>
-      <div
-        ref={editorRef}
-        contentEditable={!readOnly}
-        suppressContentEditableWarning
-        className={cn(
-          'min-h-[240px] px-3 py-2 text-sm leading-6 text-foreground caret-foreground',
-          ideMode
-            ? 'bg-transparent font-mono focus:outline-none [&_.protocol-diagnostic-error]:underline [&_.protocol-diagnostic-error]:decoration-red-500 [&_.protocol-diagnostic-error]:decoration-wavy [&_.protocol-diagnostic-warning]:underline [&_.protocol-diagnostic-warning]:decoration-amber-500 [&_.protocol-diagnostic-warning]:decoration-wavy [&_.protocol-diagnostic-info]:underline [&_.protocol-diagnostic-info]:decoration-sky-500/70 [&_.protocol-diagnostic-info]:decoration-dotted'
-            : 'rounded-md border border-border bg-card focus:outline-none focus:ring-2 focus:ring-ring dark:bg-input/30',
-          readOnly && !ideMode && 'bg-muted/20',
-          highlightQuery && 'ring-1 ring-amber-500/40',
-        )}
-        data-placeholder={placeholder}
-        data-testid={`${dataTestId}-surface`}
-        data-highlight-query={highlightQuery || undefined}
-        onInput={
-          readOnly
-            ? undefined
-            : () => {
-                emitChange();
-                refreshIntellisense('typing');
-              }
-        }
-        onFocus={readOnly ? undefined : handleFocus}
-        onBlur={readOnly ? undefined : handleBlur}
-        onKeyDown={readOnly ? undefined : handleKeyDown}
-        onMouseMove={readOnly ? undefined : handleMouseMove}
-      />
+      <div className="relative">
+        {diagnosticOverlayHtml ? (
+          <div
+            aria-hidden
+            className={cn(
+              'pointer-events-none absolute inset-0 z-0 overflow-hidden px-3 py-2 text-sm leading-6 font-mono whitespace-pre-wrap break-words text-transparent',
+              '[&_.protocol-diagnostic-error]:underline [&_.protocol-diagnostic-error]:decoration-red-500 [&_.protocol-diagnostic-error]:decoration-wavy',
+              '[&_.protocol-diagnostic-warning]:underline [&_.protocol-diagnostic-warning]:decoration-amber-500 [&_.protocol-diagnostic-warning]:decoration-wavy',
+              '[&_.protocol-diagnostic-info]:underline [&_.protocol-diagnostic-info]:decoration-sky-500/70 [&_.protocol-diagnostic-info]:decoration-dotted',
+            )}
+            data-testid={`${dataTestId}-diagnostic-overlay`}
+            dangerouslySetInnerHTML={{ __html: diagnosticOverlayHtml }}
+          />
+        ) : null}
+        <div
+          ref={editorRef}
+          contentEditable={!readOnly}
+          suppressContentEditableWarning
+          className={cn(
+            'relative z-10 min-h-[240px] px-3 py-2 text-sm leading-6 text-foreground caret-foreground',
+            ideMode
+              ? 'bg-transparent font-mono focus:outline-none'
+              : 'rounded-md border border-border bg-card focus:outline-none focus:ring-2 focus:ring-ring dark:bg-input/30',
+            readOnly && !ideMode && 'bg-muted/20',
+            highlightQuery && 'ring-1 ring-amber-500/40',
+          )}
+          data-placeholder={placeholder}
+          data-testid={`${dataTestId}-surface`}
+          data-highlight-query={highlightQuery || undefined}
+          onInput={
+            readOnly
+              ? undefined
+              : () => {
+                  emitChange();
+                  refreshIntellisense('typing');
+                }
+          }
+          onFocus={readOnly ? undefined : handleFocus}
+          onBlur={readOnly ? undefined : handleBlur}
+          onKeyDown={readOnly ? undefined : handleKeyDown}
+          onMouseMove={readOnly ? undefined : handleMouseMove}
+        />
+      </div>
 
       {popupOpen && suggestions.length > 0 && suggestionAnchor ? (
         <ProtocolIntellisensePopup
@@ -543,7 +585,7 @@ export function RichTextEditor({
 }
 
 export function RichTextReadOnlyView({ value, className }: { value: string; className?: string }) {
-  const normalized = normalizeStoredRichText(value);
+  const normalized = normalizeStoredRichText(sanitizeEditorContentForStorage(value));
   const figureTokens = extractFigureReferenceTokens(normalized);
 
   if (!normalized.trim()) {

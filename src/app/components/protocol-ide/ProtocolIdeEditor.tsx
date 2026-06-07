@@ -11,7 +11,7 @@ import {
 } from '../../domain/protocol/authoring/linting';
 import { recordIntellisenseAcceptance } from '../../domain/protocol/authoring/intellisense';
 import { recordTerminologyAcceptance } from '../../domain/protocol/authoring/terminologyEditorIntegration';
-import { normalizeEditorOutput, stripHtmlToPlainText } from '../../domain/protocol/authoring/richTextContent';
+import { sanitizeEditorContentForStorage, stripHtmlToPlainText } from '../../domain/protocol/authoring/richTextContent';
 import { diagnosticsToGutterIndicators } from '../../domain/protocol/authoring/lineDiagnostics';
 import type { AutosaveStatus } from '../StatusBar';
 import { RichTextEditor } from '../authoring/RichTextEditor';
@@ -198,12 +198,25 @@ export function ProtocolIdeEditor({
     return gutterIndicators;
   }, [gutterIndicators, lineDiagnostics]);
 
+  const flushEditorContentForStorage = useCallback(() => {
+    const surface =
+      surfaceRef.current ??
+      document.querySelector<HTMLDivElement>(`[data-testid="${dataTestId}-inner-surface"]`);
+    if (!surface || readOnly) {
+      return;
+    }
+    const sanitized = sanitizeEditorContentForStorage(surface.innerHTML);
+    if (sanitized !== value) {
+      onChange(sanitized);
+    }
+  }, [dataTestId, onChange, readOnly, value]);
+
   const runOnSurface = useCallback((fn: (surface: HTMLDivElement) => void) => {
     const surface = surfaceRef.current ?? document.querySelector<HTMLDivElement>(`[data-testid="${dataTestId}-inner-surface"]`);
     if (surface) {
       surface.focus();
       fn(surface);
-      onChange(normalizeEditorOutput(surface.innerHTML));
+      onChange(sanitizeEditorContentForStorage(surface.innerHTML));
     }
   }, [dataTestId, onChange]);
 
@@ -253,7 +266,14 @@ export function ProtocolIdeEditor({
             onInsertTable={handleInsertTable}
             onInsertLink={handleInsertLink}
             onInsertImageReference={handleInsertImageReference}
-            onValidate={onValidate}
+            onValidate={
+              onValidate
+                ? () => {
+                    flushEditorContentForStorage();
+                    onValidate();
+                  }
+                : undefined
+            }
             validateDisabled={validateDisabled}
             validateRunning={validateRunning}
             onFind={onFind}

@@ -1,4 +1,8 @@
+import { containsDiagnosticMarkup, stripDiagnosticHighlights } from './diagnosticHighlights';
+
 const SEMANTIC_FORMATTING_TAG_PATTERN = /<(b|strong|i|em|u|h[1-6]|ul|ol|li)\b/i;
+
+export { containsDiagnosticMarkup };
 
 /** Iteratively decode HTML entities (repairs multi-pass &amp; corruption). */
 export function decodeHtmlEntities(text: string): string {
@@ -67,12 +71,17 @@ export function isEmptyRichText(value: string): boolean {
  * Canonical storage form for section narrative content.
  * Plain text when unformatted; minimal HTML when formatting tags are present.
  */
+/** Removes presentation-only diagnostic markup before canonical storage normalization. */
+export function sanitizeEditorContentForStorage(rawHtml: string): string {
+  return normalizeEditorOutput(stripDiagnosticHighlights(rawHtml));
+}
+
 export function normalizeEditorOutput(rawHtml: string): string {
   if (!rawHtml.trim()) {
     return '';
   }
 
-  const decoded = decodeHtmlEntities(rawHtml);
+  const decoded = decodeHtmlEntities(stripDiagnosticHighlights(rawHtml));
   if (!hasRichFormatting(decoded)) {
     return stripHtmlToPlainText(decoded);
   }
@@ -89,7 +98,7 @@ export function normalizeStoredRichText(value: string | undefined | null): strin
   if (!value?.trim()) {
     return '';
   }
-  const decoded = decodeHtmlEntities(value);
+  const decoded = decodeHtmlEntities(stripDiagnosticHighlights(value));
   if (!hasRichFormatting(decoded)) {
     return stripHtmlToPlainText(decoded);
   }

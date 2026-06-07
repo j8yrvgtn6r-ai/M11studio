@@ -1,13 +1,13 @@
 import {
   hasSubstantiveEditorContent,
-  normalizeEditorOutput,
+  sanitizeEditorContentForStorage,
 } from './richTextContent';
 
 export { hasSubstantiveEditorContent };
 
 /** Normalized comparison baseline for editor dirty-state. */
 export function normalizeEditorSessionContent(content: string): string {
-  return normalizeEditorOutput(content);
+  return sanitizeEditorContentForStorage(content);
 }
 
 export function isEditorSessionDirty(initialContent: string, currentContent: string): boolean {

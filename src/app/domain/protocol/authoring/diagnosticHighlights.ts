@@ -46,23 +46,34 @@ export function wrapPlainTextWithHighlights(
     const before = html.slice(0, highlight.startOffset);
     const target = html.slice(highlight.startOffset, highlight.endOffset);
     const after = html.slice(highlight.endOffset);
-    html = `${before}<span class="protocol-diagnostic protocol-diagnostic-${highlight.severity} protocol-diagnostic-${highlight.category}" data-diagnostic-id="${highlight.diagnosticId}" title="${escapeAttr(highlight.message)}">${escapeHtml(target)}</span>${after}`;
+    html = `${before}<span contenteditable="false" data-presentation-only="true" class="protocol-diagnostic protocol-diagnostic-${highlight.severity} protocol-diagnostic-${highlight.category}" data-diagnostic-id="${highlight.diagnosticId}" title="${escapeAttr(highlight.message)}">${escapeHtml(target)}</span>${after}`;
   }
   return html.replace(/\n/g, '<br>');
 }
 
+const DIAGNOSTIC_MARKUP_PATTERN =
+  /protocol-diagnostic|data-diagnostic-id|data-presentation-only="true"/i;
+
+export function containsDiagnosticMarkup(value: string): boolean {
+  return DIAGNOSTIC_MARKUP_PATTERN.test(value);
+}
+
 export function stripDiagnosticHighlights(html: string): string {
-  if (!html.includes('protocol-diagnostic')) {
+  if (!containsDiagnosticMarkup(html)) {
     return html;
   }
   const container = typeof document !== 'undefined' ? document.createElement('div') : null;
   if (!container) {
-    return html.replace(/<span[^>]*protocol-diagnostic[^>]*>(.*?)<\/span>/gi, '$1');
+    return html
+      .replace(/<span[^>]*protocol-diagnostic[^>]*>([\s\S]*?)<\/span>/gi, '$1')
+      .replace(/\s*data-diagnostic-id="[^"]*"/gi, '')
+      .replace(/\s*data-presentation-only="[^"]*"/gi, '')
+      .replace(/\s*contenteditable="false"/gi, '');
   }
   container.innerHTML = html;
-  container.querySelectorAll('.protocol-diagnostic').forEach((node) => {
+  container.querySelectorAll('.protocol-diagnostic,[data-diagnostic-id]').forEach((node) => {
     const text = node.textContent ?? '';
-    node.replaceWith(text);
+    node.replaceWith(document.createTextNode(text));
   });
   return container.innerHTML;
 }

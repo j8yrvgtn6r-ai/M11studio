@@ -1,7 +1,7 @@
 import { updateSectionGenerationState } from '../build/protocolBuildConsoleStore';
 import {
   hasSubstantiveEditorContent,
-  normalizeEditorOutput,
+  sanitizeEditorContentForStorage,
   normalizeStoredRichText,
 } from '../authoring/richTextContent';
 import type { GeneratedSectionDraft, SectionGenerationProvenance } from './types';
@@ -114,9 +114,9 @@ export function applyManualSectionContentEdit(
   generatedText: string,
   previousText?: string,
 ): void {
-  const normalizedText = normalizeEditorOutput(generatedText);
+  const normalizedText = sanitizeEditorContentForStorage(generatedText);
   const current = getProtocolImportState().sectionDrafts[sectionId];
-  const baselineText = normalizeEditorOutput(
+  const baselineText = sanitizeEditorContentForStorage(
     previousText ?? (current ? resolveSectionEditorContent(current) : ''),
   );
 

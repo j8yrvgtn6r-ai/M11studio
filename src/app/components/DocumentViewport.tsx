@@ -321,6 +321,10 @@ export function DocumentViewport({
       return;
     }
     setValidationGateMessage(null);
+    flushPendingPersist();
+    if (isEditorSessionDirty(editorBaselineRef.current, editorBufferRef.current)) {
+      onApplyManualSectionSave?.(editorBufferRef.current, editorBaselineRef.current);
+    }
     runSectionValidation(section.id);
   };
   const isOutOfSyncSection =
