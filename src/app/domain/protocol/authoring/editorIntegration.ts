@@ -4,15 +4,25 @@ import { selectDependencyNodes } from '../selectors/toDependencyGraph';
 import { stripHtmlToPlainText } from './richTextContent';
 import { searchTerminology } from '../../terminology/terminologyService';
 import {
+  buildLineDiagnostics,
+  diagnosticsToGutterIndicators,
+  type LineDiagnostic,
+} from './lineDiagnostics';
+import {
   resolveControlledTerminologyStatus,
   resolveM11StructureStatus,
 } from '../../../agents/validationRules';
+
+export type { LineDiagnostic } from './lineDiagnostics';
+export { buildLineDiagnostics, diagnosticsToGutterIndicators, diagnosticsForLine } from './lineDiagnostics';
 
 export interface TerminologySuggestion {
   term: string;
   preferredTerm: string;
   codelistName: string;
   definition: string;
+  termCode?: string;
+  codelistId?: string;
 }
 
 export interface SectionDependencyReference {
@@ -40,6 +50,8 @@ export interface EditorGutterIndicator {
   kind: 'validation' | 'terminology' | 'structure' | 'info';
   severity: 'error' | 'warning' | 'info';
   message: string;
+  diagnosticId?: string;
+  startOffset?: number;
 }
 
 /** Future IntelliSense hook — returns terminology suggestions for partial input. */
@@ -54,6 +66,8 @@ export function getTerminologySuggestions(partial: string, limit = 8): Terminolo
     preferredTerm: match.entry.ichPreferredTerm,
     codelistName: match.entry.codelistName,
     definition: match.entry.definition,
+    termCode: match.entry.code,
+    codelistId: match.entry.codelistId,
   }));
 }
 
@@ -180,7 +194,36 @@ export function buildSectionValidationSummary(
 export function buildEditorGutterIndicators(
   content: string,
   summary: SectionValidationSummary,
+  options?: {
+    sectionId?: string;
+    draft?: GeneratedSectionDraft;
+    validationIssues?: ValidationIssue[];
+  },
 ): EditorGutterIndicator[] {
+  if (options?.sectionId) {
+    const lineDiagnostics = buildLineDiagnostics({
+      sectionId: options.sectionId,
+      content,
+      draft: options.draft,
+      validationIssues: options.validationIssues,
+    });
+    if (lineDiagnostics.length > 0) {
+      return diagnosticsToGutterIndicators(lineDiagnostics).map((entry) => ({
+        lineNumber: entry.lineNumber,
+        kind:
+          entry.category === 'terminology'
+            ? 'terminology'
+            : entry.category === 'structure'
+              ? 'structure'
+              : 'validation',
+        severity: entry.severity,
+        message: entry.message,
+        diagnosticId: lineDiagnostics.find((diag) => diag.lineNumber === entry.lineNumber)?.id,
+        startOffset: lineDiagnostics.find((diag) => diag.lineNumber === entry.lineNumber)?.startOffset,
+      }));
+    }
+  }
+
   const lines = stripHtmlToPlainText(content).split('\n');
   const indicators: EditorGutterIndicator[] = [];
 

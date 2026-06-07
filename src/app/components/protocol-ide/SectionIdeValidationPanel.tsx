@@ -1,5 +1,6 @@
 import { AlertCircle, AlertTriangle, CheckCircle2, GitBranch } from 'lucide-react';
 import type {
+  LineDiagnostic,
   SectionDependencyReference,
   SectionValidationSummary,
 } from '../../domain/protocol/authoring/editorIntegration';
@@ -8,13 +9,19 @@ import { Badge } from '../ui/badge';
 interface SectionIdeValidationPanelProps {
   summary: SectionValidationSummary;
   dependencyReferences: SectionDependencyReference[];
+  lineDiagnostics?: LineDiagnostic[];
+  onNavigateDiagnostic?: (diagnostic: LineDiagnostic) => void;
 }
 
 export function SectionIdeValidationPanel({
   summary,
   dependencyReferences,
+  lineDiagnostics = [],
+  onNavigateDiagnostic,
 }: SectionIdeValidationPanelProps) {
   const referencedBy = dependencyReferences.filter((entry) => entry.referencedBySectionTitle);
+  const terminologyDiagnostics = lineDiagnostics.filter((entry) => entry.category === 'terminology');
+  const acceptedTerms = lineDiagnostics.filter((entry) => entry.source === 'terminologySuggestionAccepted');
 
   return (
     <div className="space-y-4" data-testid="section-ide-validation-panel">
@@ -34,6 +41,53 @@ export function SectionIdeValidationPanel({
           <StatusTile label="Consistency" value={summary.consistencyIssueCount > 0 ? 'Issues' : 'OK'} count={summary.consistencyIssueCount} />
         </div>
       )}
+
+      {lineDiagnostics.length > 0 ? (
+        <div className="space-y-2" data-testid="line-diagnostics-list">
+          <p className="text-xs font-semibold text-muted-foreground">Line diagnostics</p>
+          {lineDiagnostics.slice(0, 16).map((diagnostic) => (
+            <button
+              key={diagnostic.id}
+              type="button"
+              className="w-full rounded-md border border-border p-2 text-left text-xs hover:bg-muted/40"
+              onClick={() => onNavigateDiagnostic?.(diagnostic)}
+              data-testid={`line-diagnostic-${diagnostic.id}`}
+            >
+              <div className="flex items-center gap-1.5 mb-1">
+                {diagnostic.severity === 'error' ? (
+                  <AlertCircle className="h-3.5 w-3.5 text-red-500" />
+                ) : (
+                  <AlertTriangle className="h-3.5 w-3.5 text-amber-500" />
+                )}
+                <Badge variant="outline" className="h-4 text-[10px]">{diagnostic.category}</Badge>
+                <span className="text-muted-foreground">L{diagnostic.lineNumber}</span>
+              </div>
+              <p>{diagnostic.message}</p>
+              {diagnostic.suggestedFix ? (
+                <p className="text-muted-foreground mt-1">Suggested: {diagnostic.suggestedFix}</p>
+              ) : null}
+            </button>
+          ))}
+        </div>
+      ) : null}
+
+      {terminologyDiagnostics.length > 0 ? (
+        <div className="space-y-1" data-testid="terminology-diagnostics-list">
+          <p className="text-xs font-semibold text-muted-foreground">Terminology diagnostics</p>
+          {terminologyDiagnostics.slice(0, 6).map((diagnostic) => (
+            <p key={diagnostic.id} className="text-xs text-muted-foreground">L{diagnostic.lineNumber}: {diagnostic.message}</p>
+          ))}
+        </div>
+      ) : null}
+
+      {acceptedTerms.length > 0 ? (
+        <div className="space-y-1" data-testid="accepted-terminology-list">
+          <p className="text-xs font-semibold text-muted-foreground">Accepted terminology</p>
+          {acceptedTerms.slice(0, 6).map((diagnostic) => (
+            <p key={diagnostic.id} className="text-xs text-green-700 dark:text-green-300">{diagnostic.message}</p>
+          ))}
+        </div>
+      ) : null}
 
       {summary.findings.length > 0 ? (
         <div className="space-y-2">
@@ -79,9 +133,8 @@ export function SectionIdeValidationPanel({
 function StatusTile({ label, value, count }: { label: string; value: string; count: number }) {
   return (
     <div className="rounded-md border border-border p-2">
-      <p className="text-muted-foreground">{label}</p>
-      <p className="font-medium">{value}</p>
-      {count > 0 ? <p className="text-amber-600">{count} issue(s)</p> : null}
+      <p className="text-[10px] uppercase tracking-wide text-muted-foreground">{label}</p>
+      <p className="text-xs font-medium">{value}{count > 0 ? ` (${count})` : ''}</p>
     </div>
   );
 }

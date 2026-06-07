@@ -13,6 +13,9 @@ export interface FindReplacePreviewItem {
   before: string;
   after: string;
   snippet: string;
+  startOffset: number;
+  endOffset: number;
+  matchId: string;
 }
 
 export interface FindReplacePreview {
@@ -95,6 +98,9 @@ export function previewFindReplace(
         before,
         after,
         snippet: text.slice(Math.max(0, match.index - 30), match.index + match[0].length + 30),
+        startOffset: match.index,
+        endOffset: match.index + match[0].length,
+        matchId: `${section.id}:${match.index}:${before}`,
       });
       totalReplacements += 1;
       if (!regex.global) {
@@ -115,10 +121,10 @@ export function previewFindReplace(
   };
 }
 
-/** Apply replacements — disabled in v1; returns preview only. */
+/** Apply replacements — use replaceTransaction.applyReplaceTransaction in Protocol IDE v2. */
 export function applyFindReplace(): { applied: false; reason: string } {
   return {
     applied: false,
-    reason: 'Bulk replace is preview-only in Protocol IDE v1. Apply manually or wait for v2.',
+    reason: 'Use applyReplaceTransaction() for transactional replace in Protocol IDE v2.',
   };
 }

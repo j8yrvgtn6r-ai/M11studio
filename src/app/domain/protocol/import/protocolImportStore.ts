@@ -67,6 +67,7 @@ import { validateGeneratedSectionDraft } from './sectionDraftValidation';
 import { buildValidatedTarget } from './sectionValidationTargetEngine';
 import type { ValidationAgentOutput } from '../../../agents/validationRules';
 import { TITLE_PAGE_SECTION_ID } from '../authoring/titlePageAuthoring';
+import { hasSubstantiveEditorContent } from '../authoring/richTextContent';
 import {
   buildTitlePageValidationOutput,
   ensureTitlePageAuthoringDraft,
@@ -1004,6 +1005,16 @@ export function upsertSectionImportDraft(
   notify();
 }
 
+/** Removes a section draft when manual authoring is abandoned with no substantive content. */
+export function clearSectionImportDraft(sectionId: string): void {
+  if (!state.sectionDrafts[sectionId]) {
+    return;
+  }
+  delete state.sectionDrafts[sectionId];
+  persistMetadata();
+  notify();
+}
+
 export function updateSectionImportDraft(
 
   sectionId: string,
@@ -1027,41 +1038,25 @@ export function updateSectionImportDraft(
 
 
   if (patch.generatedText !== undefined && patch.generatedText !== current.generatedText) {
-
-    next = {
-
-      ...next,
-
-      state: 'pendingReview',
-
-      stateChangedAt: new Date().toISOString(),
-
-      stateChangedBy: 'Current user',
-
-      validationStatus: 'not-run',
-
-      validationMessages: [],
-
-      stateHistory: [
-
-        ...next.stateHistory,
-
-        {
-
-          state: 'pendingReview',
-
-          changedAt: new Date().toISOString(),
-
-          changedBy: 'Current user',
-
-          note: 'Draft text edited — requires re-review',
-
-        },
-
-      ],
-
-    };
-
+    if (hasSubstantiveEditorContent(patch.generatedText)) {
+      next = {
+        ...next,
+        state: 'pendingReview',
+        stateChangedAt: new Date().toISOString(),
+        stateChangedBy: 'Current user',
+        validationStatus: 'not-run',
+        validationMessages: [],
+        stateHistory: [
+          ...next.stateHistory,
+          {
+            state: 'pendingReview',
+            changedAt: new Date().toISOString(),
+            changedBy: 'Current user',
+            note: 'Draft text edited — requires re-review',
+          },
+        ],
+      };
+    }
   }
 
 
@@ -1073,9 +1068,10 @@ export function updateSectionImportDraft(
   notify();
 
   if (patch.generatedText !== undefined && patch.generatedText !== current.generatedText) {
-    queueKnowledgeAgentEdit(next, current.generatedText);
+    if (hasSubstantiveEditorContent(patch.generatedText)) {
+      queueKnowledgeAgentEdit(next, current.generatedText);
+    }
   }
-
 }
 
 
@@ -1133,6 +1129,14 @@ export function runSectionValidation(sectionId: string, actor = 'Current user'):
 
   const draft = state.sectionDrafts[sectionId];
   if (!draft) {
+    return;
+  }
+  const editorText =
+    draft.generatedText?.trim() ||
+    draft.sourceText?.trim() ||
+    draft.validatedTargetText?.trim() ||
+    '';
+  if (!hasSubstantiveEditorContent(editorText)) {
     return;
   }
   if (draft.workflowState === 'validationRunning' || draft.workflowState === 'validationProposed') {

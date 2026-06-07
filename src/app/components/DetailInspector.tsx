@@ -28,9 +28,12 @@ import {
 } from '../domain/protocol/authoring/titlePageAuthoring';
 import { getProtocolDocument } from '../domain/protocol';
 import {
+  buildLineDiagnostics,
   buildSectionValidationSummary,
   getSectionDependencyReferences,
+  type LineDiagnostic,
 } from '../domain/protocol/authoring/editorIntegration';
+import { resolveSectionEditorContent } from '../domain/protocol/import/sectionAuthoring';
 import { SectionIdeValidationPanel } from './protocol-ide/SectionIdeValidationPanel';
 
 interface DetailInspectorProps {
@@ -49,6 +52,7 @@ interface DetailInspectorProps {
   comments: Comment[];
   isScheduleOfActivitiesView?: boolean;
   allSections?: ProtocolSection[];
+  onNavigateDiagnostic?: (diagnostic: LineDiagnostic) => void;
 }
 
 export function DetailInspector({
@@ -67,6 +71,7 @@ export function DetailInspector({
   comments,
   isScheduleOfActivitiesView = false,
   allSections = [],
+  onNavigateDiagnostic,
 }: DetailInspectorProps) {
   const sectionValidationIssues = validationIssues.filter((issue) => issue.sectionId === selectedSectionId);
   const draftFindings = sectionDraft?.validationFindings ?? [];
@@ -99,6 +104,21 @@ export function DetailInspector({
     sectionDraft ?? undefined,
     validationIssues,
   );
+  const lineDiagnostics =
+    selectedSectionId && sectionDraft
+      ? buildLineDiagnostics({
+          sectionId: selectedSectionId,
+          content: resolveSectionEditorContent(sectionDraft),
+          draft: sectionDraft,
+          validationIssues,
+        })
+      : selectedSectionId
+        ? buildLineDiagnostics({
+            sectionId: selectedSectionId,
+            content: '',
+            validationIssues,
+          })
+        : [];
   const dependencyReferences = getSectionDependencyReferences(
     selectedSectionId,
     getProtocolDocument(),
@@ -163,6 +183,8 @@ export function DetailInspector({
             <SectionIdeValidationPanel
               summary={validationSummary}
               dependencyReferences={dependencyReferences}
+              lineDiagnostics={lineDiagnostics}
+              onNavigateDiagnostic={onNavigateDiagnostic}
             />
             <ValidationTab
               issues={sectionValidationIssues}

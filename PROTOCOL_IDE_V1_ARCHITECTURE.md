@@ -30,7 +30,7 @@ The goal is not a rewrite. Import, autosave, section validation agents, SoA conf
 2. **Structure over appearance** — Toolbar exposes lists, tables, links, and asset references; not fonts or colors.
 3. **Validation is ambient** — The validation sidebar and gutter reflect current section state without requiring a manual run first.
 4. **Git-friendly assets** — Figures are referenced by token (`[Figure: …]`), not embedded binary in narrative HTML.
-5. **Preview before bulk change** — Find/replace across the protocol previews diffs; apply is deferred to v2.
+5. **Preview before bulk change** — Find/replace previews diffs; **apply + undo implemented in v2** ([PROTOCOL_IDE_V2_ARCHITECTURE.md](./PROTOCOL_IDE_V2_ARCHITECTURE.md)).
 6. **Read-only awareness** — Dependency references show where clinical entities are used; no auto-navigation in v1.
 
 ---
@@ -116,7 +116,7 @@ v1 is **read-only** — no click-to-navigate from the panel.
 | Module | Responsibility |
 |--------|------------------|
 | `protocolSearch.ts` | `searchProtocolContent()` — section-scoped or protocol-wide regex search over drafts + fields |
-| `findReplace.ts` | `previewFindReplace()` — non-mutating replacement preview; `applyFindReplace()` disabled in v1 |
+| `findReplace.ts` | `previewFindReplace()` — non-mutating preview; apply/undo in v2 via `replaceTransaction.ts` |
 
 **UI:** `ProtocolSearchDialog` groups results by section; selecting a result sets `selectedSectionId` and `highlightQuery` for in-editor highlighting.
 
@@ -139,26 +139,22 @@ interface ProtocolAssetReference {
 }
 ```
 
-Insert action writes `[Figure: {caption}]` into narrative text. Future rendering may resolve `storageLocation` to thumbnails or versioned assets.
+Insert action writes `[Figure: {caption}](asset:{id})` into narrative text. Persisted assets live in `protocolAssetRegistry.ts` (v2).
 
 ---
 
-## 9. Future IntelliSense roadmap (v2+)
+## 9. v2 capabilities (see PROTOCOL_IDE_V2_ARCHITECTURE.md)
 
-| Phase | Capability |
-|-------|------------|
-| v1 (now) | `getTerminologySuggestions()` hook; terminology service; gutter terminology kind |
-| v2 | Inline suggestion popup on typing; tab to accept preferred term |
-| v2 | Terminology warnings in gutter with line precision |
-| v3 | Entity-aware completions (objectives, endpoints) from dependency graph |
-| v3 | AI-assisted rewrite with controlled terminology enforcement |
+Implemented in v2: line diagnostics, IntelliSense popup, transactional replace/undo, asset registry, figure placeholder cards.
+
+Remaining for v3+: entity-aware completions from the dependency graph, Git amendment diff, collaborative cursors.
 
 ---
 
-## 10. Known limitations (v1)
+## 10. Known limitations (v1 baseline)
 
-- Find/replace **apply** is preview-only across the protocol.
-- Gutter line numbers are optional and off by default; indicators are summary-level, not AST-precise.
+- Find/replace **apply** moved to v2 (`replaceTransaction.ts`).
+- Gutter line precision moved to v2 (`lineDiagnostics.ts`).
 - Undo/redo rely on browser `document.execCommand` for contentEditable.
 - Ctrl/Cmd+F opens Protocol Search (find), not the separate FindReplacePanel.
 - Export action removed from the old quick-actions palette (can be restored in Protocol Search v2).

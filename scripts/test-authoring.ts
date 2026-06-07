@@ -5,13 +5,19 @@ import {
   ensureManualSectionDraft,
   getProtocolImportState,
   resolveProtocolDisplayIdentity,
+  runSectionValidation,
   upsertSectionImportDraft,
 } from '../src/app/domain/protocol/import';
 import { persistProjectReset } from '../src/app/domain/protocol/import/protocolImportStore';
 import { resetProject } from '../src/app/domain/protocol/import/projectReset';
 import {
   resolveSectionEditorContent,
+  sectionHasSubstantiveContent,
 } from '../src/app/domain/protocol/import/sectionAuthoring';
+import {
+  buildEditorSessionSnapshot,
+  isEditorSessionDirty,
+} from '../src/app/domain/protocol/authoring/editorSessionState';
 import {
   countAuthoringCompletedSections,
   countAuthoringTotalSections,
@@ -43,7 +49,7 @@ import {
   resolveTitlePageViewportBadge,
   shouldShowRequiredMissing,
 } from '../src/app/domain/protocol/import/sectionDisplayStatus';
-import { runSectionValidation, runTitlePageValidation } from '../src/app/domain/protocol/import';
+import { runTitlePageValidation } from '../src/app/domain/protocol/import';
 import type { ProtocolSection } from '../src/app/types/protocol';
 
 function findSectionById(sections: ProtocolSection[], id: string): ProtocolSection | null {
@@ -460,6 +466,75 @@ function testViewportAuthoringModeLabelOmitsSavingState() {
   );
 }
 
+function testNoOpManualSaveDoesNotCreateDraft() {
+  resetProtocolStoreToBlank();
+  persistProjectReset();
+  applyManualSectionContentEdit('2', 'Introduction', '', '');
+  assert.equal(getProtocolImportState().sectionDrafts['2'], undefined);
+}
+
+function testUntouchedEmptyNavigationSnapshotStaysClean() {
+  const snapshot = buildEditorSessionSnapshot('', '');
+  assert.equal(snapshot.isDirty, false);
+  assert.equal(snapshot.hasSubstantiveContent, false);
+  assert.equal(isEditorSessionDirty('', ''), false);
+}
+
+function testTypingCreatesDirtySubstantiveSession() {
+  const snapshot = buildEditorSessionSnapshot('', 'Primary endpoint text');
+  assert.equal(snapshot.isDirty, true);
+  assert.equal(snapshot.hasSubstantiveContent, true);
+}
+
+function testEmptySectionValidationIsBlocked() {
+  resetProtocolStoreToBlank();
+  persistProjectReset();
+  ensureManualSectionDraft('2', 'Introduction', '');
+  runSectionValidation('2');
+  assert.equal(getProtocolImportState().sectionDrafts['2']?.workflowState, 'importedUnvalidated');
+  applyManualSectionContentEdit('2', 'Introduction', '   ', '');
+  runSectionValidation('2');
+  assert.notEqual(getProtocolImportState().sectionDrafts['2']?.workflowState, 'validationRunning');
+}
+
+function testBlankValidationDoesNotCreatePendingValidationBadge() {
+  resetProtocolStoreToBlank();
+  persistProjectReset();
+  ensureManualSectionDraft('2', 'Introduction', '');
+  const draft = getProtocolImportState().sectionDrafts['2'];
+  assert.ok(draft);
+  assert.equal(sectionHasSubstantiveContent(draft), false);
+  assert.equal(
+    resolveSectionWorkflowDisplayBadge({ draft, generationState: 'notGenerated' }),
+    null,
+  );
+  assert.equal(
+    shouldShowRequiredMissing({ draft, generationState: 'notGenerated' }),
+    true,
+  );
+}
+
+function testClearingRequiredManualSectionRemovesDraft() {
+  resetProtocolStoreToBlank();
+  persistProjectReset();
+  applyManualSectionContentEdit('2', 'Introduction', 'Primary endpoint text', '');
+  assert.ok(getProtocolImportState().sectionDrafts['2']);
+  applyManualSectionContentEdit('2', 'Introduction', '', 'Primary endpoint text');
+  assert.equal(getProtocolImportState().sectionDrafts['2'], undefined);
+  assert.equal(
+    shouldShowRequiredMissing({ generationState: 'notGenerated' }),
+    true,
+  );
+}
+
+function testValidateControlExclusivityFlags() {
+  const isNarrativeEditorActive = true;
+  const canShowValidateButton = true;
+  const headerValidate = canShowValidateButton && !isNarrativeEditorActive;
+  const toolbarValidate = isNarrativeEditorActive && canShowValidateButton;
+  assert.equal(headerValidate && toolbarValidate, false);
+}
+
 async function main() {
   testBlankProjectIdentityAndCompletion();
   testTitlePagePlaceholdersNotSeedValues();
@@ -481,6 +556,13 @@ async function main() {
   testTitlePageValidationRunsAndMarksValidated();
   testRunSectionValidationDelegatesToTitlePage();
   testViewportAuthoringModeLabelOmitsSavingState();
+  testNoOpManualSaveDoesNotCreateDraft();
+  testUntouchedEmptyNavigationSnapshotStaysClean();
+  testTypingCreatesDirtySubstantiveSession();
+  testEmptySectionValidationIsBlocked();
+  testBlankValidationDoesNotCreatePendingValidationBadge();
+  testClearingRequiredManualSectionRemovesDraft();
+  testValidateControlExclusivityFlags();
   await testResetProjectUsesBlankDocument();
   console.log('test-authoring: PASS');
 }

@@ -85,6 +85,16 @@ export interface ValidationAttemptRecord {
   provider?: SectionGenerationProvider | 'local-deterministic';
 }
 
+export interface TerminologyAcceptanceRecord {
+  acceptedAt: string;
+  acceptedTerm: string;
+  preferredTerm: string;
+  termCode?: string;
+  codelistName: string;
+  codelistId?: string;
+  originalToken: string;
+}
+
 export interface ValidationProposalSnapshot {
   validatedTargetText?: string;
   validationChanges?: ValidationChange[];
@@ -361,6 +371,8 @@ export interface GeneratedSectionDraft {
   validationHistory?: ValidationAttemptRecord[];
   /** Consistency Agent — downstream impact records when study facts change elsewhere. */
   consistencyImpacts?: ConsistencyImpactRecord[];
+  /** Terminology IntelliSense acceptances recorded during authoring. */
+  terminologyAcceptanceLog?: TerminologyAcceptanceRecord[];
   /** Workflow state before Consistency Agent marked this section out of sync. */
   priorWorkflowState?: ProtocolSectionWorkflowState;
 }

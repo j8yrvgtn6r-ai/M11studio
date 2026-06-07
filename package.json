@@ -15,6 +15,7 @@
     "test:authoring": "npx vite-node scripts/test-authoring.ts",
     "test:rich-text-editor": "npx vite-node scripts/test-rich-text-editor.ts",
     "test:protocol-ide-v1": "npx vite-node scripts/test-protocol-ide-v1.ts",
+    "test:protocol-ide-v2": "npx vite-node scripts/test-protocol-ide-v2.ts",
     "test:soa-knowledge": "npx vite-node scripts/test-soa-knowledge.ts",
     "test:soa-agent": "npx vite-node scripts/test-soa-agent.ts",
     "test:soa-enrichment": "npx vite-node scripts/test-soa-enrichment.ts",

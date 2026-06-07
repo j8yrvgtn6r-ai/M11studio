@@ -32,13 +32,35 @@ export function stripHtmlToPlainText(html: string): string {
     .trim();
 }
 
+const FIGURE_REFERENCE_PATTERN = /\[Figure:[^\]]+\](?:\(asset:[^)]+\))?/;
+
+/** True when editor content includes real authored text or a figure reference token. */
+export function hasSubstantiveEditorContent(content: string | undefined | null): boolean {
+  if (!content) {
+    return false;
+  }
+  const normalized = normalizeStoredRichText(content);
+  if (FIGURE_REFERENCE_PATTERN.test(normalized)) {
+    return true;
+  }
+  const plain = stripHtmlToPlainText(normalized);
+  if (!plain) {
+    return false;
+  }
+  const condensed = plain.replace(/\s+/g, ' ').trim();
+  if (!condensed) {
+    return false;
+  }
+  return /[A-Za-z0-9][A-Za-z0-9\-_/.]*/.test(condensed);
+}
+
 export function hasRichFormatting(html: string): boolean {
   return SEMANTIC_FORMATTING_TAG_PATTERN.test(html);
 }
 
 /** True when stored value has no meaningful content. */
 export function isEmptyRichText(value: string): boolean {
-  return stripHtmlToPlainText(value).length === 0;
+  return !hasSubstantiveEditorContent(value);
 }
 
 /**

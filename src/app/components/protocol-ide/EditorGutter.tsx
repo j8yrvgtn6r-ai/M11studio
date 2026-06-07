@@ -1,4 +1,3 @@
-import { AlertCircle, AlertTriangle, Info } from 'lucide-react';
 import type { EditorGutterIndicator } from '../../domain/protocol/authoring/editorIntegration';
 import { cn } from '../ui/utils';
 
@@ -7,16 +6,30 @@ interface EditorGutterProps {
   indicators?: EditorGutterIndicator[];
   showLineNumbers?: boolean;
   className?: string;
+  onIndicatorClick?: (indicator: EditorGutterIndicator) => void;
 }
+
+const severityMarkerClass: Record<EditorGutterIndicator['severity'], string> = {
+  error: 'bg-red-500',
+  warning: 'bg-amber-500',
+  info: 'bg-sky-500',
+};
 
 export function EditorGutter({
   lineCount,
   indicators = [],
-  showLineNumbers = false,
+  showLineNumbers = true,
   className,
+  onIndicatorClick,
 }: EditorGutterProps) {
   const rows = Math.max(lineCount, 1);
-  const indicatorByLine = new Map(indicators.map((entry) => [entry.lineNumber, entry]));
+  const indicatorByLine = new Map<number, EditorGutterIndicator>();
+  for (const indicator of indicators) {
+    const existing = indicatorByLine.get(indicator.lineNumber);
+    if (!existing || rank(indicator.severity) > rank(existing.severity)) {
+      indicatorByLine.set(indicator.lineNumber, indicator);
+    }
+  }
 
   return (
     <div
@@ -37,26 +50,37 @@ export function EditorGutter({
             data-testid={`editor-gutter-line-${lineNumber}`}
           >
             {showLineNumbers ? (
-              <span className="w-4 text-right tabular-nums">{lineNumber}</span>
+              <span className="w-5 text-right tabular-nums">{lineNumber}</span>
             ) : (
-              <span className="w-4" />
+              <span className="w-5" />
             )}
             {indicator ? (
-              <span data-testid={`editor-gutter-indicator-${indicator.kind}`}>
-                {indicator.severity === 'error' ? (
-                  <AlertCircle className="h-3 w-3 text-red-500" />
-                ) : indicator.severity === 'warning' ? (
-                  <AlertTriangle className="h-3 w-3 text-amber-500" />
-                ) : (
-                  <Info className="h-3 w-3 text-sky-500" />
-                )}
-              </span>
+              <button
+                type="button"
+                className="inline-flex items-center"
+                data-testid={`editor-gutter-indicator-${indicator.kind}`}
+                onClick={() => onIndicatorClick?.(indicator)}
+                title={indicator.message}
+              >
+                <span className={cn('h-2 w-2 rounded-full', severityMarkerClass[indicator.severity])} />
+              </button>
             ) : null}
           </div>
         );
       })}
     </div>
   );
+}
+
+function rank(severity: EditorGutterIndicator['severity']): number {
+  switch (severity) {
+    case 'error':
+      return 3;
+    case 'warning':
+      return 2;
+    default:
+      return 1;
+  }
 }
 
 export function countEditorLines(content: string): number {

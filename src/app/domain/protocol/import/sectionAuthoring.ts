@@ -1,7 +1,16 @@
 import { updateSectionGenerationState } from '../build/protocolBuildConsoleStore';
-import { normalizeEditorOutput, normalizeStoredRichText } from '../authoring/richTextContent';
+import {
+  hasSubstantiveEditorContent,
+  normalizeEditorOutput,
+  normalizeStoredRichText,
+} from '../authoring/richTextContent';
 import type { GeneratedSectionDraft, SectionGenerationProvenance } from './types';
-import { getProtocolImportState, updateSectionImportDraft, upsertSectionImportDraft } from './protocolImportStore';
+import {
+  clearSectionImportDraft,
+  getProtocolImportState,
+  updateSectionImportDraft,
+  upsertSectionImportDraft,
+} from './protocolImportStore';
 import { flagSoARefreshNeededForNarrativeSection } from '../../soa-knowledge/soaNarrativeSyncStore';
 import { getSoAFieldsImpactedByNarrativeSection } from '../../soa-knowledge/soaKnowledgeNarrativeSync';
 
@@ -76,6 +85,13 @@ export function resolveSectionEditorContent(draft: GeneratedSectionDraft | undef
   );
 }
 
+export function sectionHasSubstantiveContent(draft: GeneratedSectionDraft | undefined): boolean {
+  if (!draft) {
+    return false;
+  }
+  return hasSubstantiveEditorContent(resolveSectionEditorContent(draft));
+}
+
 /** Ensures a manual section draft exists for blank authoring. */
 export function ensureManualSectionDraft(
   sectionId: string,
@@ -100,13 +116,42 @@ export function applyManualSectionContentEdit(
 ): void {
   const normalizedText = normalizeEditorOutput(generatedText);
   const current = getProtocolImportState().sectionDrafts[sectionId];
+  const baselineText = normalizeEditorOutput(
+    previousText ?? (current ? resolveSectionEditorContent(current) : ''),
+  );
+
+  if (normalizedText === baselineText) {
+    return;
+  }
+
+  const substantive = hasSubstantiveEditorContent(normalizedText);
+  const baselineSubstantive = hasSubstantiveEditorContent(baselineText);
+
+  if (!substantive) {
+    if (!current) {
+      return;
+    }
+    if (current.contentOrigin === 'manual' && !current.sourceText?.trim()) {
+      clearSectionImportDraft(sectionId);
+      return;
+    }
+    updateSectionImportDraft(sectionId, {
+      generatedText: normalizedText,
+      workflowState: 'needsGeneration',
+      validationStatus: 'not-run',
+      validationFindings: [],
+      validationMessages: [],
+      validatedTargetText: undefined,
+      validationChanges: undefined,
+    });
+    return;
+  }
+
   if (!current) {
     upsertSectionImportDraft(sectionId, createManualDraft(sectionId, sectionTitle, normalizedText));
     return;
   }
 
-  const baselineText = previousText ?? resolveSectionEditorContent(current);
-  const textChanged = normalizedText !== baselineText;
   const wasValidated =
     current.workflowState === 'validated' ||
     current.state === 'validationPassed' ||
@@ -115,7 +160,7 @@ export function applyManualSectionContentEdit(
   const now = new Date().toISOString();
 
   const provenance: SectionGenerationProvenance | undefined =
-    isImported && textChanged && current.provenance
+    isImported && current.provenance
       ? {
           ...current.provenance,
           generationNotes: [
@@ -136,7 +181,7 @@ export function applyManualSectionContentEdit(
     sourceStartIndex: current.sourceStartIndex,
     provenance,
     workflowState:
-      wasValidated || isImported || current.contentOrigin === 'manual'
+      wasValidated || isImported || current.contentOrigin === 'manual' || baselineSubstantive
         ? 'importedUnvalidated'
         : 'generated',
     validatedTargetText: wasValidated ? undefined : current.validatedTargetText,

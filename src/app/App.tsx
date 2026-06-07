@@ -24,6 +24,8 @@ import { ProtocolSearchDialog } from './components/protocol-ide/ProtocolSearchDi
 import { FindReplacePanel } from './components/protocol-ide/FindReplacePanel';
 import type { ProtocolSearchMatch } from './domain/protocol/search/protocolSearch';
 import { resolveProtocolIdeShortcut } from './domain/protocol/authoring/protocolIdeShortcuts';
+import type { LineDiagnostic } from './domain/protocol/authoring/editorIntegration';
+import type { DiagnosticScrollTarget } from './domain/protocol/authoring/lineDiagnostics';
 import {
   FileText,
   Search,
@@ -74,7 +76,6 @@ import {
 import { subscribeStudyModelUpdated } from './agents';
 import {
   applyManualSectionContentEdit,
-  resolveSectionEditorContent,
 } from './domain/protocol/import/sectionAuthoring';
 import { resolveSectionGenerationState } from './domain/protocol/build/protocolBuildConsoleStore';
 import {
@@ -111,6 +112,7 @@ export default function App() {
   const [findReplaceMode, setFindReplaceMode] = useState<'find' | 'replace'>('find');
   const [highlightQuery, setHighlightQuery] = useState<string | undefined>();
   const [forceSaveSignal, setForceSaveSignal] = useState(0);
+  const [diagnosticScrollTarget, setDiagnosticScrollTarget] = useState<DiagnosticScrollTarget | null>(null);
   const [welcomeOpen, setWelcomeOpen] = useState(false);
   const [protocolValidationIssues, setProtocolValidationIssues] = useState(() => getValidationIssues());
   const [autosaveStatus, setAutosaveStatus] = useState<AutosaveStatus>('idle');
@@ -333,6 +335,19 @@ export default function App() {
   const handleSectionSelect = (sectionId: string) => {
     setSelectedSectionId(sectionId);
     setSelectedFieldId(null);
+  };
+
+  const handleNavigateDiagnostic = (diagnostic: LineDiagnostic) => {
+    if (diagnostic.sectionId !== selectedSectionId) {
+      setSelectedSectionId(diagnostic.sectionId);
+      setSelectedFieldId(null);
+    }
+    setDiagnosticScrollTarget({
+      sectionId: diagnostic.sectionId,
+      lineNumber: diagnostic.lineNumber,
+      startOffset: diagnostic.startOffset,
+      requestId: Date.now(),
+    });
   };
 
   const handleTemplateReferenceChange = (enabled: boolean) => {
@@ -674,6 +689,8 @@ export default function App() {
                     allSections={protocolSections}
                     highlightQuery={highlightQuery}
                     forceSaveSignal={forceSaveSignal}
+                    diagnosticScrollTarget={diagnosticScrollTarget}
+                    onDiagnosticScrollComplete={() => setDiagnosticScrollTarget(null)}
                     onFind={() => {
                       setFindReplaceMode('find');
                       setCommandOpen(true);
@@ -682,15 +699,13 @@ export default function App() {
                       setFindReplaceMode('replace');
                       setFindReplaceOpen(true);
                     }}
-                    onApplyManualSectionSave={(text) => {
+                    onApplyManualSectionSave={(text, previousText) => {
                       if (selectedSectionId && selectedSection) {
                         applyManualSectionContentEdit(
                           selectedSectionId,
                           selectedSection.title,
                           text,
-                          sectionImportDraft
-                            ? resolveSectionEditorContent(sectionImportDraft)
-                            : undefined,
+                          previousText,
                         );
                       }
                     }}
@@ -726,6 +741,7 @@ export default function App() {
                             comments={comments}
                             isScheduleOfActivitiesView={isScheduleOfActivities}
                             allSections={protocolSections}
+                            onNavigateDiagnostic={handleNavigateDiagnostic}
                           />
                           </div>
                         </ResizablePanel>
@@ -781,6 +797,9 @@ export default function App() {
         sectionDrafts={importState.sectionDrafts}
         currentSectionId={selectedSectionId}
         initialMode={findReplaceMode}
+        onApplied={() => {
+          setProtocolSections(getProtocolSections());
+        }}
       />
 
       <ImportProtocolDialog

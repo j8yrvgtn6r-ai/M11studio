@@ -1,7 +1,7 @@
 import type { SectionGenerationState } from '../build/protocolBuildConsoleStore';
 import type { FieldDefinition } from '../../../types/protocol';
 import type { GeneratedSectionDraft } from './types';
-import { resolveSectionEditorContent } from './sectionAuthoring';
+import { sectionHasSubstantiveContent } from './sectionAuthoring';
 import { inferWorkflowState } from './sectionWorkflowState';
 import { evaluateTitlePageCompletion } from '../authoring/titlePageAuthoring';
 
@@ -19,10 +19,7 @@ export type SectionWorkflowDisplayBadge =
   | 'Complete';
 
 export function sectionHasAuthorableContent(draft: GeneratedSectionDraft | undefined): boolean {
-  if (!draft) {
-    return false;
-  }
-  return resolveSectionEditorContent(draft).trim().length > 0;
+  return sectionHasSubstantiveContent(draft);
 }
 
 export function shouldShowRequiredMissing(options: {
@@ -42,16 +39,18 @@ export function shouldShowRequiredMissing(options: {
     return false;
   }
   const workflow = draft ? inferWorkflowState(draft) : null;
-  if (
-    workflow === 'importedUnvalidated' ||
-    workflow === 'imported' ||
-    workflow === 'validationProposed' ||
-    workflow === 'unvalidated' ||
-    workflow === 'validated' ||
-    workflow === 'reviewed' ||
-    workflow === 'generated'
-  ) {
-    return false;
+  if (sectionHasAuthorableContent(draft)) {
+    if (
+      workflow === 'importedUnvalidated' ||
+      workflow === 'imported' ||
+      workflow === 'validationProposed' ||
+      workflow === 'unvalidated' ||
+      workflow === 'validated' ||
+      workflow === 'reviewed' ||
+      workflow === 'generated'
+    ) {
+      return false;
+    }
   }
   return true;
 }
@@ -71,9 +70,10 @@ export function resolveSectionWorkflowDisplayBadge(options: {
 
   if (draft) {
     const workflow = inferWorkflowState(draft);
+    const hasContent = sectionHasAuthorableContent(draft);
     if (
       draft.contentOrigin === 'manual' &&
-      sectionHasAuthorableContent(draft) &&
+      hasContent &&
       workflow !== 'validated' &&
       workflow !== 'reviewed' &&
       draft.state !== 'approved' &&
@@ -84,7 +84,7 @@ export function resolveSectionWorkflowDisplayBadge(options: {
     switch (workflow) {
       case 'importedUnvalidated':
       case 'imported':
-        return 'Pending Validation';
+        return hasContent ? 'Pending Validation' : null;
       case 'validationProposed':
       case 'unvalidated':
         return 'Validation Proposed';
@@ -114,7 +114,7 @@ export function resolveSectionWorkflowDisplayBadge(options: {
   }
 
   if (generationState === 'importedUnvalidated' || generationState === 'imported') {
-    return 'Pending Validation';
+    return sectionHasAuthorableContent(draft) ? 'Pending Validation' : null;
   }
   if (generationState === 'validationProposed' || generationState === 'unvalidated') {
     return 'Validation Proposed';

@@ -40,12 +40,18 @@ import { RichTextEditor, RichTextReadOnlyView } from './authoring/RichTextEditor
 import { ProtocolIdeEditor } from './protocol-ide/ProtocolIdeEditor';
 import {
   buildEditorGutterIndicators,
+  buildLineDiagnostics,
   buildSectionValidationSummary,
   getSectionDependencyReferences,
 } from '../domain/protocol/authoring/editorIntegration';
+import type { DiagnosticScrollTarget } from '../domain/protocol/authoring/lineDiagnostics';
 import { getProtocolDocument } from '../domain/protocol';
 import type { ValidationIssue } from '../types/protocol';
 import { resolveSectionEditorContent } from '../domain/protocol/import/sectionAuthoring';
+import {
+  isEditorSessionDirty,
+} from '../domain/protocol/authoring/editorSessionState';
+import { hasSubstantiveEditorContent } from '../domain/protocol/authoring/richTextContent';
 import {
   evaluateTitlePageCompletion,
   isTitlePageFieldValueComplete,
@@ -66,7 +72,7 @@ interface DocumentViewportProps {
   importDraft?: GeneratedSectionDraft;
   onImportDraftTextChange?: (text: string) => void;
   onManualSectionEdit?: (text: string) => void;
-  onApplyManualSectionSave?: (text: string) => void;
+  onApplyManualSectionSave?: (text: string, previousText: string) => void;
   sectionGenerationState?: SectionGenerationState;
   buildActive?: boolean;
   autosaveStatus?: AutosaveStatus;
@@ -78,6 +84,8 @@ interface DocumentViewportProps {
   validationIssues?: ValidationIssue[];
   allSections?: ProtocolSection[];
   forceSaveSignal?: number;
+  diagnosticScrollTarget?: DiagnosticScrollTarget | null;
+  onDiagnosticScrollComplete?: () => void;
 }
 
 type TitlePageMode = 'viewing' | 'editing';
@@ -104,6 +112,8 @@ export function DocumentViewport({
   validationIssues = [],
   allSections = [],
   forceSaveSignal = 0,
+  diagnosticScrollTarget = null,
+  onDiagnosticScrollComplete,
 }: DocumentViewportProps) {
   const [regenerating, setRegenerating] = useState(false);
   const [editorSession, setEditorSession] = useState<NarrativeEditorSession>('viewing');
@@ -114,6 +124,8 @@ export function DocumentViewport({
   const persistTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const editorSessionRef = useRef(editorSession);
   const editorBufferRef = useRef(editorBuffer);
+  const editorBaselineRef = useRef(editorBaseline);
+  const [validationGateMessage, setValidationGateMessage] = useState<string | null>(null);
   const { revision: importRevision } = useProtocolImport();
   const generationContextReady = isPriorityGenerationContextReady();
   void importRevision;
@@ -126,23 +138,35 @@ export function DocumentViewport({
     editorBufferRef.current = editorBuffer;
   }, [editorBuffer]);
 
+  useEffect(() => {
+    editorBaselineRef.current = editorBaseline;
+  }, [editorBaseline]);
+
   const flushPendingPersist = useCallback(() => {
     if (persistTimer.current) {
       clearTimeout(persistTimer.current);
       persistTimer.current = null;
     }
-    if (editorSessionRef.current === 'editing') {
-      onApplyManualSectionSave?.(editorBufferRef.current);
+    if (
+      editorSessionRef.current === 'editing' &&
+      isEditorSessionDirty(editorBaselineRef.current, editorBufferRef.current)
+    ) {
+      onApplyManualSectionSave?.(editorBufferRef.current, editorBaselineRef.current);
     }
   }, [onApplyManualSectionSave]);
 
   const queueEditorPersist = useCallback(
     (text: string) => {
+      if (!isEditorSessionDirty(editorBaselineRef.current, text)) {
+        return;
+      }
       if (persistTimer.current) {
         clearTimeout(persistTimer.current);
       }
       persistTimer.current = setTimeout(() => {
-        onApplyManualSectionSave?.(text);
+        if (isEditorSessionDirty(editorBaselineRef.current, text)) {
+          onApplyManualSectionSave?.(text, editorBaselineRef.current);
+        }
         persistTimer.current = null;
       }, 400);
     },
@@ -150,7 +174,7 @@ export function DocumentViewport({
   );
 
   const sectionText = resolveSectionEditorContent(importDraft);
-  const hasSectionContent = Boolean(sectionText.trim());
+  const hasSectionContent = hasSubstantiveEditorContent(sectionText);
   const isTitlePageSection = section?.id === TITLE_PAGE_SECTION_ID;
   const titlePageCompletion = useMemo(
     () => (isTitlePageSection ? evaluateTitlePageCompletion(fields) : null),
@@ -168,8 +192,10 @@ export function DocumentViewport({
     setEditorBuffer(text);
     setEditorBaseline(text);
     editorBufferRef.current = text;
+    editorBaselineRef.current = text;
     setTitlePageMode('editing');
     setTitlePageBaseline({});
+    setValidationGateMessage(null);
     if (persistTimer.current) {
       clearTimeout(persistTimer.current);
       persistTimer.current = null;
@@ -260,7 +286,8 @@ export function DocumentViewport({
     workflowState === 'importedUnvalidated' || workflowState === 'imported';
   const isGeneratedSection = importDraft?.contentOrigin === 'generated' || workflowState === 'generated';
   const isUnvalidatedSection = workflowState === 'unvalidated' || isValidationProposedSection;
-  const isManualDraftSection = importDraft?.contentOrigin === 'manual' && hasSectionContent;
+  const isManualDraftSection =
+    importDraft?.contentOrigin === 'manual' && hasSectionContent;
   const titlePageReadyForValidation =
     isTitlePageSection &&
     Boolean(titlePageCompletion?.allRequiredComplete) &&
@@ -268,14 +295,27 @@ export function DocumentViewport({
     !isValidationProposedSection &&
     workflowState !== 'validated' &&
     workflowState !== 'reviewed';
+  const canValidateSectionContent =
+    hasSectionContent || (isTitlePageSection && Boolean(titlePageCompletion?.allRequiredComplete));
   const canShowValidateButton =
-    titlePageReadyForValidation ||
-    Boolean(
-      importDraft &&
-        !isValidationRunning &&
-        !isValidationProposedSection &&
-        (isImportedUnvalidatedSection || isGeneratedSection || isManualDraftSection),
-    );
+    (titlePageReadyForValidation ||
+      Boolean(
+        importDraft &&
+          canValidateSectionContent &&
+          !isValidationRunning &&
+          !isValidationProposedSection &&
+          (isImportedUnvalidatedSection || isGeneratedSection || isManualDraftSection),
+      )) &&
+    canValidateSectionContent;
+
+  const handleValidateSection = () => {
+    if (!canShowValidateButton) {
+      setValidationGateMessage('Add section content before validation.');
+      return;
+    }
+    setValidationGateMessage(null);
+    runSectionValidation(section.id);
+  };
   const isOutOfSyncSection =
     sectionGenerationState === 'outOfSync' ||
     workflowState === 'outOfSync' ||
@@ -295,7 +335,11 @@ export function DocumentViewport({
       clearTimeout(persistTimer.current);
       persistTimer.current = null;
     }
-    onApplyManualSectionSave?.(editorBufferRef.current);
+    if (isEditorSessionDirty(editorBaselineRef.current, editorBufferRef.current)) {
+      onApplyManualSectionSave?.(editorBufferRef.current, editorBaselineRef.current);
+      setEditorBaseline(editorBufferRef.current);
+      editorBaselineRef.current = editorBufferRef.current;
+    }
     setEditorSession('viewing');
     editorSessionRef.current = 'viewing';
   };
@@ -318,10 +362,15 @@ export function DocumentViewport({
   };
 
   const cancelEditing = () => {
+    if (persistTimer.current) {
+      clearTimeout(persistTimer.current);
+      persistTimer.current = null;
+    }
     setEditorBuffer(editorBaseline);
     editorBufferRef.current = editorBaseline;
     setEditorSession('viewing');
     editorSessionRef.current = 'viewing';
+    setValidationGateMessage(null);
   };
 
   const authoringModeLabel = resolveViewportAuthoringModeLabel({
@@ -347,8 +396,18 @@ export function DocumentViewport({
     importDraft,
     validationIssues,
   );
+  const lineDiagnostics = buildLineDiagnostics({
+    sectionId: section.id,
+    content: editorBuffer,
+    draft: importDraft,
+    validationIssues,
+  });
   const dependencyReferences = getSectionDependencyReferences(section.id, getProtocolDocument(), allSections);
-  const gutterIndicators = buildEditorGutterIndicators(editorBuffer, validationSummary);
+  const gutterIndicators = buildEditorGutterIndicators(editorBuffer, validationSummary, {
+    sectionId: section.id,
+    draft: importDraft,
+    validationIssues,
+  });
   const narrativeSectionState = editorSession === 'editing' ? authoringModeLabel : 'Viewing';
 
   return (
@@ -428,7 +487,7 @@ export function DocumentViewport({
             {(importDraft || titlePageReadyForValidation) ? (
               <>
                 {canShowValidateButton && !isNarrativeEditorActive ? (
-                  <Button size="sm" data-testid="viewport-validate-section" onClick={() => runSectionValidation(section.id)}>
+                  <Button size="sm" data-testid="viewport-validate-section" onClick={handleValidateSection}>
                     Validate
                   </Button>
                 ) : isValidationRunning ? (
@@ -506,19 +565,25 @@ export function DocumentViewport({
                 validationSummary={validationSummary}
                 dependencyCount={dependencyReferences.length}
                 gutterIndicators={gutterIndicators}
+                lineDiagnostics={lineDiagnostics}
+                sectionId={section.id}
                 highlightQuery={highlightQuery}
-                onValidate={
-                  canShowValidateButton ? () => runSectionValidation(section.id) : undefined
-                }
+                onValidate={canShowValidateButton ? handleValidateSection : undefined}
                 validateDisabled={!canShowValidateButton}
                 validateRunning={isValidationRunning}
                 onFind={onFind}
                 onReplace={onReplace}
-                onForceSave={onForceSave}
+                diagnosticScrollTarget={diagnosticScrollTarget}
+                onDiagnosticScrollComplete={onDiagnosticScrollComplete}
                 data-testid={
                   showBlankAuthoring ? 'viewport-blank-authoring-editor' : 'viewport-import-generated-text'
                 }
               />
+              {validationGateMessage ? (
+                <p className="text-xs text-amber-700 dark:text-amber-300" data-testid="validation-gate-message">
+                  {validationGateMessage}
+                </p>
+              ) : null}
               {showBlankAuthoring ? (
                 <Button
                   size="sm"

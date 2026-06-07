@@ -3,6 +3,8 @@ import {
   endProtocolBuildSession,
   resetImportBuildConsoleWorkspace,
 } from '../build/protocolBuildConsoleStore';
+import { clearImportedAssets, clearAssets } from '../assets/protocolAssetRegistry';
+import { clearReplaceTransactions } from '../search/replaceTransaction';
 import { resetProtocolStoreToBlank } from '../store/protocolStore';
 import { clearProtocolVersioningState } from './protocolVersioning';
 import { clearAllProtocolImportStorage } from './protocolImportStorage';
@@ -22,6 +24,8 @@ export function resetImportWorkspace(): void {
   clearSoAProposal();
   clearSoAEnrichmentProposal();
   clearSoANarrativeSyncState();
+  clearReplaceTransactions();
+  clearImportedAssets();
   persistImportWorkspaceReset();
   clearProtocolBuildEvents();
   resetImportBuildConsoleWorkspace();
@@ -31,6 +35,8 @@ export function resetImportWorkspace(): void {
 /** Clears all project artifacts and returns M11 Studio to a blank workspace. */
 export async function resetProject(): Promise<void> {
   resetImportWorkspace();
+  clearAssets();
+  clearReplaceTransactions();
   resetProtocolStoreToBlank();
   clearProtocolVersioningState(getProtocolImportState().protocolId ?? undefined);
   await clearAllProtocolImportStorage();

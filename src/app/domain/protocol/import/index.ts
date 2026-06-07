@@ -91,6 +91,7 @@ export {
   applyValidationNoChangesRequired,
   isValidationTextUnchanged,
   normalizeValidationText,
+  clearSectionImportDraft,
   updateSectionImportDraft,
   upsertSectionImportDraft,
   applyConsistencyAgentResults,
@@ -106,6 +107,7 @@ export {
   applyManualSectionContentEdit,
   ensureManualSectionDraft,
   resolveSectionEditorContent,
+  sectionHasSubstantiveContent,
 } from './sectionAuthoring';
 export {
   resolveSectionWorkflowDisplayBadge,

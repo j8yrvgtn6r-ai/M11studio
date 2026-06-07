@@ -1,8 +1,16 @@
 import { useMemo, useState } from 'react';
 import type { GeneratedSectionDraft } from '../../domain/protocol/import/types';
 import type { ProtocolSection } from '../../types/protocol';
-import { previewFindReplace } from '../../domain/protocol/search/findReplace';
+import {
+  applyReplaceTransaction,
+  buildReplacePreviewWithMatches,
+  getLastAppliedReplaceTransaction,
+  groupMatchesBySection,
+  undoLastReplaceTransaction,
+  type ReplaceTransactionMatch,
+} from '../../domain/protocol/search/replaceTransaction';
 import { Button } from '../ui/button';
+import { Checkbox } from '../ui/checkbox';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
 import { Switch } from '../ui/switch';
@@ -21,6 +29,7 @@ export interface FindReplacePanelProps {
   sectionDrafts: Record<string, GeneratedSectionDraft>;
   currentSectionId: string | null;
   initialMode?: 'find' | 'replace';
+  onApplied?: () => void;
 }
 
 export function FindReplacePanel({
@@ -30,37 +39,76 @@ export function FindReplacePanel({
   sectionDrafts,
   currentSectionId,
   initialMode = 'replace',
+  onApplied,
 }: FindReplacePanelProps) {
   const [find, setFind] = useState('');
   const [replace, setReplace] = useState('');
   const [scopeAll, setScopeAll] = useState(false);
   const [caseSensitive, setCaseSensitive] = useState(false);
   const [wholeWord, setWholeWord] = useState(false);
+  const [included, setIncluded] = useState<Record<string, boolean>>({});
+  const [status, setStatus] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
 
-  const preview = useMemo(
-    () =>
-      previewFindReplace(
-        {
-          find,
-          replace,
-          scope: scopeAll ? 'protocol' : 'section',
-          scopeSectionId: currentSectionId,
-          caseSensitive,
-          wholeWord,
-        },
-        sections,
-        sectionDrafts,
-      ),
-    [find, replace, scopeAll, currentSectionId, caseSensitive, wholeWord, sections, sectionDrafts],
+  const options = useMemo(
+    () => ({
+      find,
+      replace,
+      scope: scopeAll ? ('protocol' as const) : ('section' as const),
+      scopeSectionId: currentSectionId,
+      caseSensitive,
+      wholeWord,
+    }),
+    [find, replace, scopeAll, currentSectionId, caseSensitive, wholeWord],
   );
+
+  const matches = useMemo(
+    () => buildReplacePreviewWithMatches(options, sections, sectionDrafts),
+    [options, sections, sectionDrafts],
+  );
+
+  const grouped = useMemo(() => groupMatchesBySection(matches), [matches]);
+  const selectedCount = matches.filter((match) => included[match.id] ?? true).length;
+  const lastApplied = getLastAppliedReplaceTransaction();
+
+  const toggleMatch = (match: ReplaceTransactionMatch, checked: boolean) => {
+    setIncluded((current) => ({ ...current, [match.id]: checked }));
+  };
+
+  const handleApply = async () => {
+    if (scopeAll && selectedCount > 0) {
+      const confirmed = window.confirm(`Replace ${selectedCount} match(es) across ${grouped.size} section(s)?`);
+      if (!confirmed) {
+        return;
+      }
+    }
+    setBusy(true);
+    const selectedIds = matches.filter((match) => included[match.id] ?? true).map((match) => match.id);
+    const result = await applyReplaceTransaction(options, sections, sectionDrafts, selectedIds);
+    setBusy(false);
+    if (!result.applied) {
+      setStatus(result.reason ?? 'Replace failed.');
+      return;
+    }
+    setStatus(`Applied ${selectedIds.length} replacement(s) across ${result.transaction?.affectedSectionIds.length ?? 0} section(s).`);
+    onApplied?.();
+  };
+
+  const handleUndo = async () => {
+    setBusy(true);
+    const result = await undoLastReplaceTransaction(sections);
+    setBusy(false);
+    setStatus(result.reverted ? 'Last replace transaction undone.' : result.reason ?? 'Undo failed.');
+    onApplied?.();
+  };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg" data-testid="find-replace-panel">
+      <DialogContent className="max-w-2xl" data-testid="find-replace-panel">
         <DialogHeader>
           <DialogTitle>{initialMode === 'find' ? 'Find' : 'Find and Replace'}</DialogTitle>
           <DialogDescription>
-            Preview replacements across the protocol. Apply is disabled in Protocol IDE v1.
+            Preview replacements, choose matches, then apply as a single undoable transaction.
           </DialogDescription>
         </DialogHeader>
 
@@ -94,26 +142,44 @@ export function FindReplacePanel({
             </label>
           </div>
 
-          <div className="rounded-md border border-border max-h-48 overflow-auto" data-testid="find-replace-preview">
-            {preview.items.length === 0 ? (
+          <div className="rounded-md border border-border max-h-56 overflow-auto" data-testid="find-replace-preview">
+            {matches.length === 0 ? (
               <p className="p-3 text-xs text-muted-foreground">No preview matches.</p>
             ) : (
-              preview.items.slice(0, 20).map((item, index) => (
-                <div key={`${item.sectionId}-${index}`} className="border-b border-border px-3 py-2 text-xs last:border-0">
-                  <p className="font-medium">{item.sectionTitle} · L{item.lineNumber}</p>
-                  <p className="text-muted-foreground">{item.before} → {item.after}</p>
+              [...grouped.entries()].map(([sectionId, sectionMatches]) => (
+                <div key={sectionId} className="border-b border-border last:border-0">
+                  <div className="bg-muted/30 px-3 py-1.5 text-xs font-medium">{sectionMatches[0]?.sectionTitle ?? sectionId}</div>
+                  {sectionMatches.map((item) => (
+                    <label key={item.id} className="flex items-start gap-2 border-b border-border px-3 py-2 text-xs last:border-0">
+                      <Checkbox
+                        checked={included[item.id] ?? true}
+                        onCheckedChange={(checked) => toggleMatch(item, Boolean(checked))}
+                        data-testid={`find-replace-include-${item.id}`}
+                      />
+                      <span>
+                        <span className="font-medium">L{item.lineNumber}</span> · {item.before} → {item.after}
+                        <span className="block text-muted-foreground mt-0.5">{item.snippet}</span>
+                      </span>
+                    </label>
+                  ))}
                 </div>
               ))
             )}
           </div>
 
-          <div className="flex items-center justify-between gap-2">
-            <span className="text-xs text-muted-foreground" data-testid="find-replace-preview-count">
-              {preview.totalReplacements} replacement(s) previewed
-            </span>
-            <Button type="button" disabled data-testid="find-replace-apply-disabled">
-              Apply replacements (v2)
-            </Button>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="text-xs text-muted-foreground space-y-1">
+              <p data-testid="find-replace-preview-count">{selectedCount} of {matches.length} match(es) selected · {grouped.size} section(s)</p>
+              {status ? <p data-testid="find-replace-status">{status}</p> : null}
+            </div>
+            <div className="flex gap-2">
+              <Button type="button" variant="outline" disabled={busy || !lastApplied || Boolean(lastApplied.revertedAt)} onClick={handleUndo} data-testid="find-replace-undo">
+                Undo Last Replace
+              </Button>
+              <Button type="button" disabled={busy || selectedCount === 0 || initialMode === 'find'} onClick={handleApply} data-testid="find-replace-apply">
+                Apply Selected
+              </Button>
+            </div>
           </div>
         </div>
       </DialogContent>

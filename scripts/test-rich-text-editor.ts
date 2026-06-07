@@ -8,9 +8,14 @@ import {
 import { resolveSectionEditorContent } from '../src/app/domain/protocol/import/sectionAuthoring';
 import {
   decodeHtmlEntities,
+  hasSubstantiveEditorContent,
   normalizeEditorOutput,
   normalizeStoredRichText,
 } from '../src/app/domain/protocol/authoring/richTextContent';
+import {
+  buildEditorSessionSnapshot,
+  isEditorSessionDirty,
+} from '../src/app/domain/protocol/authoring/editorSessionState';
 import { persistProjectReset } from '../src/app/domain/protocol/import/protocolImportStore';
 import { resetProtocolStoreToBlank } from '../src/app/domain/protocol/store/protocolStore';
 
@@ -78,8 +83,27 @@ function testEditorSessionInitRules() {
   assert.equal(resolveInitialSession({ isBlank: true, hasContent: false }), 'editing');
   assert.equal(resolveInitialSession({ isBlank: false, hasContent: false }), 'editing');
   assert.equal(resolveInitialSession({ isBlank: false, hasContent: true }), 'viewing');
-  // Autosave creates content but must not auto-exit editing; session only resets on navigation/Done.
   assert.equal(resolveInitialSession({ isBlank: false, hasContent: true }), 'viewing');
+}
+
+function testHasSubstantiveEditorContent() {
+  assert.equal(hasSubstantiveEditorContent(''), false);
+  assert.equal(hasSubstantiveEditorContent(' '), false);
+  assert.equal(hasSubstantiveEditorContent('<br>'), false);
+  assert.equal(hasSubstantiveEditorContent('<p><br></p>'), false);
+  assert.equal(hasSubstantiveEditorContent('&nbsp;'), false);
+  assert.equal(hasSubstantiveEditorContent('Primary endpoint is overall survival.'), true);
+  assert.equal(hasSubstantiveEditorContent('[Figure: Study Design Overview]'), true);
+}
+
+function testEditorSessionDirtyState() {
+  assert.equal(isEditorSessionDirty('', ''), false);
+  assert.equal(isEditorSessionDirty('', ' '), false);
+  assert.equal(isEditorSessionDirty('', 'Draft text'), true);
+  const snapshot = buildEditorSessionSnapshot('', 'Draft text');
+  assert.equal(snapshot.isDirty, true);
+  assert.equal(snapshot.hasSubstantiveContent, true);
+  assert.equal(snapshot.initialHasSubstantiveContent, false);
 }
 
 async function main() {
@@ -91,6 +115,8 @@ async function main() {
   testManualSaveNormalizesContent();
   testRepeatedSaveDoesNotCorruptPlainText();
   testEditorSessionInitRules();
+  testHasSubstantiveEditorContent();
+  testEditorSessionDirtyState();
   console.log('test-rich-text-editor: PASS');
 }
 

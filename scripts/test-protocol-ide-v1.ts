@@ -130,8 +130,11 @@ function testImageReferenceTokenModel() {
   assert.ok(reference.createdAt);
 
   const token = formatImageReferenceToken(reference);
-  assert.equal(token, '[Figure: Study Design Overview]');
-  assert.equal(parseImageReferenceToken(token), 'Study Design Overview');
+  assert.equal(token, `[Figure: Study Design Overview](asset:${reference.id})`);
+  const parsed = parseImageReferenceToken(token);
+  assert.ok(parsed);
+  assert.equal(parsed.caption, 'Study Design Overview');
+  assert.equal(parsed.assetId, reference.id);
   assert.doesNotMatch(token, /data:image/);
 }
 
