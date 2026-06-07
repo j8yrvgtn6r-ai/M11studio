@@ -8,10 +8,15 @@ import { appendProtocolBuildEvent } from '../domain/protocol/build/protocolBuild
 import {
   getProtocolImportState,
   applyConsistencyAgentResults,
+  getImportedProtocolSource,
+  getProtocolKnowledgeModel,
 } from '../domain/protocol/import/protocolImportStore';
 import type { GeneratedSectionDraft } from '../domain/protocol/import/types';
 import { getStudyModel } from '../domain/study-model/studyModelStore';
-import { getProtocolKnowledgeModel } from '../domain/protocol/import/protocolImportStore';
+import { getCanonicalDocumentByUploadId } from '../domain/document-ingestion';
+import {
+  createSoANarrativeSyncProposalFromSoAAcceptance,
+} from '../domain/soa-knowledge/soaNarrativeSyncStore';
 import {
   applySoAConfigurationPatchSafely,
 } from '../domain/soa-knowledge/soaConfigurationPatch';
@@ -49,6 +54,10 @@ function buildSoAAgentInput(options: {
   changedSectionIds?: string[];
 }): SoAAgentInput {
   const drafts = options.drafts ?? getProtocolImportState().sectionDrafts;
+  const importedSource = getImportedProtocolSource();
+  const canonicalDocument = importedSource
+    ? getCanonicalDocumentByUploadId(importedSource.uploadId)
+    : null;
   return {
     protocolSections: sectionsFromImportDrafts(drafts),
     soaKnowledgeModel: getSoAKnowledge(),
@@ -56,6 +65,8 @@ function buildSoAAgentInput(options: {
     coreStudyModel: undefined,
     studyModel: getStudyModel(),
     existingSoAConfiguration: getProtocolDocument(),
+    canonicalDocument,
+    extractedTables: importedSource?.tables ?? [],
     trigger: options.trigger,
     changedSectionIds: options.changedSectionIds,
   };
@@ -146,6 +157,17 @@ export function acceptCurrentSoAProposal(): {
 
   acceptSoAProposal();
   const markedSections = markImpactedNarrativeSections(proposal);
+  const narrativeSyncProposal = createSoANarrativeSyncProposalFromSoAAcceptance({
+    relatedProposalId: proposal.id,
+    changeKind: 'scheduleRuleChanged',
+  });
+  if (narrativeSyncProposal) {
+    appendProtocolBuildEvent({
+      type: 'info',
+      message: 'Narrative sync proposal created',
+      metadata: { impactedSections: narrativeSyncProposal.impactedSectionIds.length },
+    });
+  }
 
   appendProtocolBuildEvent({
     type: 'success',

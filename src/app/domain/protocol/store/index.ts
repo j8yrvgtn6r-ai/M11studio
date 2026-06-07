@@ -2,6 +2,11 @@ export {
   getProtocolDocument,
   getProtocolSnapshot,
   resetProtocolStore,
+  resetProtocolStoreToBlank,
+  isBlankProjectMode,
+  clearBlankProjectMode,
+  subscribeProtocolDocumentPersist,
+  getProtocolDocumentLastPersistedAt,
   subscribe,
 } from './protocolStore';
 

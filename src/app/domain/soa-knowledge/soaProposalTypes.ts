@@ -1,5 +1,10 @@
 import type { SoAConfigurationPatch } from './soaConfigurationPatch';
 import type { SoAKnowledgePatch } from './soaKnowledgeTypes';
+import type {
+  SoAMatrixProposalPreview,
+  SoAProposalSourceSummary,
+  SoATableExtractionResult,
+} from './soaTableExtractionTypes';
 
 export type SoAAgentTrigger =
   | 'import'
@@ -37,6 +42,10 @@ export interface SoAProposal {
     conditions: number;
     footnotes: number;
   };
+  /** SoA Agent v3 — table extraction artifact (proposal-only). */
+  tableExtraction?: SoATableExtractionResult;
+  matrixPreview?: SoAMatrixProposalPreview;
+  sourceSummary?: SoAProposalSourceSummary;
 }
 
 export interface SoAProposalHistoryEntry {

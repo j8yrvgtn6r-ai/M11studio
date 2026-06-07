@@ -11,6 +11,9 @@ export { SourceDocumentRepository, sourceDocumentRepository } from './SourceDocu
 export { SoAEntityRepository, soaEntityRepository } from './SoAEntityRepository';
 export { SoAKnowledgeRepository, soaKnowledgeRepository } from './SoAKnowledgeRepository';
 export { SoAScheduleRuleRepository, soaScheduleRuleRepository } from './SoAScheduleRuleRepository';
+export { SoAEnrichmentProposalRepository, soaEnrichmentProposalRepository } from './SoAEnrichmentProposalRepository';
+export { SoAProposalAuditRepository, soaProposalAuditRepository } from './SoAProposalAuditRepository';
+export { SoATableExtractionRepository, soaTableExtractionRepository } from './SoATableExtractionRepository';
 export { ValidationRepository, validationRepository } from './ValidationRepository';
 export {
   RepositoryPersistenceError,

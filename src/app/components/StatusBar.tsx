@@ -1,6 +1,6 @@
 // M11 Studio - Status Bar Component
 import { Badge } from './ui/badge';
-import { Users, FileText, CheckCircle2, Clock, Loader2 } from 'lucide-react';
+import { FileText, CheckCircle2, Clock, Loader2 } from 'lucide-react';
 import { format } from 'date-fns';
 
 export type AutosaveStatus = 'idle' | 'saving' | 'saved';
@@ -9,7 +9,6 @@ interface StatusBarProps {
   protocolId: string;
   autosaveStatus?: AutosaveStatus;
   lastSaved?: Date | null;
-  currentUser: string;
   totalSections: number;
   completedSections: number;
 }
@@ -18,7 +17,6 @@ export function StatusBar({
   protocolId,
   autosaveStatus = 'idle',
   lastSaved,
-  currentUser,
   totalSections,
   completedSections,
 }: StatusBarProps) {
@@ -27,21 +25,18 @@ export function StatusBar({
       ? 'Saving…'
       : lastSaved
         ? `Autosaved ${format(lastSaved, 'h:mm a')}`
-        : 'Saved';
+        : autosaveStatus === 'saved'
+          ? 'Autosaved'
+          : '';
 
   return (
     <div className="h-6 bg-card border-t border-border flex items-center px-4 text-xs text-muted-foreground gap-4 shrink-0">
-      <div className="flex items-center gap-1.5">
+      <div className="flex items-center gap-1.5" data-testid="footer-protocol-identity">
         <FileText className="h-3 w-3" />
         <span>{protocolId}</span>
       </div>
 
-      <div className="flex items-center gap-1.5">
-        <Users className="h-3 w-3" />
-        <span>{currentUser}</span>
-      </div>
-
-      <div className="flex items-center gap-1.5">
+      <div className="flex items-center gap-1.5" data-testid="footer-section-completion">
         <CheckCircle2 className="h-3 w-3" />
         <span>
           {completedSections}/{totalSections} sections complete

@@ -87,6 +87,9 @@ export interface CreateSoAProposalInput {
   warnings: string[];
   sourceSectionIds: string[];
   counts: SoAProposal['counts'];
+  tableExtraction?: SoAProposal['tableExtraction'];
+  matrixPreview?: SoAProposal['matrixPreview'];
+  sourceSummary?: SoAProposal['sourceSummary'];
 }
 
 export function createSoAProposal(input: CreateSoAProposalInput): SoAProposal {
@@ -109,6 +112,9 @@ export function createSoAProposal(input: CreateSoAProposalInput): SoAProposal {
     warnings: input.warnings,
     sourceSectionIds: input.sourceSectionIds,
     counts: input.counts,
+    tableExtraction: input.tableExtraction,
+    matrixPreview: input.matrixPreview,
+    sourceSummary: input.sourceSummary,
   };
   recordHistory(currentProposal);
   persist();

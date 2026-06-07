@@ -3,11 +3,13 @@ import {
   endProtocolBuildSession,
   resetImportBuildConsoleWorkspace,
 } from '../build/protocolBuildConsoleStore';
-import { resetProtocolStore } from '../store/protocolStore';
+import { resetProtocolStoreToBlank } from '../store/protocolStore';
 import { clearProtocolVersioningState } from './protocolVersioning';
 import { clearAllProtocolImportStorage } from './protocolImportStorage';
 import { clearSoAKnowledge } from '../../soa-knowledge/soaKnowledgeStore';
 import { clearSoAProposal } from '../../soa-knowledge/soaProposalStore';
+import { clearSoAEnrichmentProposal } from '../../soa-knowledge/soaEnrichmentStore';
+import { clearSoANarrativeSyncState } from '../../soa-knowledge/soaNarrativeSyncStore';
 import {
   getProtocolImportState,
   persistImportWorkspaceReset,
@@ -18,6 +20,8 @@ import {
 export function resetImportWorkspace(): void {
   clearSoAKnowledge();
   clearSoAProposal();
+  clearSoAEnrichmentProposal();
+  clearSoANarrativeSyncState();
   persistImportWorkspaceReset();
   clearProtocolBuildEvents();
   resetImportBuildConsoleWorkspace();
@@ -27,7 +31,7 @@ export function resetImportWorkspace(): void {
 /** Clears all project artifacts and returns M11 Studio to a blank workspace. */
 export async function resetProject(): Promise<void> {
   resetImportWorkspace();
-  resetProtocolStore();
+  resetProtocolStoreToBlank();
   clearProtocolVersioningState(getProtocolImportState().protocolId ?? undefined);
   await clearAllProtocolImportStorage();
   persistProjectReset();

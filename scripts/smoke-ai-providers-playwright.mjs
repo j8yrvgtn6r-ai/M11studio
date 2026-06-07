@@ -176,7 +176,8 @@ async function main() {
 
   await page.getByRole('button', { name: 'Back to protocol' }).click();
 
-  await page.getByTestId('app-import-protocol-button').click();
+  await page.getByTestId('app-file-menu').click();
+  await page.getByTestId('app-import-protocol-menu-item').click();
 
   await page.getByTestId('import-protocol-dialog').waitFor();
 

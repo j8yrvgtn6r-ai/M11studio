@@ -227,7 +227,7 @@ export type ProtocolSectionWorkflowState =
   | 'outOfSync'
   | 'needsGeneration';
 
-export type SectionContentOrigin = 'imported' | 'generated';
+export type SectionContentOrigin = 'imported' | 'generated' | 'manual';
 
 export interface MappedProtocolSection {
   mappedM11SectionId: string;

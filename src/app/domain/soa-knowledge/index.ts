@@ -2,6 +2,8 @@ export type * from './soaKnowledgeTypes';
 
 export type * from './soaProposalTypes';
 
+export type * from './soaEnrichmentProposal';
+
 
 
 export {
@@ -146,4 +148,46 @@ export { useSoAKnowledgeSummary, useSoAKnowledgeModel } from './useSoAKnowledge'
 
 export { useSoAProposal } from './useSoAProposal';
 
+export {
+  acceptSoAEnrichmentProposal,
+  clearSoAEnrichmentProposal,
+  createSoAEnrichmentProposal,
+  getCurrentSoAEnrichmentProposal,
+  rejectSoAEnrichmentProposal,
+  resetSoAEnrichmentStoreForTests,
+  subscribeSoAEnrichmentProposal,
+  supersedeSoAEnrichmentProposal,
+} from './soaEnrichmentStore';
 
+export {
+  countEnrichmentProposalItems,
+  enrichmentProposalToKnowledgePatch,
+} from './soaEnrichmentProposal';
+
+export { useSoAEnrichmentProposal } from './useSoAEnrichmentProposal';
+
+export type * from './soaTableExtractionTypes';
+export type * from './soaNarrativeSyncProposal';
+export {
+  extractSoATablesFromCanonicalDocument,
+  buildMatrixProposalPreview,
+} from './soaTableExtractor';
+export { reconcileNarrativeAndTableSoAKnowledge } from './soaTableReconciliation';
+export {
+  docxTableExtractionProvider,
+  pdfTextTableExtractionProvider,
+  ocrTableExtractionProvider,
+  runDocxTableExtraction,
+} from './soaTableExtractionProviders';
+export {
+  acceptSoANarrativeSyncProposal,
+  clearSoANarrativeSyncState,
+  createSoANarrativeSyncProposal,
+  createSoANarrativeSyncProposalFromSoAAcceptance,
+  flagSoARefreshNeededForNarrativeSection,
+  getCurrentSoANarrativeSyncProposal,
+  getSoASectionRefreshDiagnostics,
+  rejectSoANarrativeSyncProposal,
+  resetSoANarrativeSyncStoreForTests,
+  subscribeSoANarrativeSync,
+} from './soaNarrativeSyncStore';

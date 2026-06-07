@@ -14,6 +14,7 @@ import {
   soaKnowledgeRepository,
   soaScheduleRuleRepository,
   supabaseStorageProvider,
+  soaEnrichmentProposalRepository,
 } from '../src/app/backend';
 
 function assert(condition: boolean, message: string): void {
@@ -49,7 +50,7 @@ async function main(): Promise<void> {
   }
   assert(entityThrew, 'knowledge entity repository should throw when unconfigured');
 
-  for (const repository of [soaKnowledgeRepository, soaEntityRepository, soaScheduleRuleRepository]) {
+  for (const repository of [soaKnowledgeRepository, soaEntityRepository, soaScheduleRuleRepository, soaEnrichmentProposalRepository]) {
     let soaThrew = false;
     try {
       await repository.listByProtocol('00000000-0000-0000-0000-000000000001');

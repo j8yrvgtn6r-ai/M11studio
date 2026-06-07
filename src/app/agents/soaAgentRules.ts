@@ -2,6 +2,8 @@ import type { CoreStudyModel } from '../domain/protocol/import/coreStudyModel';
 import type { ProtocolDocument } from '../domain/protocol/types';
 import type { KnowledgeGraph } from '../domain/knowledge-graph/knowledgeGraphTypes';
 import type { StudyModel } from '../domain/study-model/studyModelTypes';
+import type { CanonicalDocument } from '../domain/document-ingestion/canonicalDocumentTypes';
+import type { ExtractedTable } from '../domain/protocol/import/types';
 import {
   buildSoAKnowledgeFromProtocolSections,
   compareSoAKnowledgeToExistingConfiguration,
@@ -13,6 +15,13 @@ import {
   getNarrativeSectionsImpactedBySoAChange,
 } from '../domain/soa-knowledge/soaKnowledgeNarrativeSync';
 import type { SoAProposal, SoAAgentTrigger } from '../domain/soa-knowledge/soaProposalTypes';
+import type {
+  SoAMatrixProposalPreview,
+  SoAProposalSourceSummary,
+  SoATableExtractionResult,
+} from '../domain/soa-knowledge/soaTableExtractionTypes';
+import { buildMatrixProposalPreview, extractSoATablesFromCanonicalDocument } from '../domain/soa-knowledge/soaTableExtractor';
+import { reconcileNarrativeAndTableSoAKnowledge } from '../domain/soa-knowledge/soaTableReconciliation';
 import type {
   SoAAssessment,
   SoAAssessmentCategory,
@@ -39,6 +48,8 @@ export interface SoAAgentInput {
   coreStudyModel?: CoreStudyModel | null;
   studyModel?: StudyModel | null;
   existingSoAConfiguration?: ProtocolDocument;
+  canonicalDocument?: CanonicalDocument | null;
+  extractedTables?: ExtractedTable[];
   trigger: SoAAgentTrigger;
   changedSectionIds?: string[];
   changedSoAEntityIds?: string[];
@@ -63,6 +74,9 @@ export interface SoAAgentOutput {
   warnings: string[];
   skippedItems: string[];
   summary: string;
+  tableExtraction?: SoATableExtractionResult;
+  matrixPreview?: SoAMatrixProposalPreview;
+  sourceSummary?: SoAProposalSourceSummary;
 }
 
 const EXTRA_ASSESSMENT_PATTERNS: Array<{ pattern: RegExp; name: string; category: SoAAssessmentCategory }> = [
@@ -226,26 +240,46 @@ export function evaluateSoAScheduleExtraction(input: SoAAgentInput): SoAAgentOut
     text: section.text ?? '',
   }));
 
-  if (sections.every((section) => !section.text.trim())) {
+  const protocolId = input.existingSoAConfiguration?.id ?? input.soaKnowledgeModel?.protocolId;
+
+  if (sections.every((section) => !section.text.trim()) && !(input.extractedTables?.length ?? 0)) {
     return {
       soaKnowledgePatch: {},
       extractedItems: [],
       proposedScheduleRules: [],
       impactedNarrativeSections: [],
-      diagnostics: ['No schedule-related narrative text available — empty proposal created safely.'],
+      diagnostics: ['No schedule-related narrative text or DOCX tables available — empty proposal created safely.'],
       warnings: [],
       skippedItems: [],
       summary: 'No schedule content found',
+      tableExtraction: {
+        candidateTables: [],
+        extractedVisits: [],
+        extractedAssessments: [],
+        extractedScheduleRules: [],
+        extractedFootnotes: [],
+        extractedConditions: [],
+        diagnostics: [],
+        warnings: [],
+        cellEvidence: [],
+      },
+      matrixPreview: { rows: [], columns: [], cells: [] },
+      sourceSummary: {
+        narrativeDerivedCount: 0,
+        tableDerivedCount: 0,
+        llmInferredCount: 0,
+        conflictsCount: 0,
+        diagnosticsCount: 1,
+      },
     };
   }
 
-  const protocolId = input.existingSoAConfiguration?.id ?? input.soaKnowledgeModel?.protocolId;
   const extracted = buildSoAKnowledgeFromProtocolSections(sections, protocolId);
   const extraVisits = extractExtraVisits(sections);
   const extraAssessments = extractExtraAssessments(sections);
   const intervalDiagnostics = extractIntervalDiagnostics(sections);
 
-  let mergedModel = applySoAKnowledgePatch(createEmptySoAKnowledgeModel(protocolId), {
+  const narrativeModel = applySoAKnowledgePatch(createEmptySoAKnowledgeModel(protocolId), {
     ...modelToPatch(extracted),
     visits: mergeUniqueByName(extracted.visits, extraVisits),
     assessments: mergeUniqueByName(extracted.assessments, extraAssessments),
@@ -259,6 +293,34 @@ export function evaluateSoAScheduleExtraction(input: SoAAgentInput): SoAAgentOut
     ],
   });
 
+  const tableExtraction =
+    input.canonicalDocument && input.extractedTables
+      ? extractSoATablesFromCanonicalDocument({
+          document: input.canonicalDocument,
+          tables: input.extractedTables,
+          protocolId,
+        })
+      : {
+          candidateTables: [],
+          extractedVisits: [],
+          extractedAssessments: [],
+          extractedScheduleRules: [],
+          extractedFootnotes: [],
+          extractedConditions: [],
+          diagnostics: [],
+          warnings: input.extractedTables?.length
+            ? ['Canonical document unavailable — table extraction skipped.']
+            : [],
+          cellEvidence: [],
+        };
+
+  const reconciliation = reconcileNarrativeAndTableSoAKnowledge({
+    narrativePatch: modelToPatch(narrativeModel),
+    tableResult: tableExtraction,
+    protocolId,
+  });
+
+  let mergedModel = reconciliation.mergedModel;
   if (input.soaKnowledgeModel) {
     mergedModel = applySoAKnowledgePatch(input.soaKnowledgeModel, modelToPatch(mergedModel));
   }
@@ -267,7 +329,7 @@ export function evaluateSoAScheduleExtraction(input: SoAAgentInput): SoAAgentOut
     mergedModel,
     input.existingSoAConfiguration,
   );
-  const warnings: string[] = [];
+  const warnings: string[] = [...reconciliation.warnings];
   if (comparison.unmatchedKnowledgeAssessments.length > 0) {
     warnings.push(
       `${comparison.unmatchedKnowledgeAssessments.length} proposed assessment(s) are not yet in SoA Configuration.`,
@@ -280,7 +342,16 @@ export function evaluateSoAScheduleExtraction(input: SoAAgentInput): SoAAgentOut
   }
 
   const patch = modelToPatch(mergedModel);
-  const summary = `${mergedModel.visits.length} visits, ${mergedModel.assessments.length} assessments, ${mergedModel.scheduleRules.length} schedule rules proposed`;
+  const matrixPreview = buildMatrixProposalPreview(tableExtraction);
+  const sourceSummary: SoAProposalSourceSummary = {
+    narrativeDerivedCount: reconciliation.narrativeDerivedCount,
+    tableDerivedCount: reconciliation.tableDerivedCount,
+    llmInferredCount: reconciliation.llmInferredCount,
+    conflictsCount: reconciliation.conflictsCount,
+    diagnosticsCount: reconciliation.diagnostics.length + tableExtraction.diagnostics.length,
+  };
+
+  const summary = `${mergedModel.visits.length} visits, ${mergedModel.assessments.length} assessments, ${mergedModel.scheduleRules.length} schedule rules proposed (${sourceSummary.tableDerivedCount} table-derived)`;
 
   return {
     soaKnowledgePatch: patch,
@@ -292,12 +363,16 @@ export function evaluateSoAScheduleExtraction(input: SoAAgentInput): SoAAgentOut
       ...mergedModel.extractionNotes,
       ...mergedModel.unmappedTimingReferences,
       ...mergedModel.ambiguousScheduleStatements,
+      ...reconciliation.diagnostics,
     ],
     warnings,
     skippedItems: comparison.unmatchedConfigurationAssessments.map(
       (name) => `Existing configuration assessment not extracted from narrative: ${name}`,
     ),
     summary,
+    tableExtraction,
+    matrixPreview,
+    sourceSummary,
   };
 }
 

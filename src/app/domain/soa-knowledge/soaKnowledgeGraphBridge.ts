@@ -45,6 +45,7 @@ function buildEntity(
   name: string,
   sourceSectionIds: string[],
   protocolId?: string,
+  inferenceSource?: string,
 ): KnowledgeEntity {
   const now = new Date().toISOString();
   return {
@@ -56,7 +57,10 @@ function buildEntity(
     aliases: [],
     sourceSectionIds,
     sourceDocumentIds: [],
-    metadata: { soaEntityId: soaId },
+    metadata: {
+      soaEntityId: soaId,
+      ...(inferenceSource ? { inferenceSource } : {}),
+    },
     createdAt: now,
     updatedAt: now,
   };
@@ -68,6 +72,7 @@ function buildRelationship(
   relationshipType: KnowledgeRelationship['relationshipType'],
   sourceSectionIds: string[],
   protocolId?: string,
+  inferenceSource?: string,
 ): KnowledgeRelationship {
   const now = new Date().toISOString();
   return {
@@ -77,7 +82,10 @@ function buildRelationship(
     targetEntityId,
     relationshipType,
     sourceSectionIds,
-    metadata: { source: 'soa-knowledge-v1' },
+    metadata: {
+      source: 'soa-knowledge-v1',
+      ...(inferenceSource ? { inferenceSource } : {}),
+    },
     createdAt: now,
     updatedAt: now,
   };
@@ -94,13 +102,13 @@ export function buildKnowledgeGraphPatchFromSoAKnowledge(
   const relationships: KnowledgeRelationship[] = [];
 
   for (const arm of model.arms) {
-    entities.push(buildEntity(arm.id, 'arm', arm.name, arm.sourceSectionIds, model.protocolId));
+    entities.push(buildEntity(arm.id, 'arm', arm.name, arm.sourceSectionIds, model.protocolId, arm.inferenceSource));
   }
   for (const epoch of model.epochs) {
-    entities.push(buildEntity(epoch.id, 'other', epoch.name, epoch.sourceSectionIds, model.protocolId));
+    entities.push(buildEntity(epoch.id, 'other', epoch.name, epoch.sourceSectionIds, model.protocolId, epoch.inferenceSource));
   }
   for (const visit of model.visits) {
-    entities.push(buildEntity(visit.id, 'visit', visit.name, visit.sourceSectionIds, model.protocolId));
+    entities.push(buildEntity(visit.id, 'visit', visit.name, visit.sourceSectionIds, model.protocolId, visit.inferenceSource));
     if (visit.epochId) {
       relationships.push(
         buildRelationship(
@@ -109,13 +117,14 @@ export function buildKnowledgeGraphPatchFromSoAKnowledge(
           'belongs_to',
           visit.sourceSectionIds,
           model.protocolId,
+          visit.inferenceSource,
         ),
       );
     }
   }
   for (const activity of model.activities) {
     entities.push(
-      buildEntity(activity.id, 'activity', activity.name, activity.sourceSectionIds, model.protocolId),
+      buildEntity(activity.id, 'activity', activity.name, activity.sourceSectionIds, model.protocolId, activity.inferenceSource),
     );
     if (activity.visitId) {
       relationships.push(
@@ -125,18 +134,19 @@ export function buildKnowledgeGraphPatchFromSoAKnowledge(
           'related_to',
           activity.sourceSectionIds,
           model.protocolId,
+          activity.inferenceSource,
         ),
       );
     }
   }
   for (const assessment of model.assessments) {
     entities.push(
-      buildEntity(assessment.id, 'assessment', assessment.name, assessment.sourceSectionIds, model.protocolId),
+      buildEntity(assessment.id, 'assessment', assessment.name, assessment.sourceSectionIds, model.protocolId, assessment.inferenceSource),
     );
   }
   for (const procedure of model.procedures) {
     entities.push(
-      buildEntity(procedure.id, 'procedure', procedure.name, procedure.sourceSectionIds, model.protocolId),
+      buildEntity(procedure.id, 'procedure', procedure.name, procedure.sourceSectionIds, model.protocolId, procedure.inferenceSource),
     );
     if (procedure.assessmentId) {
       relationships.push(
@@ -146,9 +156,16 @@ export function buildKnowledgeGraphPatchFromSoAKnowledge(
           'related_to',
           procedure.sourceSectionIds,
           model.protocolId,
+          procedure.inferenceSource,
         ),
       );
     }
+  }
+
+  for (const condition of model.conditions) {
+    entities.push(
+      buildEntity(condition.id, 'other', condition.label, condition.sourceSectionIds, model.protocolId, condition.inferenceSource),
+    );
   }
 
   for (const rule of model.scheduleRules) {
@@ -160,6 +177,7 @@ export function buildKnowledgeGraphPatchFromSoAKnowledge(
           'scheduled_at',
           rule.sourceSectionIds,
           model.protocolId,
+          rule.inferenceSource,
         ),
       );
     }
@@ -171,6 +189,7 @@ export function buildKnowledgeGraphPatchFromSoAKnowledge(
           'scheduled_at',
           rule.sourceSectionIds,
           model.protocolId,
+          rule.inferenceSource,
         ),
       );
     }
@@ -182,6 +201,19 @@ export function buildKnowledgeGraphPatchFromSoAKnowledge(
           'related_to',
           rule.sourceSectionIds,
           model.protocolId,
+          rule.inferenceSource,
+        ),
+      );
+    }
+    if (rule.conditionId && rule.assessmentId) {
+      relationships.push(
+        buildRelationship(
+          entityId('other', rule.conditionId),
+          entityId('assessment', rule.assessmentId),
+          'requires',
+          rule.sourceSectionIds,
+          model.protocolId,
+          rule.inferenceSource,
         ),
       );
     }

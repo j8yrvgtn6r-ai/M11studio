@@ -33,7 +33,6 @@ import {
   FileText,
   Search,
   Settings,
-  Save,
   Download,
   Users,
   Workflow,
@@ -41,7 +40,6 @@ import {
   AlertTriangle,
   CheckCircle2,
   Network,
-  FileUp,
   Loader2,
   Clock,
 } from 'lucide-react';
@@ -79,9 +77,22 @@ import {
   subscribeProtocolImportPersist,
 } from './domain/protocol/import/protocolImportStore';
 import { subscribeStudyModelUpdated } from './agents';
+import {
+  applyManualSectionContentEdit,
+  resolveSectionEditorContent,
+} from './domain/protocol/import/sectionAuthoring';
 import { resolveSectionGenerationState } from './domain/protocol/build/protocolBuildConsoleStore';
-import { updateSectionImportDraft } from './domain/protocol/import';
+import {
+  countAuthoringCompletedSections,
+  countAuthoringTotalSections,
+} from './domain/protocol/authoring/sectionAuthoringCompletion';
+import {
+  getProtocolDocumentLastPersistedAt,
+  isBlankProjectMode,
+  subscribeProtocolDocumentPersist,
+} from './domain/protocol/store/protocolStore';
 import { getCanonicalDocumentByUploadId } from './domain/document-ingestion';
+import akyrianLogo from './assets/akyrian-logo.svg';
 
 import { useProtocolImport, useSectionImportDraft } from './domain/protocol/import/ProtocolImportContext';
 
@@ -105,7 +116,9 @@ export default function App() {
   const [protocolValidationIssues, setProtocolValidationIssues] = useState(() => getValidationIssues());
   const [autosaveStatus, setAutosaveStatus] = useState<AutosaveStatus>('idle');
   const [lastSaved, setLastSaved] = useState<Date | null>(() => {
-    const persisted = getLastPersistedAt();
+    const importPersisted = getLastPersistedAt();
+    const documentPersisted = getProtocolDocumentLastPersistedAt();
+    const persisted = importPersisted ?? documentPersisted;
     return persisted ? new Date(persisted) : null;
   });
   const [showDependencyGraph, setShowDependencyGraph] = useState(false);
@@ -193,7 +206,7 @@ export default function App() {
 
   useEffect(() => {
     let savingTimer: ReturnType<typeof setTimeout> | undefined;
-    return subscribeProtocolImportPersist((timestamp) => {
+    const handlePersist = (timestamp: string) => {
       setAutosaveStatus('saving');
       if (savingTimer) {
         clearTimeout(savingTimer);
@@ -202,7 +215,16 @@ export default function App() {
         setLastSaved(new Date(timestamp));
         setAutosaveStatus('saved');
       }, 250);
-    });
+    };
+    const unsubscribeImport = subscribeProtocolImportPersist(handlePersist);
+    const unsubscribeDocument = subscribeProtocolDocumentPersist(handlePersist);
+    return () => {
+      if (savingTimer) {
+        clearTimeout(savingTimer);
+      }
+      unsubscribeImport();
+      unsubscribeDocument();
+    };
   }, []);
 
   const findSection = (sections: ProtocolSection[], id: string): ProtocolSection | null => {
@@ -253,13 +275,15 @@ export default function App() {
         message: finding.message,
         name: finding.code,
       }))
-    : protocolValidationIssues.map((issue) => ({
-        id: issue.id,
-        sectionId: issue.sectionId,
-        severity: issue.severity,
-        message: issue.message,
-        name: issue.name,
-      }));
+    : isBlankProjectMode()
+      ? []
+      : protocolValidationIssues.map((issue) => ({
+          id: issue.id,
+          sectionId: issue.sectionId,
+          severity: issue.severity,
+          message: issue.message,
+          name: issue.name,
+        }));
   const errorCount = headerValidationFindings.filter((finding) => finding.severity === 'error').length;
   const warningCount = headerValidationFindings.filter((finding) => finding.severity === 'warning').length;
   const autosaveLabel =
@@ -267,7 +291,9 @@ export default function App() {
       ? 'Saving…'
       : lastSaved
         ? `Autosaved ${lastSaved.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`
-        : 'Saved';
+        : autosaveStatus === 'saved'
+          ? 'Autosaved'
+          : '';
 
   const handleFieldChange = (fieldId: string, value: any) => {
     updateElementValue(fieldId, value);
@@ -293,23 +319,8 @@ export default function App() {
     // In a real app, this would open the detail inspector with cell metadata
   };
 
-  const countCompletedSections = (sections: ProtocolSection[]): number => {
-    let count = 0;
-    sections.forEach((section) => {
-      if (section.status === 'complete') count++;
-      if (section.children) count += countCompletedSections(section.children);
-    });
-    return count;
-  };
-
-  const countTotalSections = (sections: ProtocolSection[]): number => {
-    let count = sections.length;
-    sections.forEach((section) => {
-      if (section.children) count += countTotalSections(section.children);
-    });
-    return count;
-  };
-
+  const completedSections = countAuthoringCompletedSections(protocolSections, importState.sectionDrafts);
+  const totalSections = countAuthoringTotalSections(protocolSections);
   const totalValidationIssues = headerValidationFindings.length;
   const protocolDisplayIdentity = resolveProtocolDisplayIdentity({
     importedSourceSummary: importState.importedSourceSummary,
@@ -322,7 +333,12 @@ export default function App() {
       {/* Top Toolbar */}
       <div className="h-12 border-b border-border bg-card flex items-center px-4 gap-3 shrink-0">
         <div className="flex items-center gap-2">
-          <FileText className="h-5 w-5 text-primary" />
+          <img
+            src={akyrianLogo}
+            alt="Akyrian"
+            className="h-7 w-auto shrink-0"
+            data-testid="app-akyrian-logo"
+          />
           <h1 className="font-semibold">M11 Studio</h1>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -342,6 +358,18 @@ export default function App() {
                 onSelect={() => setImportDialogOpen(true)}
               >
                 Import Protocol
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                data-testid="app-export-menu-item"
+                onSelect={() => downloadProtocolJson()}
+              >
+                Export
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                data-testid="app-settings-menu-item"
+                onSelect={() => setSettingsOpen(true)}
+              >
+                Settings
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
@@ -429,17 +457,6 @@ export default function App() {
           >
             <Network className="h-3.5 w-3.5 mr-1.5" />
             Dependency Graph
-          </Button>
-
-          <Button
-            variant="outline"
-            size="sm"
-            className="h-8 text-xs"
-            data-testid="app-import-protocol-button"
-            onClick={() => setImportDialogOpen(true)}
-          >
-            <FileUp className="h-3.5 w-3.5 mr-1.5" />
-            Import Protocol
           </Button>
 
           {importState.lastImportCompletedAt ? (
@@ -583,6 +600,7 @@ export default function App() {
                 sections={protocolSections}
                 selectedSectionId={selectedSectionId}
                 onSelectSection={handleSectionSelect}
+                protocolDisplayIdentity={protocolDisplayIdentity}
                 templateReferenceEnabled={templateReferenceEnabled}
                 onTemplateReferenceChange={handleTemplateReferenceChange}
                 studyModelEnabled={studyModelEnabled}
@@ -617,11 +635,16 @@ export default function App() {
                     importDraft={sectionImportDraft}
                     sectionGenerationState={selectedSectionGenerationState}
                     buildActive={buildActive || buildState.status === 'complete'}
-                    onImportDraftTextChange={(text) => {
-                      if (selectedSectionId) {
-                        updateSectionImportDraft(selectedSectionId, {
-                          generatedText: text,
-                        });
+                    onApplyManualSectionSave={(text) => {
+                      if (selectedSectionId && selectedSection) {
+                        applyManualSectionContentEdit(
+                          selectedSectionId,
+                          selectedSection.title,
+                          text,
+                          sectionImportDraft
+                            ? resolveSectionEditorContent(sectionImportDraft)
+                            : undefined,
+                        );
                       }
                     }}
                   />
@@ -708,10 +731,6 @@ export default function App() {
             ))}
           </CommandGroup>
           <CommandGroup heading="Actions">
-            <CommandItem>
-              <Save className="mr-2 h-4 w-4" />
-              Save Protocol
-            </CommandItem>
             <CommandItem
               onSelect={() => {
                 downloadProtocolJson();
@@ -720,10 +739,6 @@ export default function App() {
             >
               <Download className="mr-2 h-4 w-4" />
               Export Protocol
-            </CommandItem>
-            <CommandItem>
-              <AlertCircle className="mr-2 h-4 w-4" />
-              View All Validation Issues
             </CommandItem>
           </CommandGroup>
         </CommandList>
@@ -765,11 +780,10 @@ export default function App() {
       />
       <StatusBar
         protocolId={protocolDisplayIdentity}
-        currentUser="Dr. Sarah Chen"
         autosaveStatus={autosaveStatus}
         lastSaved={lastSaved}
-        totalSections={countTotalSections(protocolSections)}
-        completedSections={countCompletedSections(protocolSections)}
+        totalSections={totalSections}
+        completedSections={completedSections}
       />
     </div>
     </SoAAssessmentAuthoringProvider>

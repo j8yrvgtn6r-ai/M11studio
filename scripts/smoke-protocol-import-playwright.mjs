@@ -54,7 +54,8 @@ async function main() {
     await getStarted.click();
   }
 
-  await page.getByTestId('app-import-protocol-button').click();
+  await page.getByTestId('app-file-menu').click();
+  await page.getByTestId('app-import-protocol-menu-item').click();
   await page.getByTestId('import-protocol-dialog').waitFor();
 
   await page.getByTestId('import-quick-reconstruction-copy').waitFor();
@@ -268,7 +269,7 @@ async function main() {
     (await contentIndicator.getAttribute('data-testid'))?.replace('import-section-indicator-', '') ?? '1';
   await page.locator(`[data-testid="map-section-${reviewSectionId}"]`).click();
   await page.getByTestId('viewport-import-generated-text').waitFor({ timeout: 15_000 });
-  const importedText = await page.getByTestId('viewport-import-generated-text').inputValue();
+  const importedText = await page.getByTestId('viewport-import-generated-text').innerText();
   if (importedText.trim().length < 20) {
     throw new Error(`Expected verbatim imported section text, got fragment: "${importedText.trim()}"`);
   }

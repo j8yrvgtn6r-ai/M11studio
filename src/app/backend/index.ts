@@ -36,6 +36,8 @@ export {
   soaKnowledgeRepository,
   SoAScheduleRuleRepository,
   soaScheduleRuleRepository,
+  SoAEnrichmentProposalRepository,
+  soaEnrichmentProposalRepository,
   ValidationRepository,
   validationRepository,
 } from './repositories';

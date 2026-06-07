@@ -2,6 +2,7 @@ import { useSoAKnowledgeModel, useSoAKnowledgeSummary } from '../../domain/soa-k
 import { getSoAKnowledgeDiagnostics } from '../../domain/soa-knowledge/soaKnowledgeSelectors';
 import { useSoAProposal } from '../../domain/soa-knowledge/useSoAProposal';
 import { SoAProposalActions } from './SoAProposalReviewPanel';
+import { SoAEnrichmentActions } from './SoAEnrichmentProposalReviewPanel';
 
 function CountRow({ label, value }: { label: string; value: number }) {
   return (
@@ -40,6 +41,7 @@ export function SoAKnowledgeSummaryPanel({ compact = false }: { compact?: boolea
       >
         <p>SoA Knowledge will populate after you generate or accept a first-pass SoA proposal.</p>
         <SoAProposalActions compact={compact} />
+      <SoAEnrichmentActions compact={compact} />
       </div>
     );
   }
@@ -92,6 +94,7 @@ export function SoAKnowledgeSummaryPanel({ compact = false }: { compact?: boolea
       ) : null}
 
       <SoAProposalActions compact={compact} />
+      <SoAEnrichmentActions compact={compact} />
     </div>
   );
 }

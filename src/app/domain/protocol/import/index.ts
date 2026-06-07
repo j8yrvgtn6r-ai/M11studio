@@ -91,6 +91,7 @@ export {
   isValidationTextUnchanged,
   normalizeValidationText,
   updateSectionImportDraft,
+  upsertSectionImportDraft,
   applyConsistencyAgentResults,
   clearSectionOutOfSyncState,
   getSectionImportDrafts,
@@ -100,6 +101,11 @@ export {
 } from './protocolImportStore';
 
 export { resetImportWorkspace, resetProject } from './projectReset';
+export {
+  applyManualSectionContentEdit,
+  ensureManualSectionDraft,
+  resolveSectionEditorContent,
+} from './sectionAuthoring';
 export {
   resolveSectionWorkflowDisplayBadge,
   sectionWorkflowDisplayBadgeClass,

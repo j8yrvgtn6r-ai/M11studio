@@ -21,6 +21,7 @@ interface ProtocolExplorerProps {
   sections: ProtocolSection[];
   selectedSectionId: string | null;
   onSelectSection: (sectionId: string) => void;
+  protocolDisplayIdentity?: string;
   templateReferenceEnabled: boolean;
   onTemplateReferenceChange: (enabled: boolean) => void;
   studyModelEnabled: boolean;
@@ -40,6 +41,7 @@ export function ProtocolExplorer({
   sections,
   selectedSectionId,
   onSelectSection,
+  protocolDisplayIdentity = 'No Project',
   templateReferenceEnabled,
   onTemplateReferenceChange,
   studyModelEnabled,
@@ -55,7 +57,9 @@ export function ProtocolExplorer({
       <div className="px-3 py-2 border-b border-sidebar-border space-y-2 shrink-0">
         <div>
           <h2 className="font-semibold text-sm text-sidebar-foreground">Protocol Explorer</h2>
-          <p className="text-xs text-muted-foreground mt-0.5">PROTO-XYZ-301</p>
+          <p className="text-xs text-muted-foreground mt-0.5" data-testid="protocol-explorer-identity">
+            {protocolDisplayIdentity}
+          </p>
         </div>
         <div className="flex items-center justify-between gap-2 rounded-md border border-sidebar-border bg-card/40 px-2 py-1.5">
           <Label htmlFor="m11-template-reference-toggle" className="text-xs flex items-center gap-1.5 cursor-pointer">

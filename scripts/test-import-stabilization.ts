@@ -37,7 +37,7 @@ async function testResetProjectClearsArtifacts() {
   const state = getProtocolImportState();
   assert.equal(state.lastImportCompletedAt, null);
   assert.equal(Object.keys(state.sectionDrafts).length, 0);
-  assert.ok(getProtocolDocument().id);
+  assert.equal(getProtocolDocument().id, '');
 }
 
 function testImportedSectionsDoNotShowRequiredMissing() {

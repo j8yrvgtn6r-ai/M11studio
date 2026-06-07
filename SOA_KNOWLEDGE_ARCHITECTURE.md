@@ -147,3 +147,12 @@ v1 intentionally scaffolds types, storage, extraction, bridges, and hooks so the
 - Supabase repositories exist but are not used by runtime UI
 - Duplicate assessment names merge; visit dedup by normalized name on patch
 - `resetProject()` and `resetImportWorkspace()` call `clearSoAKnowledge()` and `clearSoAProposal()` so stale knowledge and proposals do not survive New Project or replacement import
+
+## SoA Agent v3 extensions
+
+See [SOA_AGENT_V3_TABLE_EXTRACTION.md](./SOA_AGENT_V3_TABLE_EXTRACTION.md).
+
+- `deterministic-table` inference source with table cell evidence coordinates
+- `soaNarrativeSyncStore` — proposal-gated narrative sync records (localStorage)
+- Table extraction modules: `soaTableExtractor`, `soaTableNormalizer`, `soaTableReconciliation`
+- Import hook passes canonical document tables into `evaluateSoAScheduleExtraction`

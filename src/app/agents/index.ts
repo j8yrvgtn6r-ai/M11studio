@@ -176,3 +176,19 @@ export {
   runSoAAgentFromImport,
 } from './soaAgentRunner';
 
+export {
+  SOA_ENRICHMENT_PROMPT_VERSION,
+  buildDeterministicBaselineModel,
+  buildFixtureSoAEnrichmentResponse,
+  buildSoAEnrichmentPrompt,
+  buildSoAEnrichmentProposal,
+  parseSoAEnrichmentLlmResponse,
+  sanitizeSoAEnrichmentResponse,
+} from './soaAgentEnrichment';
+export {
+  acceptCurrentSoAEnrichmentProposal,
+  getCurrentSoAEnrichmentProposal,
+  rejectCurrentSoAEnrichmentProposal,
+  runSoAEnrichment,
+} from './soaAgentEnrichmentRunner';
+

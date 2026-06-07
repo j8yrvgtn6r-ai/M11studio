@@ -1,5 +1,6 @@
 import type { SectionGenerationState } from '../build/protocolBuildConsoleStore';
 import type { GeneratedSectionDraft } from './types';
+import { resolveSectionEditorContent } from './sectionAuthoring';
 import { inferWorkflowState } from './sectionWorkflowState';
 
 export type SectionWorkflowDisplayBadge =
@@ -17,8 +18,7 @@ export function sectionHasAuthorableContent(draft: GeneratedSectionDraft | undef
   if (!draft) {
     return false;
   }
-  const text = (draft.generatedText ?? draft.sourceText ?? '').trim();
-  return text.length > 0;
+  return resolveSectionEditorContent(draft).trim().length > 0;
 }
 
 export function shouldShowRequiredMissing(options: {

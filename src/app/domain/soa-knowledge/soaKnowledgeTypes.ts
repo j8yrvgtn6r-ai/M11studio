@@ -1,5 +1,26 @@
 /** Structured schedule knowledge — bridge between narrative, Knowledge Graph, and SoA Configuration. */
 
+export type SoAInferenceSource =
+  | 'deterministic'
+  | 'deterministic-table'
+  | 'llm-inferred'
+  | 'llm-reconciled'
+  | 'user-created'
+  | 'user-modified'
+  | 'user-accepted';
+
+export interface SoAEvidenceReference {
+  sectionId: string;
+  sourceText: string;
+  reason: string;
+}
+
+export interface SoAProvenanceFields {
+  inferenceSource?: SoAInferenceSource;
+  evidence?: SoAEvidenceReference[];
+  rationale?: string;
+}
+
 export type SoAActivityType =
   | 'intervention'
   | 'assessment'
@@ -26,14 +47,14 @@ export type SoAAssessmentCategory =
 
 export type SoATimingUnit = 'hours' | 'days' | 'weeks' | 'months' | 'cycles';
 
-export interface SoAArm {
+export interface SoAArm extends SoAProvenanceFields {
   id: string;
   name: string;
   description?: string;
   sourceSectionIds: string[];
 }
 
-export interface SoAEpoch {
+export interface SoAEpoch extends SoAProvenanceFields {
   id: string;
   name: string;
   description?: string;
@@ -41,7 +62,7 @@ export interface SoAEpoch {
   sourceSectionIds: string[];
 }
 
-export interface SoAElement {
+export interface SoAElement extends SoAProvenanceFields {
   id: string;
   name: string;
   armId?: string;
@@ -51,7 +72,7 @@ export interface SoAElement {
   sourceSectionIds: string[];
 }
 
-export interface SoAVisit {
+export interface SoAVisit extends SoAProvenanceFields {
   id: string;
   name: string;
   epochId?: string;
@@ -63,7 +84,7 @@ export interface SoAVisit {
   sourceSectionIds: string[];
 }
 
-export interface SoAActivity {
+export interface SoAActivity extends SoAProvenanceFields {
   id: string;
   name: string;
   visitId?: string;
@@ -73,7 +94,7 @@ export interface SoAActivity {
   sourceSectionIds: string[];
 }
 
-export interface SoAAssessment {
+export interface SoAAssessment extends SoAProvenanceFields {
   id: string;
   name: string;
   category?: SoAAssessmentCategory;
@@ -81,7 +102,7 @@ export interface SoAAssessment {
   sourceSectionIds: string[];
 }
 
-export interface SoAProcedure {
+export interface SoAProcedure extends SoAProvenanceFields {
   id: string;
   name: string;
   category?: SoAAssessmentCategory;
@@ -89,7 +110,7 @@ export interface SoAProcedure {
   sourceSectionIds: string[];
 }
 
-export interface SoATimingWindow {
+export interface SoATimingWindow extends SoAProvenanceFields {
   id: string;
   label: string;
   offset?: number;
@@ -99,7 +120,7 @@ export interface SoATimingWindow {
   sourceSectionIds: string[];
 }
 
-export interface SoAScheduleRule {
+export interface SoAScheduleRule extends SoAProvenanceFields {
   id: string;
   assessmentId?: string;
   procedureId?: string;
@@ -114,7 +135,7 @@ export interface SoAScheduleRule {
   notes?: string;
 }
 
-export interface SoACondition {
+export interface SoACondition extends SoAProvenanceFields {
   id: string;
   label: string;
   description?: string;
@@ -122,7 +143,7 @@ export interface SoACondition {
   sourceSectionIds: string[];
 }
 
-export interface SoAFootnote {
+export interface SoAFootnote extends SoAProvenanceFields {
   id: string;
   label: string;
   text: string;

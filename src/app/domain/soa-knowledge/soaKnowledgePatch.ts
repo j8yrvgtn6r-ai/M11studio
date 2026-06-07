@@ -63,6 +63,9 @@ function mergeAssessment(existing: SoAAssessment, incoming: SoAAssessment): SoAA
     category: incoming.category ?? existing.category,
     description: incoming.description?.trim() || existing.description,
     sourceSectionIds: mergeStringArrays(existing.sourceSectionIds, incoming.sourceSectionIds),
+    inferenceSource: incoming.inferenceSource ?? existing.inferenceSource,
+    evidence: incoming.evidence?.length ? incoming.evidence : existing.evidence,
+    rationale: incoming.rationale ?? existing.rationale,
   };
 }
 
@@ -77,6 +80,9 @@ function mergeVisit(existing: SoAVisit, incoming: SoAVisit): SoAVisit {
     window: incoming.window ?? existing.window,
     order: incoming.order ?? existing.order,
     sourceSectionIds: mergeStringArrays(existing.sourceSectionIds, incoming.sourceSectionIds),
+    inferenceSource: incoming.inferenceSource ?? existing.inferenceSource,
+    evidence: incoming.evidence?.length ? incoming.evidence : existing.evidence,
+    rationale: incoming.rationale ?? existing.rationale,
   };
 }
 

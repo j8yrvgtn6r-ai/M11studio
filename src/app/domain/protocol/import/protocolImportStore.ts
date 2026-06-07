@@ -1,4 +1,4 @@
-import { getProtocolDocument } from '../store/protocolStore';
+import { getProtocolDocument, isBlankProjectMode, clearBlankProjectMode } from '../store/protocolStore';
 import { updateSectionGenerationState, getProtocolBuildConsoleState } from '../build/protocolBuildConsoleStore';
 import { clearStudyModel, rebuildStudyModel } from '../../study-model/studyModelStore';
 import { refreshStudyModelFromContext } from '../../study-model/refreshStudyModelFromContext';
@@ -147,9 +147,10 @@ let lastPersistedAt: string | null = null;
 
 
 function defaultProtocolId(): string {
-
-  return getProtocolDocument().id ?? 'PROTO-XYZ-301';
-
+  if (isBlankProjectMode()) {
+    return '';
+  }
+  return getProtocolDocument().id ?? '';
 }
 
 
@@ -920,6 +921,7 @@ export async function setProtocolImportResult(
 
   state.storageWarnings = [];
   state.importContextPhase = 'ready';
+  clearBlankProjectMode();
 
   if (hadPriorImport || options?.isOverwrite) {
     createImportOverwriteCommit(state.protocolId, artifact.filename);
@@ -986,6 +988,15 @@ export function openSectionForReview(sectionId: string, actor = 'Current user'):
 }
 
 
+
+export function upsertSectionImportDraft(
+  sectionId: string,
+  draft: GeneratedSectionDraft,
+): void {
+  state.sectionDrafts[sectionId] = draft;
+  persistMetadata();
+  notify();
+}
 
 export function updateSectionImportDraft(
 

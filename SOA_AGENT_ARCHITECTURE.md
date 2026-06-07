@@ -145,3 +145,14 @@ Non-blocking — does not delay first visible protocol content.
 - Configuration patch is additive; complex edits remain manual in SoA Configuration UI
 - Generated SoA matrix unchanged until configuration entities exist and cache regenerates via existing mutation hooks
 - Proposal history capped at 50 entries in localStorage
+
+## SoA Agent v3 (implemented)
+
+See [SOA_AGENT_V3_TABLE_EXTRACTION.md](./SOA_AGENT_V3_TABLE_EXTRACTION.md).
+
+- Table-aware DOCX schedule extraction from Canonical Document + `ExtractedTable[]`
+- Narrative/table reconciliation (`reconcileNarrativeAndTableSoAKnowledge`)
+- Matrix proposal preview (read-only until accept)
+- Narrative sync proposals after accept; narrative edit refresh diagnostics
+- PDF/OCR provider stubs only (not implemented)
+- Supabase audit scaffolds: `SoAProposalAuditRepository`, `SoATableExtractionRepository`

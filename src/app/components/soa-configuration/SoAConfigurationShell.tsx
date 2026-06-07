@@ -19,11 +19,13 @@ import {
 } from '../ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
 import { formatGeneratedAt } from './formatGeneratedAt';
+import { isSoAConfigurationEmpty } from './soaConfigurationEmpty';
 import { SoAConfigurationAssessmentsTab } from './SoAConfigurationAssessmentsTab';
 import { SoAConfigurationMatrixTab } from './SoAConfigurationMatrixTab';
 import { SoAConfigurationPlaceholderTab } from './SoAConfigurationPlaceholderTab';
 import { SoAConfigurationVisitsTab } from './SoAConfigurationVisitsTab';
 import { SoAProposalActions } from '../soa-knowledge/SoAProposalReviewPanel';
+import { SoAEnrichmentActions } from '../soa-knowledge/SoAEnrichmentProposalReviewPanel';
 import { CHANGE_CONTROL_PLACEHOLDER, SOA_CONFIGURATION_TABS } from './soaConfigurationTabs';
 
 interface SoAConfigurationShellProps {
@@ -51,6 +53,7 @@ export function SoAConfigurationShell({ onCellClick }: SoAConfigurationShellProp
   const scheduleMetadata = useMemo(() => getSchedule().metadata, [protocolRevision]);
   const cacheStale = useMemo(() => isAuthoritativeScheduleCacheStale(), [protocolRevision]);
   const lifecycleLabel = formatLifecycleStatus(document.metadata.lifecycleStatus);
+  const soaEmpty = useMemo(() => isSoAConfigurationEmpty(document), [document]);
 
   function renderTabContent(tab: (typeof SOA_CONFIGURATION_TABS)[number]) {
     switch (tab.id) {
@@ -73,14 +76,19 @@ export function SoAConfigurationShell({ onCellClick }: SoAConfigurationShellProp
             <p className="text-[11px] uppercase tracking-wide text-muted-foreground font-medium">
               SoA Configuration
             </p>
-            <h2 className="text-lg font-semibold truncate leading-tight">{document.title}</h2>
+            <h2 className="text-lg font-semibold truncate leading-tight">
+              {document.title?.trim() ? document.title : 'Untitled protocol'}
+            </h2>
             <p className="text-xs text-muted-foreground mt-1 truncate">
-              {document.id} • Schema {document.schemaVersion} • {lifecycleLabel}
+              {document.id?.trim() ? document.id : 'No protocol ID'}
+              {document.schemaVersion ? ` • Schema ${document.schemaVersion}` : ''}
+              {document.metadata.lifecycleStatus ? ` • ${lifecycleLabel}` : ''}
               {document.metadata.authoringMode ? ` • ${document.metadata.authoringMode}` : ''}
             </p>
             <p className="text-[11px] text-muted-foreground/80 mt-0.5">Section 1.3 Schedule of Activities</p>
-            <div className="mt-2">
+            <div className="mt-2 space-y-2">
               <SoAProposalActions compact />
+              <SoAEnrichmentActions compact />
             </div>
           </div>
 
@@ -95,22 +103,24 @@ export function SoAConfigurationShell({ onCellClick }: SoAConfigurationShellProp
               Change Control
             </Button>
             <div className="flex flex-wrap items-center justify-end gap-1.5">
-              <Badge variant="outline" className="text-[10px]">
-                {lifecycleLabel}
-              </Badge>
-              {scheduleMetadata?.generatedFromRules ? (
+              {document.metadata.lifecycleStatus ? (
+                <Badge variant="outline" className="text-[10px]">
+                  {lifecycleLabel}
+                </Badge>
+              ) : null}
+              {!soaEmpty && scheduleMetadata?.generatedFromRules ? (
                 <Badge variant="outline" className="text-[10px] font-normal text-muted-foreground">
                   Cache
                   {scheduleMetadata.generatedAt
                     ? ` ${formatGeneratedAt(scheduleMetadata.generatedAt)}`
                     : ''}
                 </Badge>
-              ) : (
+              ) : !soaEmpty ? (
                 <Badge variant="destructive" className="text-[10px]">
                   Cache missing
                 </Badge>
-              )}
-              {cacheStale ? (
+              ) : null}
+              {!soaEmpty && cacheStale ? (
                 <Badge variant="destructive" className="text-[10px] gap-1">
                   <AlertTriangle className="h-3 w-3" />
                   Stale
@@ -138,15 +148,26 @@ export function SoAConfigurationShell({ onCellClick }: SoAConfigurationShellProp
 
         <div className="flex-1 min-h-0 overflow-auto">
           <div className="p-4 h-full min-h-0">
-            {SOA_CONFIGURATION_TABS.map((tab) => (
-              <TabsContent
-                key={tab.id}
-                value={tab.id}
-                className="mt-0 outline-none h-full min-h-0 data-[state=inactive]:hidden"
+            {soaEmpty ? (
+              <div
+                className="flex h-full min-h-[280px] items-center justify-center rounded-lg border border-dashed border-border bg-muted/10 px-6 text-center"
+                data-testid="soa-configuration-empty-state"
               >
-                {renderTabContent(tab)}
-              </TabsContent>
-            ))}
+                <p className="max-w-md text-sm text-muted-foreground">
+                  No SoA has been created yet. Generate a first-pass SoA or add schedule items manually.
+                </p>
+              </div>
+            ) : (
+              SOA_CONFIGURATION_TABS.map((tab) => (
+                <TabsContent
+                  key={tab.id}
+                  value={tab.id}
+                  className="mt-0 outline-none h-full min-h-0 data-[state=inactive]:hidden"
+                >
+                  {renderTabContent(tab)}
+                </TabsContent>
+              ))
+            )}
           </div>
         </div>
       </Tabs>
