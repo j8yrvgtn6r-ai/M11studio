@@ -112,6 +112,17 @@ export function UsdmExportReadinessDialog({
         </div>
 
         <DialogFooter className="gap-2 sm:gap-0">
+          <Button
+            variant="outline"
+            size="sm"
+            data-testid="open-review-workspace-from-usdm-export"
+            onClick={() => {
+              onOpenChange(false);
+              window.dispatchEvent(new CustomEvent('m11:open-review-workspace'));
+            }}
+          >
+            Open Review Workspace
+          </Button>
           <Button variant="outline" size="sm" onClick={() => onOpenChange(false)}>
             Close
           </Button>

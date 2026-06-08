@@ -149,6 +149,16 @@ export function SoAProposalReviewPanel({ onClose }: SoAProposalReviewPanelProps)
 
         </Badge>
 
+        <Button
+          size="sm"
+          variant="outline"
+          className="h-7 text-[10px] shrink-0"
+          data-testid="open-review-workspace-from-soa-proposal"
+          onClick={() => window.dispatchEvent(new CustomEvent('m11:open-review-workspace'))}
+        >
+          Open Review Workspace
+        </Button>
+
       </div>
 
 
@@ -337,6 +347,16 @@ export function SoAProposalReviewPanel({ onClose }: SoAProposalReviewPanelProps)
 
           <TabsContent value="narrative-sync" className="space-y-2 mt-3">
 
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-7 text-[10px]"
+              data-testid="open-review-workspace-from-narrative-sync"
+              onClick={() => window.dispatchEvent(new CustomEvent('m11:open-review-workspace'))}
+            >
+              Open Review Workspace
+            </Button>
+
             {proposal.impactedNarrativeSections.map((entry) => (
 
               <p key={entry.sectionId} className="text-xs">
@@ -496,6 +516,16 @@ export function SoAProposalActions({ compact = false }: { compact?: boolean }) {
           </Button>
 
         ) : null}
+
+        <Button
+          size="sm"
+          variant="outline"
+          className="h-8 text-xs"
+          data-testid="open-review-workspace-from-soa-generation"
+          onClick={() => window.dispatchEvent(new CustomEvent('m11:open-review-workspace'))}
+        >
+          Open Review Workspace
+        </Button>
 
       </div>
 

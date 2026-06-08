@@ -41,6 +41,17 @@ export function SectionIdeValidationPanel({
 
   return (
     <div className="space-y-4" data-testid="section-ide-validation-panel">
+      <div className="flex items-center justify-end">
+        <Button
+          size="sm"
+          variant="outline"
+          className="h-7 text-[10px]"
+          data-testid="open-review-workspace-from-validation"
+          onClick={() => window.dispatchEvent(new CustomEvent('m11:open-review-workspace'))}
+        >
+          Open Review Workspace
+        </Button>
+      </div>
       {summary.passes ? (
         <div className="flex items-start gap-2 rounded-md border border-green-500/30 bg-green-500/5 p-3" data-testid="section-passes-validation">
           <CheckCircle2 className="h-4 w-4 mt-0.5 text-green-600" />

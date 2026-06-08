@@ -1,4 +1,5 @@
 import type { ScheduleAnchor, ScheduleAnchorType, VisitDefinition, VisitDefinitionType } from '../types';
+import { isValidVisitWindowBound } from '../visitSchedule/guards';
 import { getProtocolDocument, mutateProtocolDocument } from './protocolStore';
 import { regenerateScheduleCacheAfterMutation } from './scheduleCacheMutations';
 
@@ -73,6 +74,12 @@ export function createVisitDefinition(input: CreateVisitDefinitionInput): boolea
   if (!input.name.trim() || !input.anchorId.trim() || !anchorExists(document, input.anchorId)) {
     return false;
   }
+  if (input.windowBeforeDays !== undefined && !isValidVisitWindowBound(input.windowBeforeDays)) {
+    return false;
+  }
+  if (input.windowAfterDays !== undefined && !isValidVisitWindowBound(input.windowAfterDays)) {
+    return false;
+  }
 
   let created = false;
   mutateProtocolDocument((draft) => {
@@ -138,6 +145,14 @@ export function updateScheduleAnchor(
   if (!anchorExists(document, anchorId)) {
     return false;
   }
+  if (patch.sourceVisitId !== undefined) {
+    const visitExists = (document.visitSchedule?.visitDefinitions ?? []).some(
+      (visit) => visit.id === patch.sourceVisitId,
+    );
+    if (!visitExists) {
+      return false;
+    }
+  }
   let updated = false;
   mutateProtocolDocument((draft) => {
     const anchor = draft.visitSchedule?.anchors.find((item) => item.id === anchorId);
@@ -147,6 +162,7 @@ export function updateScheduleAnchor(
     if (patch.name !== undefined) anchor.name = patch.name.trim();
     if (patch.anchorType !== undefined) anchor.anchorType = patch.anchorType;
     if (patch.description !== undefined) anchor.description = patch.description?.trim();
+    if (patch.sourceVisitId !== undefined) anchor.sourceVisitId = patch.sourceVisitId;
     draft.metadata.updatedAt = new Date().toISOString();
     updated = true;
   });
@@ -182,6 +198,12 @@ export function updateVisitDefinition(
     return false;
   }
   if (patch.anchorId && !anchorExists(document, patch.anchorId)) {
+    return false;
+  }
+  if (patch.windowBeforeDays !== undefined && !isValidVisitWindowBound(patch.windowBeforeDays)) {
+    return false;
+  }
+  if (patch.windowAfterDays !== undefined && !isValidVisitWindowBound(patch.windowAfterDays)) {
     return false;
   }
   let updated = false;

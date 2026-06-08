@@ -31,6 +31,7 @@
     "test:study-design-foundation": "npx vite-node scripts/test-study-design-foundation.ts",
     "test:study-design-v2": "npx vite-node scripts/test-study-design-v2.ts",
     "test:usdm-alignment-foundation": "npx vite-node scripts/test-usdm-alignment-foundation.ts",
+    "test:review-workspace": "npx vite-node scripts/test-review-workspace.ts",
     "test:backend": "npx vite-node scripts/test-backend-scaffold.ts",
     "test:schedule-parity": "npx vite-node scripts/check-schedule-parity.ts",
     "generate:parity-fixtures": "npx vite-node scripts/generate-parity-fixtures.ts",

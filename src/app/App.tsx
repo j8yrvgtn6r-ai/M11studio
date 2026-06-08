@@ -92,10 +92,13 @@ import { getCanonicalDocumentByUploadId } from './domain/document-ingestion';
 import akyrianLogo from './assets/akyrian-logo.svg';
 
 import { useProtocolImport, useSectionImportDraft } from './domain/protocol/import/ProtocolImportContext';
-import { UsdmExportReadinessDialog } from './components/study-design/UsdmExportReadinessDialog';
+import { ProtocolReviewWorkspace } from './components/review-workspace/ProtocolReviewWorkspace';
+import { useReviewWorkspaceQueueCounts } from './domain/review-workspace/useReviewWorkspace';
+import type { ReviewWorkspaceNavigationContext } from './domain/review-workspace/ReviewItemTypes';
 import { buildUsdmExport, downloadUsdmJson } from './domain/usdm';
 import { getStudyDesign } from './domain/study-design';
 import type { UsdmExportResult } from './domain/usdm';
+import { UsdmExportReadinessDialog } from './components/study-design/UsdmExportReadinessDialog';
 
 type HeaderValidationFinding = {
   id: string;
@@ -143,12 +146,14 @@ export default function App() {
   const [importDialogOpen, setImportDialogOpen] = useState(false);
   const [newProjectDialogOpen, setNewProjectDialogOpen] = useState(false);
   const [importReviewOpen, setImportReviewOpen] = useState(false);
+  const [reviewWorkspaceOpen, setReviewWorkspaceOpen] = useState(false);
   const [importCompleteBanner, setImportCompleteBanner] = useState<string | null>(null);
   const [studyModelUpdatedBanner, setStudyModelUpdatedBanner] = useState<string | null>(null);
   const [usdmExportDialogOpen, setUsdmExportDialogOpen] = useState(false);
   const [pendingUsdmExport, setPendingUsdmExport] = useState<UsdmExportResult | null>(null);
   const { state: importState, storageWarnings } = useProtocolImport();
   const buildState = useProtocolBuildConsole();
+  const reviewQueue = useReviewWorkspaceQueueCounts();
   const buildActive = buildState.status === 'running' || buildState.status === 'paused';
   const sectionImportDraft = useSectionImportDraft(selectedSectionId);
   const selectedSectionGenerationState = selectedSectionId
@@ -183,6 +188,12 @@ export default function App() {
     return subscribeStudyModelUpdated((message) => {
       setStudyModelUpdatedBanner(message);
     });
+  }, []);
+
+  useEffect(() => {
+    const openReview = () => setReviewWorkspaceOpen(true);
+    window.addEventListener('m11:open-review-workspace', openReview);
+    return () => window.removeEventListener('m11:open-review-workspace', openReview);
   }, []);
 
   useEffect(() => {
@@ -317,8 +328,9 @@ export default function App() {
           message: issue.message,
           name: issue.name,
         }));
-  const errorCount = headerValidationFindings.filter((finding) => finding.severity === 'error').length;
-  const warningCount = headerValidationFindings.filter((finding) => finding.severity === 'warning').length;
+  const errorCount = reviewQueue.errors;
+  const warningCount = reviewQueue.warnings;
+  const reviewOpenCount = reviewQueue.open;
   const autosaveLabel =
     autosaveStatus === 'saving'
       ? 'Saving…'
@@ -397,9 +409,46 @@ export default function App() {
     setUsdmExportDialogOpen(false);
   }
 
+  function handleOpenReviewWorkspace() {
+    setReviewWorkspaceOpen(true);
+    setImportReviewOpen(false);
+    setSettingsOpen(false);
+    setShowDependencyGraph(false);
+  }
+
+  const reviewNavigation: ReviewWorkspaceNavigationContext = {
+    onNavigateSection: (sectionId) => {
+      setReviewWorkspaceOpen(false);
+      handleSectionSelect(sectionId);
+    },
+    onNavigateLint: (sectionId, lineNumber, startOffset) => {
+      setReviewWorkspaceOpen(false);
+      handleSectionSelect(sectionId);
+      if (lineNumber != null) {
+        setDiagnosticScrollTarget({
+          sectionId,
+          lineNumber,
+          startOffset,
+          requestId: Date.now(),
+        });
+      }
+    },
+    onOpenSoAConfiguration: () => {
+      setReviewWorkspaceOpen(false);
+      handleSectionSelect('1.3');
+    },
+    onOpenUsdmExport: () => {
+      handleExportUsdmJson();
+    },
+    onOpenStudyDesign: () => {
+      setReviewWorkspaceOpen(false);
+      handleSectionSelect('1.3');
+    },
+  };
+
   const completedSections = countAuthoringCompletedSections(protocolSections, importState.sectionDrafts);
   const totalSections = countAuthoringTotalSections(protocolSections);
-  const totalValidationIssues = headerValidationFindings.length;
+  const totalValidationIssues = reviewOpenCount;
   const protocolDisplayIdentity = resolveProtocolDisplayIdentity({
     importedSourceSummary: importState.importedSourceSummary,
     fallbackProtocolId: importState.protocolId,
@@ -471,62 +520,32 @@ export default function App() {
           Protocol Search <kbd className="ml-2 pointer-events-none inline-flex h-5 select-none items-center gap-1 rounded border bg-muted px-1.5 font-mono text-[10px] font-medium opacity-100">⌘K</kbd>
         </Button>
 
-        <div className="flex items-center gap-2">
-          {totalValidationIssues > 0 ? (
-            <Popover>
-              <PopoverTrigger asChild>
-                <button
-                  type="button"
-                  className="inline-flex items-center rounded-md border border-transparent bg-destructive px-2 py-0.5 text-xs font-semibold text-destructive-foreground hover:bg-destructive/90"
-                  data-testid="header-validation-summary"
-                >
-                  <AlertCircle className="h-3 w-3 mr-1" />
-                  {errorCount} errors, {warningCount} warnings
-                </button>
-              </PopoverTrigger>
-              <PopoverContent align="end" className="w-80 p-0">
-                <div className="px-3 py-2 border-b border-border">
-                  <p className="text-sm font-medium">Validation issues</p>
-                  <p className="text-xs text-muted-foreground">
-                    {hasImportDrafts ? 'From import validation findings' : 'From protocol validation'}
-                  </p>
-                </div>
-                <ScrollArea className="max-h-64">
-                  <div className="p-2 space-y-2">
-                    {headerValidationFindings.map((finding) => (
-                      <button
-                        key={finding.id}
-                        type="button"
-                        className="w-full text-left p-2 rounded-md border border-border hover:bg-muted/50"
-                        onClick={() => handleSectionSelect(finding.sectionId)}
-                      >
-                        <div className="flex items-start gap-2">
-                          {finding.severity === 'error' ? (
-                            <AlertCircle className="h-3.5 w-3.5 mt-0.5 text-red-500" />
-                          ) : finding.severity === 'warning' ? (
-                            <AlertTriangle className="h-3.5 w-3.5 mt-0.5 text-amber-500" />
-                          ) : (
-                            <CheckCircle2 className="h-3.5 w-3.5 mt-0.5 text-muted-foreground" />
-                          )}
-                          <div className="min-w-0">
-                            <p className="text-xs font-medium truncate">
-                              {finding.name ?? finding.sectionId}
-                            </p>
-                            <p className="text-xs text-muted-foreground">{finding.message}</p>
-                          </div>
-                        </div>
-                      </button>
-                    ))}
-                  </div>
-                </ScrollArea>
-              </PopoverContent>
-            </Popover>
+        <div className="flex items-center gap-2" data-testid="header-validation-summary">
+          {reviewOpenCount > 0 ? (
+            <Button
+              variant="destructive"
+              size="sm"
+              className="h-8 text-xs"
+              onClick={handleOpenReviewWorkspace}
+            >
+              <AlertCircle className="h-3.5 w-3.5 mr-1.5" />
+              {errorCount} Errors · {warningCount} Warnings
+            </Button>
           ) : (
-            <Badge variant="outline" className="h-6 text-xs text-green-600 dark:text-green-400 border-green-500/30" data-testid="header-validation-summary">
+            <Badge variant="outline" className="h-6 text-xs text-green-600 dark:text-green-400 border-green-500/30">
               <CheckCircle2 className="h-3 w-3 mr-1" />
               No issues
             </Badge>
           )}
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-8 text-xs"
+            data-testid="header-open-review-workspace"
+            onClick={handleOpenReviewWorkspace}
+          >
+            Review Workspace
+          </Button>
 
           <Button variant="ghost" size="sm" className="h-8 text-xs">
             <Users className="h-3.5 w-3.5 mr-1.5" />
@@ -625,7 +644,12 @@ export default function App() {
 
       {/* Main IDE Layout */}
       <div className="flex flex-1 min-h-0 overflow-hidden">
-        {importReviewOpen ? (
+        {reviewWorkspaceOpen ? (
+          <ProtocolReviewWorkspace
+            navigation={reviewNavigation}
+            onBack={() => setReviewWorkspaceOpen(false)}
+          />
+        ) : importReviewOpen ? (
           <ProtocolImportReviewWorkspace
             templateReferenceEnabled={templateReferenceEnabled}
             onBack={() => setImportReviewOpen(false)}
@@ -878,8 +902,8 @@ export default function App() {
 
       {/* Build Console + Status Bar */}
       <ProtocolBuildConsole
-        showReviewWorkspace={Boolean(importState.lastImportCompletedAt)}
-        onOpenReviewWorkspace={() => setImportReviewOpen(true)}
+        showReviewWorkspace
+        onOpenReviewWorkspace={handleOpenReviewWorkspace}
       />
       <StatusBar
         protocolId={protocolDisplayIdentity}

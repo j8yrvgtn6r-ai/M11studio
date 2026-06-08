@@ -216,6 +216,16 @@ export function StudyDesignSummaryPanel() {
           </Button>
         ) : null}
 
+        <Button
+          size="sm"
+          variant="outline"
+          className="h-8 text-xs"
+          data-testid="open-review-workspace-from-study-design"
+          onClick={() => window.dispatchEvent(new CustomEvent('m11:open-review-workspace'))}
+        >
+          Open Review Workspace
+        </Button>
+
         {studioState === 'studyDesignExists' && !firstPassReady ? (
           <p className="text-[11px] text-muted-foreground">
             Study Design is ready. Generate First-Pass SoA to derive the schedule matrix.

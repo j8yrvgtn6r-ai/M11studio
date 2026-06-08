@@ -280,6 +280,15 @@ export function SoAEnrichmentActions({ compact = false }: { compact?: boolean })
             Review Enrichment Proposal
           </Button>
         ) : null}
+        <Button
+          size="sm"
+          variant="outline"
+          className="h-8 text-xs"
+          data-testid="open-review-workspace-from-soa-enrichment"
+          onClick={() => window.dispatchEvent(new CustomEvent('m11:open-review-workspace'))}
+        >
+          Open Review Workspace
+        </Button>
       </div>
       {proposal ? (
         <p className="text-[11px] text-muted-foreground">
