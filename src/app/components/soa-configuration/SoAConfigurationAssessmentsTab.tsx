@@ -60,7 +60,7 @@ export function SoAConfigurationAssessmentsTab() {
             <Badge variant="secondary" className="text-[10px] shrink-0">
               Governance
             </Badge>
-            Narrative impact tracking coming soon.
+            Narrative sections flagged for review after SoA configuration change.
           </AlertDescription>
         </Alert>
       ) : null}

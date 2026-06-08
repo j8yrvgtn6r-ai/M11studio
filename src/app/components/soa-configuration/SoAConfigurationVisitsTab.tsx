@@ -1,5 +1,5 @@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
-import { SoAConfigurationScheduleRulesPlaceholder } from './SoAConfigurationScheduleRulesPlaceholder';
+import { SoAConfigurationScheduleRulesPanel } from './SoAConfigurationScheduleRulesPanel';
 import { SoAConfigurationVisitsSchedulePanel } from './SoAConfigurationVisitsSchedulePanel';
 
 export function SoAConfigurationVisitsTab() {
@@ -13,7 +13,7 @@ export function SoAConfigurationVisitsTab() {
         <SoAConfigurationVisitsSchedulePanel />
       </TabsContent>
       <TabsContent value="schedule-rules" className="mt-0 outline-none">
-        <SoAConfigurationScheduleRulesPlaceholder />
+        <SoAConfigurationScheduleRulesPanel />
       </TabsContent>
     </Tabs>
   );

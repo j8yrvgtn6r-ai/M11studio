@@ -191,3 +191,42 @@ export {
   resetSoANarrativeSyncStoreForTests,
   subscribeSoANarrativeSync,
 } from './soaNarrativeSyncStore';
+
+export {
+  evaluateSoAEnrichmentReadiness,
+  evaluateSoAFirstPassReadiness,
+  SOA_READINESS_RELEVANT_SECTION_IDS,
+} from './soaReadinessEvaluator';
+export type {
+  SoAEnrichmentReadinessEvaluation,
+  SoAReadinessEvaluation,
+  SoAReadinessRelevantSectionId,
+} from './soaReadinessEvaluator';
+
+export {
+  hasBlockingValidationIssues,
+  validateSoAEntityForm,
+  describeEntityForImpact,
+} from './soaEntityValidation';
+export type { SoAEntityEditorKind, SoAEntityFormValues, SoAEntityValidationIssue } from './soaEntityValidation';
+
+export { listKnowledgeEntities, saveManualSoAEntity, entityToFormValues, deleteManualSoAEntity } from './soaManualAuthoringService';
+export type { ManualSoAEntitySaveResult } from './soaManualAuthoringService';
+
+export {
+  SOA_BUILDER_LAYER_DEFINITIONS,
+  SOA_BUILDER_NARRATIVE_SECTIONS,
+  SOA_BUILDER_STRUCTURE_LAYERS,
+  SOA_BUILDER_SYNC_TARGETS,
+} from './soaStudyStructureModel';
+export type {
+  SoABuilderLayerDefinition,
+  SoABuilderNarrativeSectionId,
+  SoABuilderStructureLayer,
+  SoABuilderSyncTarget,
+} from './soaStudyStructureModel';
+
+export {
+  validateScheduledAssessmentNarrativeCoverage,
+  validateSoAKnowledgeIntegrity,
+} from './soaKnowledgeIntegrity';

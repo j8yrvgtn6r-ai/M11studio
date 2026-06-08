@@ -15,6 +15,7 @@ import {
 import { getCurrentSoANarrativeSyncProposal } from '../../domain/soa-knowledge/soaNarrativeSyncStore';
 
 import { useSoAProposal } from '../../domain/soa-knowledge/useSoAProposal';
+import { evaluateSoAFirstPassReadiness } from '../../domain/soa-knowledge/soaReadinessEvaluator';
 
 import { Badge } from '../ui/badge';
 
@@ -418,6 +419,8 @@ export function SoAProposalActions({ compact = false }: { compact?: boolean }) {
 
   const [running, setRunning] = useState(false);
 
+  const readiness = evaluateSoAFirstPassReadiness();
+
 
 
   const handleGenerate = async () => {
@@ -446,6 +449,7 @@ export function SoAProposalActions({ compact = false }: { compact?: boolean }) {
 
       <div className={`flex ${compact ? 'flex-col' : 'flex-wrap'} gap-2`}>
 
+        {readiness.ready ? (
         <Button
 
           size="sm"
@@ -465,6 +469,11 @@ export function SoAProposalActions({ compact = false }: { compact?: boolean }) {
           {running ? 'Generating…' : 'Generate First-Pass SoA'}
 
         </Button>
+        ) : (
+          <p className="text-[11px] text-muted-foreground" data-testid="soa-generate-first-pass-hidden">
+            Generate First-Pass SoA is hidden until a Study Design exists.
+          </p>
+        )}
 
         {proposal?.status === 'proposed' ? (
 

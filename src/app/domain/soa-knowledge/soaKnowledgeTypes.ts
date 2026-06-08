@@ -51,6 +51,8 @@ export interface SoAArm extends SoAProvenanceFields {
   id: string;
   name: string;
   description?: string;
+  armType?: string;
+  interventionId?: string;
   sourceSectionIds: string[];
 }
 
@@ -58,7 +60,10 @@ export interface SoAEpoch extends SoAProvenanceFields {
   id: string;
   name: string;
   description?: string;
+  epochType?: string;
   order: number;
+  startMilestoneId?: string;
+  endMilestoneId?: string;
   sourceSectionIds: string[];
 }
 
@@ -68,6 +73,7 @@ export interface SoAElement extends SoAProvenanceFields {
   armId?: string;
   epochId?: string;
   description?: string;
+  plannedDuration?: string;
   order: number;
   sourceSectionIds: string[];
 }
@@ -75,12 +81,26 @@ export interface SoAElement extends SoAProvenanceFields {
 export interface SoAVisit extends SoAProvenanceFields {
   id: string;
   name: string;
+  visitType?: string;
   epochId?: string;
   elementId?: string;
+  anchorId?: string;
   nominalDay?: number;
   nominalWeek?: number;
+  nominalCycle?: number;
   window?: string;
+  required?: boolean;
   order: number;
+  sourceSectionIds: string[];
+}
+
+/** Timeline anchor event — maps to protocol ScheduleAnchor and USDM timing anchors. */
+export interface SoAMilestone extends SoAProvenanceFields {
+  id: string;
+  name: string;
+  milestoneType?: string;
+  anchorDateOrEvent?: string;
+  description?: string;
   sourceSectionIds: string[];
 }
 
@@ -99,6 +119,9 @@ export interface SoAAssessment extends SoAProvenanceFields {
   name: string;
   category?: SoAAssessmentCategory;
   description?: string;
+  linkedActivityIds?: string[];
+  linkedVisitIds?: string[];
+  required?: boolean;
   sourceSectionIds: string[];
 }
 
@@ -140,6 +163,8 @@ export interface SoACondition extends SoAProvenanceFields {
   label: string;
   description?: string;
   expressionText?: string;
+  appliesToEntityId?: string;
+  appliesToEntityKind?: string;
   sourceSectionIds: string[];
 }
 
@@ -170,6 +195,7 @@ export interface SoAKnowledgeModel {
   timingWindows: SoATimingWindow[];
   scheduleRules: SoAScheduleRule[];
   conditions: SoACondition[];
+  milestones: SoAMilestone[];
   footnotes: SoAFootnote[];
   sourceSectionIds: string[];
   extractionNotes: string[];
@@ -191,6 +217,7 @@ export interface SoAKnowledgePatch {
   timingWindows?: SoATimingWindow[];
   scheduleRules?: SoAScheduleRule[];
   conditions?: SoACondition[];
+  milestones?: SoAMilestone[];
   footnotes?: SoAFootnote[];
   sourceSectionIds?: string[];
   extractionNotes?: string[];
@@ -215,6 +242,7 @@ export type SoAKnowledgeEntityKind =
   | 'timingWindow'
   | 'scheduleRule'
   | 'condition'
+  | 'milestone'
   | 'footnote';
 
 export type SoAChangeKind =

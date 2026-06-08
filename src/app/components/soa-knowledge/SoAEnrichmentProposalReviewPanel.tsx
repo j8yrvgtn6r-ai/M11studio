@@ -7,6 +7,13 @@ import {
 } from '../../agents/soaAgentEnrichmentRunner';
 import type { SoAInferenceSource } from '../../domain/soa-knowledge/soaKnowledgeTypes';
 import { useSoAEnrichmentProposal } from '../../domain/soa-knowledge/useSoAEnrichmentProposal';
+import { evaluateSoAEnrichmentReadiness, firstPassSoAExists } from '../../domain/soa-knowledge/soaReadinessEvaluator';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '../ui/tooltip';
 import { Badge } from '../ui/badge';
 import { Button } from '../ui/button';
 import { ScrollArea } from '../ui/scroll-area';
@@ -219,6 +226,8 @@ export function SoAEnrichmentActions({ compact = false }: { compact?: boolean })
   const proposal = useSoAEnrichmentProposal();
   const [reviewOpen, setReviewOpen] = useState(false);
   const [running, setRunning] = useState(false);
+  const readiness = evaluateSoAEnrichmentReadiness();
+  const showEnrichment = firstPassSoAExists();
 
   const handleRun = async () => {
     setRunning(true);
@@ -233,16 +242,33 @@ export function SoAEnrichmentActions({ compact = false }: { compact?: boolean })
   return (
     <div className="space-y-2" data-testid="soa-enrichment-actions">
       <div className={`flex ${compact ? 'flex-col' : 'flex-wrap'} gap-2`}>
-        <Button
-          size="sm"
-          variant="outline"
-          className="h-8 text-xs"
-          disabled={running}
-          onClick={() => void handleRun()}
-          data-testid="soa-run-llm-enrichment-button"
-        >
-          {running ? 'Enriching…' : 'Run LLM SoA Enrichment'}
-        </Button>
+        {showEnrichment && readiness.ready ? (
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-8 text-xs"
+            disabled={running}
+            onClick={() => void handleRun()}
+            data-testid="soa-run-llm-enrichment-button"
+          >
+            {running ? 'Enriching…' : 'Run LLM SoA Enrichment'}
+          </Button>
+        ) : (
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span className="inline-flex" data-testid="soa-run-llm-enrichment-disabled">
+                  <Button size="sm" variant="outline" className="h-8 text-xs" disabled>
+                    Run LLM SoA Enrichment
+                  </Button>
+                </span>
+              </TooltipTrigger>
+              <TooltipContent>
+                Generate a first-pass SoA before running LLM enrichment.
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        )}
         {proposal?.status === 'proposed' ? (
           <Button
             size="sm"

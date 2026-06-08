@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 
-import { AlertCircle, AlertTriangle } from 'lucide-react';
+import { AlertCircle, AlertTriangle, Plus } from 'lucide-react';
 
 import {
   getAssessmentScheduleRulesForVisit,
@@ -24,11 +24,16 @@ import {
   resolveAnchorLabel,
 } from './visitDisplayFormatters';
 import { buildVisitValidationIndex } from './visitValidationIndex';
+import { SoAEntityEditorDialog } from './SoAEntityEditorDialog';
+import { useSoAReadiness } from './useSoAReadiness';
+import { Button } from '../ui/button';
 
 /** Read-only visit schedule catalog (anchors + visit definitions). */
 export function SoAConfigurationVisitsSchedulePanel() {
   const [protocolRevision, setProtocolRevision] = useState(0);
   const [selectedVisitId, setSelectedVisitId] = useState<string | null>(null);
+  const [editorOpen, setEditorOpen] = useState(false);
+  const { firstPass } = useSoAReadiness();
 
   useEffect(() => {
     return subscribe(() => {
@@ -105,13 +110,31 @@ export function SoAConfigurationVisitsSchedulePanel() {
       <div className="flex flex-col lg:flex-row gap-4 min-h-[320px]">
         <Card className="flex-[3] min-w-0 flex flex-col min-h-[320px]">
           <CardHeader className="pb-3 shrink-0">
-            <CardTitle className="text-base">Visit definitions</CardTitle>
-            <CardDescription>
-              Read-only list from <span className="font-mono">visitSchedule.visitDefinitions</span> (
-              {visitDefinitions.length})
-            </CardDescription>
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <CardTitle className="text-base">Visit definitions</CardTitle>
+                <CardDescription>
+                  Visit catalog from <span className="font-mono">visitSchedule.visitDefinitions</span> ({visitDefinitions.length})
+                </CardDescription>
+              </div>
+              <Button size="sm" className="gap-1.5 shrink-0" onClick={() => setEditorOpen(true)} data-testid="soa-add-visit-button">
+                <Plus className="h-4 w-4" />
+                Add Visit
+              </Button>
+            </div>
           </CardHeader>
           <CardContent className="p-0 flex-1 min-h-0">
+            {visitDefinitions.length === 0 ? (
+              <div
+                className="mx-4 mb-4 rounded-lg border border-dashed border-border bg-muted/10 px-4 py-8 text-center text-sm text-muted-foreground"
+                data-testid="soa-empty-state-visit-config"
+              >
+                <p>No visits have been created yet. Add a visit manually or generate a first-pass SoA after protocol knowledge is available.</p>
+                {!firstPass.ready ? (
+                  <p className="mt-3 text-xs">Add protocol content or import a protocol before generating a first-pass SoA.</p>
+                ) : null}
+              </div>
+            ) : (
             <ScrollArea className="h-full max-h-[360px]">
               <div className="min-w-max">
                 <Table>
@@ -193,6 +216,7 @@ export function SoAConfigurationVisitsSchedulePanel() {
               </div>
               <ScrollBar orientation="horizontal" />
             </ScrollArea>
+            )}
           </CardContent>
         </Card>
 
@@ -205,6 +229,14 @@ export function SoAConfigurationVisitsSchedulePanel() {
           />
         </div>
       </div>
+
+      <SoAEntityEditorDialog
+        open={editorOpen}
+        mode="create"
+        entityKind="visit"
+        onOpenChange={setEditorOpen}
+        onSuccess={() => setProtocolRevision((value) => value + 1)}
+      />
     </div>
   );
 }

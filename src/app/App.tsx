@@ -92,6 +92,10 @@ import { getCanonicalDocumentByUploadId } from './domain/document-ingestion';
 import akyrianLogo from './assets/akyrian-logo.svg';
 
 import { useProtocolImport, useSectionImportDraft } from './domain/protocol/import/ProtocolImportContext';
+import { UsdmExportReadinessDialog } from './components/study-design/UsdmExportReadinessDialog';
+import { buildUsdmExport, downloadUsdmJson } from './domain/usdm';
+import { getStudyDesign } from './domain/study-design';
+import type { UsdmExportResult } from './domain/usdm';
 
 type HeaderValidationFinding = {
   id: string;
@@ -141,6 +145,8 @@ export default function App() {
   const [importReviewOpen, setImportReviewOpen] = useState(false);
   const [importCompleteBanner, setImportCompleteBanner] = useState<string | null>(null);
   const [studyModelUpdatedBanner, setStudyModelUpdatedBanner] = useState<string | null>(null);
+  const [usdmExportDialogOpen, setUsdmExportDialogOpen] = useState(false);
+  const [pendingUsdmExport, setPendingUsdmExport] = useState<UsdmExportResult | null>(null);
   const { state: importState, storageWarnings } = useProtocolImport();
   const buildState = useProtocolBuildConsole();
   const buildActive = buildState.status === 'running' || buildState.status === 'paused';
@@ -370,6 +376,27 @@ export default function App() {
     // In a real app, this would open the detail inspector with cell metadata
   };
 
+  function handleExportUsdmJson() {
+    const exportResult = buildUsdmExport(getStudyDesign());
+    if (exportResult.validation.summary.errorCount > 0) {
+      setPendingUsdmExport(exportResult);
+      setUsdmExportDialogOpen(true);
+      return;
+    }
+    if (exportResult.readiness.state === 'readyWithWarnings') {
+      setPendingUsdmExport(exportResult);
+      setUsdmExportDialogOpen(true);
+      return;
+    }
+    downloadUsdmJson(exportResult);
+  }
+
+  function handleConfirmUsdmDownload() {
+    if (!pendingUsdmExport) return;
+    downloadUsdmJson(pendingUsdmExport);
+    setUsdmExportDialogOpen(false);
+  }
+
   const completedSections = countAuthoringCompletedSections(protocolSections, importState.sectionDrafts);
   const totalSections = countAuthoringTotalSections(protocolSections);
   const totalValidationIssues = headerValidationFindings.length;
@@ -414,7 +441,13 @@ export default function App() {
                 data-testid="app-export-menu-item"
                 onSelect={() => downloadProtocolJson()}
               >
-                Export
+                Export Protocol JSON
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                data-testid="app-export-usdm-menu-item"
+                onSelect={() => handleExportUsdmJson()}
+              >
+                Export USDM JSON
               </DropdownMenuItem>
               <DropdownMenuItem
                 data-testid="app-settings-menu-item"
@@ -831,6 +864,13 @@ export default function App() {
           setFields(getFieldDefinitions());
           setSelectedSectionId('1');
         }}
+      />
+
+      <UsdmExportReadinessDialog
+        open={usdmExportDialogOpen}
+        onOpenChange={setUsdmExportDialogOpen}
+        exportResult={pendingUsdmExport}
+        onDownload={handleConfirmUsdmDownload}
       />
 
       {/* Welcome Dialog */}

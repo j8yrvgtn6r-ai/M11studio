@@ -33,6 +33,7 @@ export function createEmptySoAKnowledgeModel(protocolId?: string): SoAKnowledgeM
     timingWindows: [],
     scheduleRules: [],
     conditions: [],
+    milestones: [],
     footnotes: [],
     sourceSectionIds: [],
     extractionNotes: [],
@@ -164,6 +165,7 @@ export function applySoAKnowledgePatch(
       ? mergeScheduleRules(base.scheduleRules, patch.scheduleRules)
       : base.scheduleRules,
     conditions: mergeById(base.conditions, patch.conditions),
+    milestones: mergeById(base.milestones ?? [], patch.milestones),
     footnotes: mergeById(base.footnotes, patch.footnotes),
     sourceSectionIds: mergeStringArrays(base.sourceSectionIds, patch.sourceSectionIds ?? []),
     extractionNotes: mergeStringArrays(base.extractionNotes, patch.extractionNotes ?? []),
@@ -178,4 +180,35 @@ export function applySoAKnowledgePatch(
     updatedAt: now,
     version: base.version + 1,
   };
+}
+
+export function removeSoAKnowledgeEntityById(
+  base: SoAKnowledgeModel,
+  kind: 'epoch' | 'arm' | 'element' | 'visit' | 'activity' | 'assessment' | 'condition' | 'scheduleRule' | 'milestone',
+  entityId: string,
+): SoAKnowledgeModel {
+  const filter = <T extends { id: string }>(items: T[]) => items.filter((item) => item.id !== entityId);
+  const now = new Date().toISOString();
+  switch (kind) {
+    case 'epoch':
+      return { ...base, epochs: filter(base.epochs), updatedAt: now, version: base.version + 1 };
+    case 'arm':
+      return { ...base, arms: filter(base.arms), updatedAt: now, version: base.version + 1 };
+    case 'element':
+      return { ...base, elements: filter(base.elements), updatedAt: now, version: base.version + 1 };
+    case 'visit':
+      return { ...base, visits: filter(base.visits), updatedAt: now, version: base.version + 1 };
+    case 'activity':
+      return { ...base, activities: filter(base.activities), updatedAt: now, version: base.version + 1 };
+    case 'assessment':
+      return { ...base, assessments: filter(base.assessments), updatedAt: now, version: base.version + 1 };
+    case 'condition':
+      return { ...base, conditions: filter(base.conditions), updatedAt: now, version: base.version + 1 };
+    case 'milestone':
+      return { ...base, milestones: filter(base.milestones ?? []), updatedAt: now, version: base.version + 1 };
+    case 'scheduleRule':
+      return { ...base, scheduleRules: filter(base.scheduleRules), updatedAt: now, version: base.version + 1 };
+    default:
+      return base;
+  }
 }

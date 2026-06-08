@@ -33,6 +33,7 @@ import {
 } from '../ui/select';
 import { getAssessmentCategoryOptions } from './assessmentCategoryOptions';
 import { generateNextAssessmentCatalogId } from './generateAssessmentCatalogId';
+import { saveManualSoAEntity } from '../../domain/soa-knowledge/soaManualAuthoringService';
 
 export type SoAAssessmentDefinitionEditorMode = 'create' | 'edit';
 
@@ -106,6 +107,12 @@ export function SoAAssessmentDefinitionEditorDialog({
         return;
       }
 
+      saveManualSoAEntity('assessment', {
+        name: label.trim(),
+        category: category.trim(),
+        code: generatedId,
+      });
+
       onSuccess(generatedId);
       onOpenChange(false);
       return;
@@ -131,6 +138,15 @@ export function SoAAssessmentDefinitionEditorDialog({
       setSaveError('Could not update assessment.');
       return;
     }
+
+    saveManualSoAEntity(
+      'assessment',
+      {
+        name: label.trim(),
+        category: category.trim(),
+      },
+      { entityId: definition.id },
+    );
 
     onSuccess(definition.id);
     onOpenChange(false);

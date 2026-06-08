@@ -4,6 +4,8 @@ export type SoAConfigurationTabId =
   | 'visits'
   | 'activities'
   | 'elements'
+  | 'milestones'
+  | 'timeline'
   | 'soa-assessments'
   | 'conditional-logic'
   | 'matrix';
@@ -41,6 +43,16 @@ export const SOA_CONFIGURATION_TABS: SoAConfigurationTabDefinition[] = [
     id: 'elements',
     label: 'Elements',
     description: 'Configure study design elements and epoch mapping.',
+  },
+  {
+    id: 'milestones',
+    label: 'Milestones',
+    description: 'Protocol milestones: Randomization, First Dose, End of Study, and custom anchor events.',
+  },
+  {
+    id: 'timeline',
+    label: 'Timeline',
+    description: 'Read-only horizontal study timeline across epochs, visits, and milestones.',
   },
   {
     id: 'soa-assessments',

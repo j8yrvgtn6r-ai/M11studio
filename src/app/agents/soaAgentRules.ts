@@ -9,6 +9,8 @@ import {
   compareSoAKnowledgeToExistingConfiguration,
 } from '../domain/soa-knowledge/soaKnowledgeBuilder';
 import { applySoAKnowledgePatch, createEmptySoAKnowledgeModel } from '../domain/soa-knowledge/soaKnowledgePatch';
+import { buildSoAKnowledgeFromStudyDesign, buildSoAExportHintsFromStudyDesign } from '../domain/study-design/StudyDesignSynchronization';
+import { hasStudyDesign } from '../domain/study-design/StudyDesignSelectors';
 import { buildProposedConfigurationPatch } from '../domain/soa-knowledge/soaConfigurationPatch';
 import {
   createSoANarrativeImpactRecord,
@@ -275,16 +277,28 @@ export function evaluateSoAScheduleExtraction(input: SoAAgentInput): SoAAgentOut
   }
 
   const extracted = buildSoAKnowledgeFromProtocolSections(sections, protocolId);
+  const studyDesignSeed = hasStudyDesign() ? buildSoAKnowledgeFromStudyDesign(undefined, protocolId) : null;
   const extraVisits = extractExtraVisits(sections);
   const extraAssessments = extractExtraAssessments(sections);
   const intervalDiagnostics = extractIntervalDiagnostics(sections);
 
   const narrativeModel = applySoAKnowledgePatch(createEmptySoAKnowledgeModel(protocolId), {
     ...modelToPatch(extracted),
-    visits: mergeUniqueByName(extracted.visits, extraVisits),
-    assessments: mergeUniqueByName(extracted.assessments, extraAssessments),
+    ...(studyDesignSeed ? modelToPatch(studyDesignSeed) : {}),
+    visits: mergeUniqueByName(
+      studyDesignSeed?.visits ?? [],
+      mergeUniqueByName(extracted.visits, extraVisits),
+    ),
+    assessments: mergeUniqueByName(
+      studyDesignSeed?.assessments ?? [],
+      mergeUniqueByName(extracted.assessments, extraAssessments),
+    ),
+    arms: mergeUniqueByName(studyDesignSeed?.arms ?? [], extracted.arms),
+    epochs: mergeUniqueByName(studyDesignSeed?.epochs ?? [], extracted.epochs),
+    activities: mergeUniqueByName(studyDesignSeed?.activities ?? [], extracted.activities),
     extractionNotes: [
       ...extracted.extractionNotes,
+      ...(studyDesignSeed ? ['Study Design model seeded deterministic schedule entities.'] : []),
       ...(intervalDiagnostics.length > 0 ? ['Interval timing captured as diagnostics only.'] : []),
     ],
     ambiguousScheduleStatements: [
@@ -343,6 +357,7 @@ export function evaluateSoAScheduleExtraction(input: SoAAgentInput): SoAAgentOut
 
   const patch = modelToPatch(mergedModel);
   const matrixPreview = buildMatrixProposalPreview(tableExtraction);
+  const studyDesignHints = hasStudyDesign() ? buildSoAExportHintsFromStudyDesign() : null;
   const sourceSummary: SoAProposalSourceSummary = {
     narrativeDerivedCount: reconciliation.narrativeDerivedCount,
     tableDerivedCount: reconciliation.tableDerivedCount,
@@ -364,6 +379,9 @@ export function evaluateSoAScheduleExtraction(input: SoAAgentInput): SoAAgentOut
       ...mergedModel.unmappedTimingReferences,
       ...mergedModel.ambiguousScheduleStatements,
       ...reconciliation.diagnostics,
+      ...(studyDesignHints?.footnoteSuggestions ?? []),
+      ...(studyDesignHints?.timingSuggestions ?? []),
+      ...(studyDesignHints?.milestoneRowSuggestions ?? []),
     ],
     warnings,
     skippedItems: comparison.unmatchedConfigurationAssessments.map(

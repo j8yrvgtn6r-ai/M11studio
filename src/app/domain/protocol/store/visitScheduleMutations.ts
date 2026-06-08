@@ -1,269 +1,232 @@
-import type {
-  MissedVisitPolicy,
-  ReanchorPolicy,
-  RipplePolicy,
-  ScheduleAnchorType,
-  VisitDefinitionType,
-} from '../types';
-import {
-  findScheduleAnchorInDocument,
-  findVisitDefinitionInDocument,
-  visitDefinitionExistsInDocument,
-} from '../visitSchedule/lookup';
-import { isValidScheduleOffset, isValidVisitWindowBound } from '../visitSchedule/guards';
+import type { ScheduleAnchor, ScheduleAnchorType, VisitDefinition, VisitDefinitionType } from '../types';
 import { getProtocolDocument, mutateProtocolDocument } from './protocolStore';
 import { regenerateScheduleCacheAfterMutation } from './scheduleCacheMutations';
 
-export type UpdateVisitDefinitionPatch = Partial<{
-  name: string;
-  visitType: VisitDefinitionType;
-  epoch: string;
-  cycleNumber: number;
-  anchorId: string;
-  offsetDays: number;
-  offsetWeeks: number;
-  offsetCycles: number;
-  nominalDay: number;
-  nominalWeek: number;
-  windowBeforeDays: number;
-  windowAfterDays: number;
-  missedVisitPolicy: MissedVisitPolicy;
-  reanchorPolicy: ReanchorPolicy;
-  ripplePolicy: RipplePolicy;
-  preserveOriginalSchedule: boolean;
-  armRestrictions: string[];
-  description: string;
-  metadata: Record<string, unknown>;
-}>;
-
-export type UpdateScheduleAnchorPatch = Partial<{
+export type CreateScheduleAnchorInput = {
+  id: string;
   name: string;
   anchorType: ScheduleAnchorType;
-  sourceVisitId: string;
-  sourceEventType: string;
-  description: string;
-}>;
+  description?: string;
+  sourceVisitId?: string;
+  sourceEventType?: string;
+};
 
-function visitDefinitionPatchIsValid(
-  document: ReturnType<typeof getProtocolDocument>,
-  patch: UpdateVisitDefinitionPatch
-): boolean {
-  if (patch.anchorId !== undefined) {
-    if (!patch.anchorId.trim() || !findScheduleAnchorInDocument(document, patch.anchorId)) {
-      return false;
-    }
-  }
+export type CreateVisitDefinitionInput = {
+  id: string;
+  name: string;
+  visitType: VisitDefinitionType;
+  anchorId: string;
+  epoch?: string;
+  order: number;
+  required?: boolean;
+  description?: string;
+  nominalDay?: number;
+  nominalWeek?: number;
+  windowBeforeDays?: number;
+  windowAfterDays?: number;
+  offsetDays?: number;
+  offsetWeeks?: number;
+  metadata?: Record<string, unknown>;
+};
 
-  if (patch.windowBeforeDays !== undefined && !isValidVisitWindowBound(patch.windowBeforeDays)) {
-    return false;
-  }
-
-  if (patch.windowAfterDays !== undefined && !isValidVisitWindowBound(patch.windowAfterDays)) {
-    return false;
-  }
-
-  const offsetFields: Array<keyof Pick<
-    UpdateVisitDefinitionPatch,
-    'offsetDays' | 'offsetWeeks' | 'offsetCycles' | 'nominalDay' | 'nominalWeek' | 'cycleNumber'
-  >> = ['offsetDays', 'offsetWeeks', 'offsetCycles', 'nominalDay', 'nominalWeek', 'cycleNumber'];
-
-  for (const field of offsetFields) {
-    const value = patch[field];
-    if (value !== undefined && !isValidScheduleOffset(value)) {
-      return false;
-    }
-  }
-
-  return true;
+function anchorExists(document: ReturnType<typeof getProtocolDocument>, anchorId: string): boolean {
+  return (document.visitSchedule?.anchors ?? []).some((anchor) => anchor.id === anchorId);
 }
 
-function scheduleAnchorPatchIsValid(
-  document: ReturnType<typeof getProtocolDocument>,
+export function createScheduleAnchor(input: CreateScheduleAnchorInput): boolean {
+  const document = getProtocolDocument();
+  if (anchorExists(document, input.id)) {
+    return false;
+  }
+  if (!input.name.trim()) {
+    return false;
+  }
+
+  let created = false;
+  mutateProtocolDocument((draft) => {
+    if (anchorExists(draft, input.id)) {
+      return;
+    }
+    if (!draft.visitSchedule) {
+      draft.visitSchedule = { anchors: [], visitDefinitions: [] };
+    }
+    const anchor: ScheduleAnchor = {
+      id: input.id,
+      name: input.name.trim(),
+      anchorType: input.anchorType,
+      description: input.description?.trim(),
+      sourceVisitId: input.sourceVisitId,
+      sourceEventType: input.sourceEventType,
+    };
+    draft.visitSchedule.anchors.push(anchor);
+    draft.metadata.updatedAt = new Date().toISOString();
+    created = true;
+  });
+  return created;
+}
+
+export function createVisitDefinition(input: CreateVisitDefinitionInput): boolean {
+  const document = getProtocolDocument();
+  if ((document.visitSchedule?.visitDefinitions ?? []).some((visit) => visit.id === input.id)) {
+    return false;
+  }
+  if (!input.name.trim() || !input.anchorId.trim() || !anchorExists(document, input.anchorId)) {
+    return false;
+  }
+
+  let created = false;
+  mutateProtocolDocument((draft) => {
+    if ((draft.visitSchedule?.visitDefinitions ?? []).some((visit) => visit.id === input.id)) {
+      return;
+    }
+    if (!draft.visitSchedule) {
+      draft.visitSchedule = { anchors: [], visitDefinitions: [] };
+    }
+    if (!anchorExists(draft, input.anchorId)) {
+      return;
+    }
+
+    const visit: VisitDefinition = {
+      id: input.id,
+      name: input.name.trim(),
+      visitType: input.visitType,
+      anchorId: input.anchorId,
+      epoch: input.epoch?.trim(),
+      order: input.order,
+      required: input.required ?? true,
+      description: input.description?.trim(),
+      nominalDay: input.nominalDay,
+      nominalWeek: input.nominalWeek,
+      windowBeforeDays: input.windowBeforeDays,
+      windowAfterDays: input.windowAfterDays,
+      offsetDays: input.offsetDays,
+      offsetWeeks: input.offsetWeeks,
+      metadata: {
+        ...(input.metadata ?? {}),
+        inferenceSource: 'user-created',
+      },
+    };
+    draft.visitSchedule.visitDefinitions.push(visit);
+    draft.metadata.updatedAt = new Date().toISOString();
+    regenerateScheduleCacheAfterMutation(draft);
+    created = true;
+  });
+  return created;
+}
+
+export function ensureDefaultScreeningAnchor(): string {
+  const document = getProtocolDocument();
+  const existing = document.visitSchedule?.anchors?.[0];
+  if (existing) {
+    return existing.id;
+  }
+  const anchorId = 'anchor-screening';
+  createScheduleAnchor({
+    id: anchorId,
+    name: 'Screening',
+    anchorType: 'screening',
+    description: 'Default screening anchor for manual visit authoring.',
+  });
+  return anchorId;
+}
+
+export function updateScheduleAnchor(
   anchorId: string,
-  patch: UpdateScheduleAnchorPatch
+  patch: Partial<CreateScheduleAnchorInput>,
 ): boolean {
-  if (patch.sourceVisitId !== undefined) {
-    if (!patch.sourceVisitId.trim() || !visitDefinitionExistsInDocument(document, patch.sourceVisitId)) {
-      return false;
-    }
-
-    const anchorLocation = findScheduleAnchorInDocument(document, anchorId);
-    const sourceVisit = findVisitDefinitionInDocument(document, patch.sourceVisitId);
-    if (
-      anchorLocation &&
-      sourceVisit &&
-      anchorLocation.anchor.anchorType === 'previous-visit' &&
-      sourceVisit.visitDefinition.anchorId === anchorLocation.anchor.id
-    ) {
-      return false;
-    }
+  const document = getProtocolDocument();
+  if (!anchorExists(document, anchorId)) {
+    return false;
   }
-
-  return true;
+  let updated = false;
+  mutateProtocolDocument((draft) => {
+    const anchor = draft.visitSchedule?.anchors.find((item) => item.id === anchorId);
+    if (!anchor) {
+      return;
+    }
+    if (patch.name !== undefined) anchor.name = patch.name.trim();
+    if (patch.anchorType !== undefined) anchor.anchorType = patch.anchorType;
+    if (patch.description !== undefined) anchor.description = patch.description?.trim();
+    draft.metadata.updatedAt = new Date().toISOString();
+    updated = true;
+  });
+  return updated;
 }
 
-/** Updates an existing visit definition by id in the authoritative store document. */
-export function updateVisitDefinition(visitDefinitionId: string, patch: UpdateVisitDefinitionPatch): boolean {
+export function deleteScheduleAnchor(anchorId: string): boolean {
   const document = getProtocolDocument();
-  if (!findVisitDefinitionInDocument(document, visitDefinitionId)) {
+  const usedByVisit = (document.visitSchedule?.visitDefinitions ?? []).some((visit) => visit.anchorId === anchorId);
+  if (usedByVisit) {
     return false;
   }
-
-  if (!visitDefinitionPatchIsValid(document, patch)) {
-    return false;
-  }
-
-  let updated = false;
-
+  let deleted = false;
   mutateProtocolDocument((draft) => {
-    const location = findVisitDefinitionInDocument(draft, visitDefinitionId);
-    if (!location) {
+    const index = draft.visitSchedule?.anchors.findIndex((item) => item.id === anchorId) ?? -1;
+    if (index < 0) {
       return;
     }
+    draft.visitSchedule!.anchors.splice(index, 1);
+    draft.metadata.updatedAt = new Date().toISOString();
+    deleted = true;
+  });
+  return deleted;
+}
 
-    if (patch.anchorId !== undefined && !findScheduleAnchorInDocument(draft, patch.anchorId)) {
+export function updateVisitDefinition(
+  visitId: string,
+  patch: Partial<Omit<CreateVisitDefinitionInput, 'id'>>,
+): boolean {
+  const document = getProtocolDocument();
+  const visit = document.visitSchedule?.visitDefinitions.find((item) => item.id === visitId);
+  if (!visit) {
+    return false;
+  }
+  if (patch.anchorId && !anchorExists(document, patch.anchorId)) {
+    return false;
+  }
+  let updated = false;
+  mutateProtocolDocument((draft) => {
+    const target = draft.visitSchedule?.visitDefinitions.find((item) => item.id === visitId);
+    if (!target) {
       return;
     }
-
-    if (!visitDefinitionPatchIsValid(draft, patch)) {
-      return;
-    }
-
-    const { visitDefinition } = location;
-
-    if (patch.name !== undefined) {
-      visitDefinition.name = patch.name;
-    }
-
-    if (patch.visitType !== undefined) {
-      visitDefinition.visitType = patch.visitType;
-    }
-
-    if (patch.epoch !== undefined) {
-      visitDefinition.epoch = patch.epoch;
-    }
-
-    if (patch.cycleNumber !== undefined) {
-      visitDefinition.cycleNumber = patch.cycleNumber;
-    }
-
-    if (patch.anchorId !== undefined) {
-      visitDefinition.anchorId = patch.anchorId;
-    }
-
-    if (patch.offsetDays !== undefined) {
-      visitDefinition.offsetDays = patch.offsetDays;
-    }
-
-    if (patch.offsetWeeks !== undefined) {
-      visitDefinition.offsetWeeks = patch.offsetWeeks;
-    }
-
-    if (patch.offsetCycles !== undefined) {
-      visitDefinition.offsetCycles = patch.offsetCycles;
-    }
-
-    if (patch.nominalDay !== undefined) {
-      visitDefinition.nominalDay = patch.nominalDay;
-    }
-
-    if (patch.nominalWeek !== undefined) {
-      visitDefinition.nominalWeek = patch.nominalWeek;
-    }
-
-    if (patch.windowBeforeDays !== undefined) {
-      visitDefinition.windowBeforeDays = patch.windowBeforeDays;
-    }
-
-    if (patch.windowAfterDays !== undefined) {
-      visitDefinition.windowAfterDays = patch.windowAfterDays;
-    }
-
-    if (patch.missedVisitPolicy !== undefined) {
-      visitDefinition.missedVisitPolicy = patch.missedVisitPolicy;
-    }
-
-    if (patch.reanchorPolicy !== undefined) {
-      visitDefinition.reanchorPolicy = patch.reanchorPolicy;
-    }
-
-    if (patch.ripplePolicy !== undefined) {
-      visitDefinition.ripplePolicy = patch.ripplePolicy;
-    }
-
-    if (patch.preserveOriginalSchedule !== undefined) {
-      visitDefinition.preserveOriginalSchedule = patch.preserveOriginalSchedule;
-    }
-
-    if (patch.armRestrictions !== undefined) {
-      visitDefinition.armRestrictions = [...patch.armRestrictions];
-    }
-
-    if (patch.description !== undefined) {
-      visitDefinition.description = patch.description;
-    }
-
-    if (patch.metadata !== undefined) {
-      visitDefinition.metadata = { ...visitDefinition.metadata, ...patch.metadata };
-    }
-
+    if (patch.name !== undefined) target.name = patch.name.trim();
+    if (patch.visitType !== undefined) target.visitType = patch.visitType;
+    if (patch.anchorId !== undefined) target.anchorId = patch.anchorId;
+    if (patch.epoch !== undefined) target.epoch = patch.epoch?.trim();
+    if (patch.required !== undefined) target.required = patch.required;
+    if (patch.description !== undefined) target.description = patch.description?.trim();
+    if (patch.nominalDay !== undefined) target.nominalDay = patch.nominalDay;
+    if (patch.nominalWeek !== undefined) target.nominalWeek = patch.nominalWeek;
+    if (patch.windowBeforeDays !== undefined) target.windowBeforeDays = patch.windowBeforeDays;
+    if (patch.windowAfterDays !== undefined) target.windowAfterDays = patch.windowAfterDays;
+    if (patch.offsetDays !== undefined) target.offsetDays = patch.offsetDays;
+    if (patch.offsetWeeks !== undefined) target.offsetWeeks = patch.offsetWeeks;
+    if (patch.order !== undefined) target.order = patch.order;
+    target.metadata = { ...target.metadata, inferenceSource: 'user-modified' };
     draft.metadata.updatedAt = new Date().toISOString();
     regenerateScheduleCacheAfterMutation(draft);
     updated = true;
   });
-
   return updated;
 }
 
-/** Updates an existing schedule anchor by id in the authoritative store document. */
-export function updateScheduleAnchor(anchorId: string, patch: UpdateScheduleAnchorPatch): boolean {
+export function deleteVisitDefinition(visitId: string): boolean {
   const document = getProtocolDocument();
-  if (!findScheduleAnchorInDocument(document, anchorId)) {
+  const hasRules = (document.assessmentScheduleRules ?? []).some((rule) => rule.visitDefinitionId === visitId);
+  if (hasRules) {
     return false;
   }
-
-  if (!scheduleAnchorPatchIsValid(document, anchorId, patch)) {
-    return false;
-  }
-
-  let updated = false;
-
+  let deleted = false;
   mutateProtocolDocument((draft) => {
-    const location = findScheduleAnchorInDocument(draft, anchorId);
-    if (!location) {
+    const index = draft.visitSchedule?.visitDefinitions.findIndex((item) => item.id === visitId) ?? -1;
+    if (index < 0) {
       return;
     }
-
-    if (!scheduleAnchorPatchIsValid(draft, anchorId, patch)) {
-      return;
-    }
-
-    const { anchor } = location;
-
-    if (patch.name !== undefined) {
-      anchor.name = patch.name;
-    }
-
-    if (patch.anchorType !== undefined) {
-      anchor.anchorType = patch.anchorType;
-    }
-
-    if (patch.sourceVisitId !== undefined) {
-      anchor.sourceVisitId = patch.sourceVisitId;
-    }
-
-    if (patch.sourceEventType !== undefined) {
-      anchor.sourceEventType = patch.sourceEventType;
-    }
-
-    if (patch.description !== undefined) {
-      anchor.description = patch.description;
-    }
-
+    draft.visitSchedule!.visitDefinitions.splice(index, 1);
     draft.metadata.updatedAt = new Date().toISOString();
     regenerateScheduleCacheAfterMutation(draft);
-    updated = true;
+    deleted = true;
   });
-
-  return updated;
+  return deleted;
 }

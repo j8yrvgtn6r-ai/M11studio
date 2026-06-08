@@ -23,10 +23,15 @@ import { isSoAConfigurationEmpty } from './soaConfigurationEmpty';
 import { SoAConfigurationAssessmentsTab } from './SoAConfigurationAssessmentsTab';
 import { SoAConfigurationMatrixTab } from './SoAConfigurationMatrixTab';
 import { SoAConfigurationPlaceholderTab } from './SoAConfigurationPlaceholderTab';
-import { SoAConfigurationVisitsTab } from './SoAConfigurationVisitsTab';
 import { SoAProposalActions } from '../soa-knowledge/SoAProposalReviewPanel';
 import { SoAEnrichmentActions } from '../soa-knowledge/SoAEnrichmentProposalReviewPanel';
 import { CHANGE_CONTROL_PLACEHOLDER, SOA_CONFIGURATION_TABS } from './soaConfigurationTabs';
+import { StudyDesignSummaryPanel } from '../study-design/StudyDesignSummaryPanel';
+import { StudyDesignEntityTab } from '../study-design/StudyDesignEntityTab';
+import { StudyTimelineView } from '../study-design/StudyTimelineView';
+import { SoAKnowledgeEntityTab } from './SoAKnowledgeEntityTab';
+import { hasStudyDesign } from '../../domain/study-design';
+import { useSoAReadiness } from './useSoAReadiness';
 
 interface SoAConfigurationShellProps {
   onCellClick: (visitId: string, assessmentId: string) => void;
@@ -54,13 +59,27 @@ export function SoAConfigurationShell({ onCellClick }: SoAConfigurationShellProp
   const cacheStale = useMemo(() => isAuthoritativeScheduleCacheStale(), [protocolRevision]);
   const lifecycleLabel = formatLifecycleStatus(document.metadata.lifecycleStatus);
   const soaEmpty = useMemo(() => isSoAConfigurationEmpty(document), [document]);
+  const { firstPass } = useSoAReadiness();
+  const studyDesignExists = useMemo(() => {
+    void protocolRevision;
+    return hasStudyDesign();
+  }, [protocolRevision]);
 
   function renderTabContent(tab: (typeof SOA_CONFIGURATION_TABS)[number]) {
     switch (tab.id) {
+      case 'epochs':
+      case 'arms':
+      case 'visits':
+      case 'activities':
+      case 'milestones':
+        return <StudyDesignEntityTab tab={tab} />;
+      case 'timeline':
+        return <StudyTimelineView />;
+      case 'elements':
+      case 'conditional-logic':
+        return <SoAKnowledgeEntityTab tab={tab} />;
       case 'soa-assessments':
         return <SoAConfigurationAssessmentsTab />;
-      case 'visits':
-        return <SoAConfigurationVisitsTab />;
       case 'matrix':
         return <SoAConfigurationMatrixTab onCellClick={onCellClick} />;
       default:
@@ -87,6 +106,16 @@ export function SoAConfigurationShell({ onCellClick }: SoAConfigurationShellProp
             </p>
             <p className="text-[11px] text-muted-foreground/80 mt-0.5">Section 1.3 Schedule of Activities</p>
             <div className="mt-2 space-y-2">
+              <StudyDesignSummaryPanel />
+              {!studyDesignExists ? (
+                <p className="text-xs text-muted-foreground max-w-xl" data-testid="soa-first-pass-readiness-guidance">
+                  Build Study Design before generating a first-pass SoA.
+                </p>
+              ) : !firstPass.ready ? (
+                <p className="text-xs text-muted-foreground max-w-xl">
+                  Study Design is ready. Generate First-Pass SoA to derive the schedule matrix.
+                </p>
+              ) : null}
               <SoAProposalActions compact />
               <SoAEnrichmentActions compact />
             </div>
@@ -148,26 +177,15 @@ export function SoAConfigurationShell({ onCellClick }: SoAConfigurationShellProp
 
         <div className="flex-1 min-h-0 overflow-auto">
           <div className="p-4 h-full min-h-0">
-            {soaEmpty ? (
-              <div
-                className="flex h-full min-h-[280px] items-center justify-center rounded-lg border border-dashed border-border bg-muted/10 px-6 text-center"
-                data-testid="soa-configuration-empty-state"
+            {SOA_CONFIGURATION_TABS.map((tab) => (
+              <TabsContent
+                key={tab.id}
+                value={tab.id}
+                className="mt-0 outline-none h-full min-h-0 data-[state=inactive]:hidden"
               >
-                <p className="max-w-md text-sm text-muted-foreground">
-                  No SoA has been created yet. Generate a first-pass SoA or add schedule items manually.
-                </p>
-              </div>
-            ) : (
-              SOA_CONFIGURATION_TABS.map((tab) => (
-                <TabsContent
-                  key={tab.id}
-                  value={tab.id}
-                  className="mt-0 outline-none h-full min-h-0 data-[state=inactive]:hidden"
-                >
-                  {renderTabContent(tab)}
-                </TabsContent>
-              ))
-            )}
+                {renderTabContent(tab)}
+              </TabsContent>
+            ))}
           </div>
         </div>
       </Tabs>

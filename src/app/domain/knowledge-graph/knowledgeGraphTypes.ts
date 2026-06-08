@@ -16,6 +16,10 @@ export type KnowledgeEntityType =
   | 'terminologyTerm'
   | 'documentSection'
   | 'sourceDocument'
+  | 'epoch'
+  | 'milestone'
+  | 'scheduleAnchor'
+  | 'scheduleRule'
   | 'other';
 
 export type KnowledgeRelationshipType =
@@ -35,7 +39,12 @@ export type KnowledgeRelationshipType =
   | 'has_assessment'
   | 'has_population'
   | 'has_statistical_method'
-  | 'related_to';
+  | 'related_to'
+  | 'occurs_during'
+  | 'condition_applies_to'
+  | 'anchored_to'
+  | 'occurs_after'
+  | 'occurs_before';
 
 export interface KnowledgeEntity {
   id: string;

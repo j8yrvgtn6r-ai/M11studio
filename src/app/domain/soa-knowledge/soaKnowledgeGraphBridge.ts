@@ -137,12 +137,49 @@ export function buildKnowledgeGraphPatchFromSoAKnowledge(
           activity.inferenceSource,
         ),
       );
+      relationships.push(
+        buildRelationship(
+          entityId('activity', activity.id),
+          entityId('visit', activity.visitId),
+          'occurs_during',
+          activity.sourceSectionIds,
+          model.protocolId,
+          activity.inferenceSource,
+        ),
+      );
+    }
+    if (activity.elementId) {
+      const element = model.elements.find((item) => item.id === activity.elementId);
+      if (element?.epochId) {
+        relationships.push(
+          buildRelationship(
+            entityId('activity', activity.id),
+            entityId('other', element.epochId),
+            'occurs_during',
+            activity.sourceSectionIds,
+            model.protocolId,
+            activity.inferenceSource,
+          ),
+        );
+      }
     }
   }
   for (const assessment of model.assessments) {
     entities.push(
       buildEntity(assessment.id, 'assessment', assessment.name, assessment.sourceSectionIds, model.protocolId, assessment.inferenceSource),
     );
+    for (const visitId of assessment.linkedVisitIds ?? []) {
+      relationships.push(
+        buildRelationship(
+          entityId('assessment', assessment.id),
+          entityId('visit', visitId),
+          'occurs_during',
+          assessment.sourceSectionIds,
+          model.protocolId,
+          assessment.inferenceSource,
+        ),
+      );
+    }
   }
   for (const procedure of model.procedures) {
     entities.push(
@@ -165,6 +202,31 @@ export function buildKnowledgeGraphPatchFromSoAKnowledge(
   for (const condition of model.conditions) {
     entities.push(
       buildEntity(condition.id, 'other', condition.label, condition.sourceSectionIds, model.protocolId, condition.inferenceSource),
+    );
+    if (condition.appliesToEntityId) {
+      const targetPrefix = condition.appliesToEntityKind === 'visit'
+        ? 'visit'
+        : condition.appliesToEntityKind === 'activity'
+          ? 'activity'
+          : condition.appliesToEntityKind === 'assessment'
+            ? 'assessment'
+            : 'other';
+      relationships.push(
+        buildRelationship(
+          entityId('other', condition.id),
+          entityId(targetPrefix, condition.appliesToEntityId),
+          'condition_applies_to',
+          condition.sourceSectionIds,
+          model.protocolId,
+          condition.inferenceSource,
+        ),
+      );
+    }
+  }
+
+  for (const milestone of model.milestones ?? []) {
+    entities.push(
+      buildEntity(milestone.id, 'other', milestone.name, milestone.sourceSectionIds, model.protocolId, milestone.inferenceSource),
     );
   }
 
@@ -211,6 +273,16 @@ export function buildKnowledgeGraphPatchFromSoAKnowledge(
           entityId('other', rule.conditionId),
           entityId('assessment', rule.assessmentId),
           'requires',
+          rule.sourceSectionIds,
+          model.protocolId,
+          rule.inferenceSource,
+        ),
+      );
+      relationships.push(
+        buildRelationship(
+          entityId('other', rule.conditionId),
+          entityId('assessment', rule.assessmentId),
+          'condition_applies_to',
           rule.sourceSectionIds,
           model.protocolId,
           rule.inferenceSource,
